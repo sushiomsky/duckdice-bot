@@ -1,5 +1,38 @@
 # 🎯 Complete Feature Overview
 
+## 🖥️ DuckDice GUI
+
+### Graphical Interface Features
+✅ **User-Friendly Interface** - Intuitive Tkinter-based GUI
+✅ **Multiple Tabs** - Organized access to all features
+✅ **Settings Panel** - Easy API key and configuration management
+✅ **Real-Time Output** - Live display of bet results and responses
+✅ **Auto-Betting Support** - Integrated automated betting strategies
+✅ **No Extra Dependencies** - Uses standard Python Tkinter
+
+### Available Tabs
+| Tab | Description |
+|-----|-------------|
+| **Dice** | Play Original Dice game with high/low betting |
+| **Range Dice** | Bet on numbers being in or out of a range |
+| **Stats** | View currency statistics and balances |
+| **User Info** | Display comprehensive account information |
+| **Auto Bet** | Run automated betting with strategy selection |
+
+### Quick Launch
+```bash
+# Direct launch
+python duckdice_gui.py
+
+# Or via package entry point
+pip install -e .
+duckdice-gui
+```
+
+![DuckDice GUI Screenshot](https://github.com/user-attachments/assets/ff443b51-b569-4e13-bbae-c70373aece45)
+
+---
+
 ## 🛠️ DuckDice CLI Tool
 
 ### Core API Commands
@@ -297,6 +330,12 @@ Best Model: LSTM
 
 ## 📦 Installation Summary
 
+### GUI Tool
+```bash
+pip install -r requirements.txt
+python duckdice_gui.py
+```
+
 ### CLI Tool
 ```bash
 pip install -r requirements.txt
@@ -338,6 +377,9 @@ python main_analysis.py
 ## 🚀 Quick Commands
 
 ```bash
+# GUI: Launch interface
+python duckdice_gui.py
+
 # CLI: Check balance
 python duckdice.py --api-key KEY user-info
 

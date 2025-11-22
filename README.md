@@ -15,6 +15,16 @@ A comprehensive command-line interface for the [DuckDice Bot API](https://duckdi
 ✅ **Multiple Output Formats** - Human-readable or JSON output
 ✅ **Error Handling** - Comprehensive error messages and handling
 
+### DuckDice GUI (NEW! 🖥️)
+✅ **Graphical Interface** - User-friendly Tkinter-based GUI
+✅ **All CLI Features** - Complete access to dice, range dice, stats, and user info
+✅ **Auto-Betting** - Automated betting with configurable strategies
+✅ **Real-time Output** - Live bet results and statistics
+✅ **Easy Configuration** - Simple API key and settings management
+✅ **No Extra Dependencies** - Uses standard Python Tkinter library
+
+![DuckDice GUI](https://github.com/user-attachments/assets/ff443b51-b569-4e13-bbae-c70373aece45)
+
 ### RNG Analysis Tool (NEW! 🔬)
 ✅ **Statistical Analysis** - Distribution tests, autocorrelation, runs test
 ✅ **Machine Learning** - Random Forest, XGBoost, Neural Networks
@@ -49,6 +59,50 @@ pip install -r requirements.txt
 ```bash
 chmod +x duckdice.py
 ```
+
+## Using the GUI
+
+### Quick Start
+
+The easiest way to use DuckDice is with the graphical interface:
+
+```bash
+# Launch the GUI
+python duckdice_gui.py
+```
+
+Or if installed as a package:
+```bash
+pip install -e .
+duckdice-gui
+```
+
+### GUI Features
+
+The GUI provides an intuitive interface with the following tabs:
+
+- **Dice** - Play the original dice game with high/low betting
+- **Range Dice** - Bet on numbers being in or out of a specific range
+- **Stats** - View currency statistics and balances
+- **User Info** - Display comprehensive user account information
+- **Auto Bet** - Run automated betting strategies with configurable parameters
+
+### GUI Configuration
+
+1. Enter your API key in the Settings section (it will be masked with asterisks)
+2. Configure the Base URL and Timeout if needed
+3. Check "JSON output" for raw API responses
+4. Select a tab to access different features
+5. View results in the Output section at the bottom
+
+### GUI Auto-Betting
+
+The Auto Bet tab allows you to:
+- Select from available betting strategies
+- Configure strategy parameters (JSON format)
+- Set number of bets and stop conditions
+- Monitor real-time bet results
+- Stop the auto-betting at any time
 
 ## Usage
 
