@@ -167,7 +167,7 @@ class TestRNGStrategyIntegration(unittest.TestCase):
         
         strategy = StrategyClass(params, ctx)
         
-        # Simulate a loss
+        # Simulate a loss - using only required and applicable fields
         result: BetResult = {
             'win': False,
             'profit': '-0.000001',
@@ -176,6 +176,8 @@ class TestRNGStrategyIntegration(unittest.TestCase):
             'payout': '2.0',
             'chance': '50',
             'is_high': True,
+            'range': None,  # Not applicable for dice game
+            'is_in': None,  # Not applicable for dice game
             'api_raw': {},
             'simulated': True,
             'timestamp': 0.0

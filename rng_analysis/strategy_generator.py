@@ -11,6 +11,12 @@ from pathlib import Path
 from typing import Dict, Any, Optional, List
 from datetime import datetime
 
+# Threshold constants for predictive power and exploitability assessment
+PREDICTIVE_POWER_LOW_THRESHOLD = 5.0    # < 5% improvement = low predictive power
+PREDICTIVE_POWER_MODERATE_THRESHOLD = 10.0  # < 10% = moderate, >= 10% = high
+EXPLOITABILITY_NONE_THRESHOLD = 5.0     # < 5% = none
+EXPLOITABILITY_LOW_THRESHOLD = 10.0     # < 10% = very low, >= 10% = low
+
 
 class StrategyGenerator:
     """Generate betting strategy configurations from RNG analysis results"""
@@ -72,13 +78,14 @@ class StrategyGenerator:
                            key=lambda x: x[1].get('improvement', -float('inf')) 
                            if 'error' not in x[1] else -float('inf'))
             
+            improvement = best_model[1].get('improvement', 0)
             insights['ml_summary'] = {
                 'best_model': best_model[0],
                 'mae': float(best_model[1].get('mae', 0)),
-                'improvement_over_baseline': float(best_model[1].get('improvement', 0)),
+                'improvement_over_baseline': float(improvement),
                 'r2_score': float(best_model[1].get('r2', 0)),
-                'predictive_power': 'low' if best_model[1].get('improvement', 0) < 5 else 
-                                   'moderate' if best_model[1].get('improvement', 0) < 10 else 'high',
+                'predictive_power': 'low' if improvement < PREDICTIVE_POWER_LOW_THRESHOLD else 
+                                   'moderate' if improvement < PREDICTIVE_POWER_MODERATE_THRESHOLD else 'high',
             }
         
         # Pattern insights from data
@@ -101,10 +108,10 @@ class StrategyGenerator:
         max_improvement = insights['ml_summary'].get('improvement_over_baseline', 0)
         
         insights['risk_assessment'] = {
-            'exploitability': 'none' if max_improvement < 5 else 
-                             'very_low' if max_improvement < 10 else 'low',
-            'confidence_level': 'low' if max_improvement < 5 else 'moderate',
-            'recommended_action': 'Do not use for real betting' if max_improvement < 10 else 
+            'exploitability': 'none' if max_improvement < EXPLOITABILITY_NONE_THRESHOLD else 
+                             'very_low' if max_improvement < EXPLOITABILITY_LOW_THRESHOLD else 'low',
+            'confidence_level': 'low' if max_improvement < PREDICTIVE_POWER_LOW_THRESHOLD else 'moderate',
+            'recommended_action': 'Do not use for real betting' if max_improvement < EXPLOITABILITY_LOW_THRESHOLD else 
                                  'Educational only - high overfitting risk',
             'warnings': [
                 'Cryptographic RNG is designed to be unpredictable',
@@ -153,7 +160,7 @@ class StrategyGenerator:
         # Pattern-based recommendation (if any patterns detected)
         improvement = insights.get('ml_summary', {}).get('improvement_over_baseline', 0)
         
-        if improvement > 5:
+        if improvement > PREDICTIVE_POWER_LOW_THRESHOLD:
             # If moderate improvement detected (likely overfitting)
             win_rate = insights.get('pattern_insights', {}).get('overall_win_rate', 0.5)
             high_freq = insights.get('pattern_insights', {}).get('high_number_frequency', 0.5)

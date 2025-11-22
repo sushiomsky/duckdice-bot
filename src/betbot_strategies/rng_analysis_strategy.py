@@ -18,6 +18,14 @@ from pathlib import Path
 from . import register
 from .base import StrategyContext, BetSpec, BetResult
 
+# Pattern detection thresholds
+PATTERN_HIGH_NUMBER_THRESHOLD = 0.52  # > 52% high numbers suggests high betting bias
+PATTERN_LOW_NUMBER_THRESHOLD = 0.52   # > 52% low numbers suggests low betting bias
+PATTERN_HOT_STREAK_THRESHOLD = 0.7    # > 70% wins = hot streak pattern
+PATTERN_COLD_STREAK_THRESHOLD = 0.3   # < 30% wins = cold streak pattern
+PATTERN_ALTERNATING_THRESHOLD = 0.7   # > 70% alternations = alternating pattern
+RECENT_WIN_RATE_RESET_THRESHOLD = 0.3 # < 30% recent wins = reset multiplier
+
 
 @register("rng-analysis-strategy")
 class RNGAnalysisStrategy:
@@ -123,9 +131,9 @@ class RNGAnalysisStrategy:
                 pattern_insights = self._analysis_config.get('pattern_insights', {})
                 
                 # Adjust betting direction based on pattern insights
-                if pattern_insights.get('high_number_frequency', 0.5) > 0.52:
+                if pattern_insights.get('high_number_frequency', 0.5) > PATTERN_HIGH_NUMBER_THRESHOLD:
                     self.is_high = True
-                elif pattern_insights.get('low_number_frequency', 0.5) > 0.52:
+                elif pattern_insights.get('low_number_frequency', 0.5) > PATTERN_LOW_NUMBER_THRESHOLD:
                     self.is_high = False
                     
                 print(f"📊 Loaded RNG analysis config from {config_path}")
@@ -171,11 +179,11 @@ class RNGAnalysisStrategy:
         alternating_rate = alternating / (len(recent) - 1)
         
         # Detect patterns (note: these are likely spurious)
-        if win_rate > 0.7:
+        if win_rate > PATTERN_HOT_STREAK_THRESHOLD:
             return 'hot_streak'
-        elif win_rate < 0.3:
+        elif win_rate < PATTERN_COLD_STREAK_THRESHOLD:
             return 'cold_streak'
-        elif alternating_rate > 0.7:
+        elif alternating_rate > PATTERN_ALTERNATING_THRESHOLD:
             return 'alternating'
         
         return None
@@ -263,7 +271,7 @@ class RNGAnalysisStrategy:
             recent_win_rate = sum(1 for r in recent if r.get('win', False)) / len(recent)
             
             # If doing very poorly, reset multiplier
-            if recent_win_rate < 0.3:
+            if recent_win_rate < RECENT_WIN_RATE_RESET_THRESHOLD:
                 self._current_multiplier = 1.0
 
     def on_session_end(self, reason: str) -> None:
