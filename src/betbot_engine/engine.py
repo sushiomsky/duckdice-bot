@@ -29,6 +29,7 @@ try:
     from betbot_strategies import range50_random  # noqa: F401
     from betbot_strategies import max_wager_flow  # noqa: F401
     from betbot_strategies import faucet_cashout  # noqa: F401
+    from betbot_strategies import rng_analysis_strategy  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass
