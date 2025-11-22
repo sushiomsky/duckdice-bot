@@ -2,14 +2,51 @@
 
 ## Overview
 
-This repository contains two main tools:
+This repository contains three main tools:
 
-1. **DuckDice CLI** - Command-line tool for DuckDice API
-2. **RNG Analysis** - Machine learning analysis of the RNG
+1. **DuckDice GUI** - Graphical interface for DuckDice API
+2. **DuckDice CLI** - Command-line tool for DuckDice API
+3. **RNG Analysis** - Machine learning analysis of the RNG
 
 ---
 
-## Part 1: DuckDice CLI Tool
+## Part 1: DuckDice GUI
+
+### What It Does
+- Graphical interface for easy interaction
+- Place bets with a user-friendly interface
+- Check account stats visually
+- Get user information
+- Run automated betting strategies
+- Real-time output and results
+
+### Quick Start
+
+```bash
+# Install dependencies
+pip install -r requirements.txt
+
+# Launch the GUI
+python duckdice_gui.py
+
+# Or install as a package and use the command
+pip install -e .
+duckdice-gui
+```
+
+### Using the GUI
+1. Enter your API key in the Settings section
+2. Choose a tab (Dice, Range Dice, Stats, User Info, or Auto Bet)
+3. Fill in the required fields
+4. Click the action button (Place Bet, Get Stats, etc.)
+5. View results in the Output section
+
+### Documentation
+- Full guide: [README.md](README.md#using-the-gui)
+
+---
+
+## Part 2: DuckDice CLI Tool
 
 ### What It Does
 - Place bets via command line
@@ -37,7 +74,7 @@ python duckdice.py --api-key YOUR_API_KEY dice \
 
 ---
 
-## Part 2: RNG Analysis Tool
+## Part 3: RNG Analysis Tool
 
 ### What It Does
 Attempts to "attack" the DuckDice RNG using:
@@ -107,26 +144,34 @@ Even if patterns appear:
 
 ```
 duckdice-cli/
-├── duckdice.py              # Main CLI tool
-├── requirements.txt         # CLI dependencies
-├── README.md               # Main documentation
-├── QUICK_START.md          # CLI quick start
+├── duckdice_gui.py         # GUI application
+├── duckdice.py             # Main CLI tool
+├── requirements.txt        # CLI dependencies
+├── README.md              # Main documentation
+├── QUICK_START.md         # CLI quick start
 │
-├── examples/               # Example scripts
+├── src/                   # Source packages
+│   ├── duckdice_api/      # API client
+│   ├── duckdice_cli/      # CLI implementation
+│   ├── duckdice_gui_app/  # GUI entry point
+│   ├── betbot_engine/     # Auto-betting engine
+│   └── betbot_strategies/ # Betting strategies
+│
+├── examples/              # Example scripts
 │   ├── auto_bet.py
 │   ├── balance_tracker.py
 │   └── stats_monitor.sh
 │
-├── rng_analysis/           # RNG Analysis toolkit
-│   ├── main_analysis.py    # Run all analyses
+├── rng_analysis/          # RNG Analysis toolkit
+│   ├── main_analysis.py   # Run all analyses
 │   ├── pattern_analyzer.py # Statistical tests
-│   ├── ml_predictor.py     # Machine learning
+│   ├── ml_predictor.py    # Machine learning
 │   ├── deep_learning_predictor.py  # Neural networks
-│   ├── visualizer.py       # Visualizations
-│   ├── README.md          # Full documentation
+│   ├── visualizer.py      # Visualizations
+│   ├── README.md         # Full documentation
 │   └── QUICK_START_ANALYSIS.md  # Quick start
 │
-└── bet_history/            # Your CSV files go here
+└── bet_history/           # Your CSV files go here
     ├── bets_1.csv
     └── ...
 ```
@@ -135,33 +180,56 @@ duckdice-cli/
 
 ## Common Tasks
 
-### 1. Check Your Balance
+### 1. Launch the GUI
 
 ```bash
+python duckdice_gui.py
+```
+
+### 2. Check Your Balance
+
+```bash
+# CLI
 python duckdice.py --api-key YOUR_KEY user-info
+
+# Or use the GUI's "User Info" tab
 ```
 
-### 2. Get Currency Stats
+### 3. Get Currency Stats
 
 ```bash
+# CLI
 python duckdice.py --api-key YOUR_KEY stats --symbol BTC
+
+# Or use the GUI's "Stats" tab
 ```
 
-### 3. Place Automatic Bets
+### 4. Place Bets
 
 ```bash
-# See examples/auto_bet.py
-python examples/auto_bet.py
+# CLI
+python duckdice.py --api-key YOUR_KEY dice --symbol XLM --amount 0.1 --chance 50 --high --faucet
+
+# Or use the GUI's "Dice" or "Range Dice" tabs
 ```
 
-### 4. Analyze Your Bet History
+### 5. Place Automatic Bets
+
+```bash
+# CLI - See examples/auto_bet.py
+python examples/auto_bet.py
+
+# Or use the GUI's "Auto Bet" tab
+```
+
+### 6. Analyze Your Bet History
 
 ```bash
 cd rng_analysis
 python main_analysis.py
 ```
 
-### 5. Create Visualizations
+### 7. Create Visualizations
 
 ```bash
 cd rng_analysis
@@ -172,8 +240,14 @@ python visualizer.py
 
 ## What You'll Learn
 
+### From the GUI
+- ✅ Easy interaction with DuckDice API
+- ✅ Visual representation of betting
+- ✅ Real-time monitoring of results
+- ✅ Strategy configuration and testing
+
 ### From the CLI Tool
-- ✅ How to use DuckDice API
+- ✅ How to use DuckDice API programmatically
 - ✅ Automation and scripting
 - ✅ JSON data handling
 
@@ -188,6 +262,12 @@ python visualizer.py
 ---
 
 ## Next Steps
+
+### For GUI Usage
+1. Get your API key from DuckDice.io
+2. Launch the GUI with `python duckdice_gui.py`
+3. Enter your API key in the Settings section
+4. Explore the different tabs and features
 
 ### For CLI Usage
 1. Get your API key from DuckDice.io
