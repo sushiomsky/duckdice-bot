@@ -15,7 +15,7 @@ A comprehensive command-line interface for the [DuckDice Bot API](https://duckdi
 ✅ **Multiple Output Formats** - Human-readable or JSON output
 ✅ **Error Handling** - Comprehensive error messages and handling
 
-### RNG Analysis Tool (NEW! 🔬)
+### RNG Analysis Tool 🔬
 ✅ **Statistical Analysis** - Distribution tests, autocorrelation, runs test
 ✅ **Machine Learning** - Random Forest, XGBoost, Neural Networks
 ✅ **Deep Learning** - LSTM, GRU, CNN-LSTM, Attention models
@@ -24,6 +24,16 @@ A comprehensive command-line interface for the [DuckDice Bot API](https://duckdi
 ✅ **Educational** - Learn why cryptographic RNG is secure
 
 [→ See RNG Analysis Documentation](rng_analysis/README.md)
+
+### RNG Analysis to Bot Strategy (NEW! 🤖)
+✅ **Strategy Generator** - Convert analysis results to betting strategies
+✅ **Multiple Recommendations** - Conservative, pattern-adapted, Kelly strategies
+✅ **Risk Assessment** - Evaluates exploitability (usually none)
+✅ **Ready to Use** - JSON and Python configuration formats
+✅ **Auto-Integration** - Works with auto-bet engine
+✅ **Educational Focus** - Demonstrates why patterns don't work
+
+[→ See Strategy Integration Guide](docs/RNG_ANALYSIS_TO_STRATEGY_GUIDE.md) | [Quick Start](rng_analysis/STRATEGY_QUICKSTART.md)
 
 ## Installation
 
@@ -491,6 +501,28 @@ python main_analysis.py
 ```
 
 **See [RNG Analysis README](rng_analysis/README.md) for complete documentation.**
+
+### 🆕 Convert Analysis to Bot Strategy
+
+You can now use RNG analysis results to create ready-to-use betting strategies!
+
+```bash
+# 1. Generate strategy from analysis
+cd rng_analysis
+python strategy_generator.py
+
+# 2. Use the generated strategy
+python ../examples/use_rng_analysis_strategy.py --api-key YOUR_KEY --dry-run
+```
+
+**See [RNG Analysis to Strategy Guide](docs/RNG_ANALYSIS_TO_STRATEGY_GUIDE.md) for details.**
+
+**Features:**
+- 🎯 Converts analysis insights into strategy configurations
+- 📊 Multiple recommendation levels (conservative to experimental)
+- ⚙️ JSON and Python export formats
+- 🤖 Ready-to-use with the auto-bet engine
+- ⚠️ Educational only - includes comprehensive warnings
 
 ### ⚠️ Important Disclaimer
 
