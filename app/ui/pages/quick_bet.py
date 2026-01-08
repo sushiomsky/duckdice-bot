@@ -179,14 +179,38 @@ def quick_bet_content():
         roll_btn.props(remove='disable')
         
         if success and result:
-            # Show result
+            # Show animated result
+            with ui.dialog() as result_dialog, ui.card().classes('p-6 text-center'):
+                # Result icon
+                if result.is_win:
+                    ui.icon('celebration', size='4rem', color=Theme.ACCENT).classes('mb-4')
+                    ui.label('🎉 WIN!').classes('text-3xl font-bold mb-2').style(f'color: {Theme.ACCENT}')
+                    ui.label(f'+{result.profit:.8f} {store.currency}').classes('text-2xl font-bold')
+                else:
+                    ui.icon('sentiment_dissatisfied', size='4rem', color=Theme.ERROR).classes('mb-4')
+                    ui.label('Better Luck Next Time').classes('text-2xl font-bold mb-2').style(f'color: {Theme.ERROR}')
+                    ui.label(f'{result.profit:.8f} {store.currency}').classes('text-xl font-bold')
+                
+                ui.separator().classes('my-4')
+                
+                # Bet details
+                with ui.column().classes('gap-1 text-left w-full'):
+                    ui.label(f'Roll: {result.result:.2f}').classes('text-sm text-slate-400')
+                    ui.label(f'Target: {result.target:.2f} ({target_select.value})').classes('text-sm text-slate-400')
+                    ui.label(f'Chance: {result.chance:.2f}%').classes('text-sm text-slate-400')
+                
+                secondary_button('Close', on_click=lambda: result_dialog.close(), icon='close').classes('mt-4 w-full')
+            
+            result_dialog.open()
+            
+            # Also show toast
             if result.is_win:
                 toast(f'🎉 WIN! +{result.profit:.8f} {store.currency}', 'success')
             else:
                 toast(f'❌ Loss: {result.profit:.8f} {store.currency}', 'error')
             
-            # Update display
-            ui.navigate.to('/quick-bet')
+            # Refresh balances
+            await backend.refresh_balances()
         else:
             toast(message, 'error')
     

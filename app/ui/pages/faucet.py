@@ -11,6 +11,24 @@ from app.ui.theme import Theme
 from app.state.store import store
 from app.services.backend import backend
 from datetime import datetime, timedelta
+import asyncio
+
+
+async def update_countdown(label, next_claim_time):
+    """Update countdown timer"""
+    while True:
+        if not next_claim_time:
+            label.set_text('Ready to claim!')
+            break
+        
+        now = datetime.now()
+        if now >= next_claim_time:
+            label.set_text('Ready to claim!')
+            break
+        
+        remaining = int((next_claim_time - now).total_seconds())
+        label.set_text(f'⏳ Next claim in {remaining}s')
+        await asyncio.sleep(1)
 
 
 def faucet_content():
@@ -41,6 +59,18 @@ def faucet_content():
     with card().classes('mt-6'):
         ui.label('Manual Claim').classes('text-lg font-semibold mb-4')
         
+        # Check if on cooldown
+        can_claim = True
+        if store.faucet_next_claim:
+            can_claim = datetime.now() >= store.faucet_next_claim
+        
+        # Countdown label
+        countdown_label = ui.label('Ready to claim!').classes('text-sm text-slate-400 mb-3')
+        
+        # Start countdown if needed
+        if not can_claim and store.faucet_next_claim:
+            asyncio.create_task(update_countdown(countdown_label, store.faucet_next_claim))
+        
         # Claim button with countdown
         async def claim_faucet():
             claim_btn.props('loading')
@@ -49,35 +79,25 @@ def faucet_content():
             success, message = await backend.claim_faucet()
             
             claim_btn.props(remove='loading')
-            claim_btn.props(remove='disable')
             
             if success:
                 toast(message, 'success')
                 # Set cooldown
                 store.faucet_last_claim = datetime.now()
                 store.faucet_next_claim = datetime.now() + timedelta(seconds=60)
-                ui.navigate.to('/faucet')
+                # Restart countdown
+                asyncio.create_task(update_countdown(countdown_label, store.faucet_next_claim))
+                claim_btn.props('disable')
             else:
                 toast(message, 'error')
+                claim_btn.props(remove='disable')
         
-        # Check if on cooldown
-        can_claim = True
-        if store.faucet_next_claim:
-            can_claim = datetime.now() >= store.faucet_next_claim
-        
-        if can_claim:
-            claim_btn = primary_button(
-                '💧 Claim Faucet',
-                on_click=claim_faucet,
-                icon='water_drop'
-            ).classes('w-full')
-        else:
-            # Show countdown
-            remaining = (store.faucet_next_claim - datetime.now()).total_seconds()
-            claim_btn = primary_button(
-                f'⏳ Next claim in {int(remaining)}s',
-                disabled=True
-            ).classes('w-full')
+        claim_btn = primary_button(
+            '💧 Claim Faucet',
+            on_click=claim_faucet,
+            icon='water_drop',
+            disabled=not can_claim
+        ).classes('w-full')
         
         # Cooldown info
         if store.faucet_last_claim:

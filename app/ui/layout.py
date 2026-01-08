@@ -12,6 +12,7 @@ from app.state.store import store
 def create_header():
     """
     Sticky header - always visible with connection status
+    Responsive: collapses on mobile
     """
     with ui.header().classes('shadow-md').style(f'''
         background-color: {Theme.BG_SECONDARY};
@@ -21,10 +22,11 @@ def create_header():
             # Logo and title
             with ui.row().classes('items-center gap-3'):
                 ui.icon('casino', size='lg', color=Theme.PRIMARY)
-                ui.label('DuckDice Bot').classes('text-xl font-bold')
+                ui.label('DuckDice Bot').classes('text-xl font-bold hidden sm:block')
+                ui.label('DDB').classes('text-xl font-bold sm:hidden')
             
-            # Mode indicators
-            with ui.row().classes('items-center gap-3'):
+            # Mode indicators - stack on mobile
+            with ui.row().classes('items-center gap-2 sm:gap-3 flex-wrap'):
                 # Simulation/Live badge
                 mode_badge(store.mode)
                 
@@ -52,14 +54,19 @@ def connection_indicator():
 
 def create_sidebar():
     """
-    Left sidebar navigation - collapses on mobile
+    Left sidebar navigation - collapses on mobile with toggle button
     """
-    with ui.left_drawer(
+    # Mobile menu toggle
+    drawer = ui.left_drawer(
         value=True,
         bordered=True,
         elevated=False
-    ).classes('p-4').style(f'background-color: {Theme.BG_PRIMARY}'):
-        
+    ).classes('p-4').style(f'background-color: {Theme.BG_PRIMARY}')
+    
+    # Make drawer collapse on mobile by default
+    drawer.props('breakpoint=1024')  # Collapse below 1024px (lg breakpoint)
+    
+    with drawer:
         # Navigation items
         nav_items = [
             ('dashboard', 'Dashboard', '/'),
@@ -83,6 +90,8 @@ def create_sidebar():
             ui.separator()
             create_nav_item('help', 'Help', '/help')
             create_nav_item('info', 'About', '/about')
+    
+    return drawer
 
 
 def create_nav_item(icon: str, label: str, path: str):
@@ -156,6 +165,34 @@ def create_layout(content_fn):
             
             ::-webkit-scrollbar-thumb:hover {{
                 background: {Theme.BORDER};
+            }}
+            
+            /* Smooth transitions */
+            * {{
+                transition: background-color 0.2s ease, color 0.2s ease, border-color 0.2s ease;
+            }}
+            
+            /* Button hover effects */
+            button:hover {{
+                transform: translateY(-1px);
+                box-shadow: 0 4px 12px rgba(0, 0, 0, 0.3);
+            }}
+            
+            /* Mobile responsive */
+            @media (max-width: 640px) {{
+                .max-w-5xl {{
+                    padding-left: 1rem;
+                    padding-right: 1rem;
+                }}
+            }}
+            
+            /* Card animations */
+            .q-card {{
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
+            }}
+            
+            .q-card:hover {{
+                transform: translateY(-2px);
             }}
             
             /* Smooth transitions */
