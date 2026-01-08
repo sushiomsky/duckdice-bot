@@ -72,6 +72,7 @@ from gui_enhancements.modern_ui import (
 )
 from script_editor import ScriptEditor, DiceBotAPI
 from faucet_manager import FaucetManager, FaucetConfig, CookieManager
+from updater import AutoUpdater
 
 
 
@@ -664,6 +665,7 @@ class UltimateGUI(tk.Tk):
         self.sound_manager = None
         self.shortcut_manager = KeyboardShortcutManager(self)
         self.faucet_manager = None  # Initialized when API connected
+        self.auto_updater = AutoUpdater(callback=self._update_log)
         
         # State
         self.current_session_id = None
@@ -689,6 +691,10 @@ class UltimateGUI(tk.Tk):
         # Show enhanced welcome wizard for first-time users
         if self.config_manager.get('show_welcome', True):
             self.after(500, self._show_welcome_wizard)
+        
+        # Check for updates on startup (async)
+        if self.config_manager.get('check_updates_on_startup', True):
+            self.after(2000, lambda: self.auto_updater.check_updates_async(self))
     
     def _setup_window(self):
         """Configure main window."""
@@ -801,6 +807,8 @@ class UltimateGUI(tk.Tk):
         # Help menu
         help_menu = tk.Menu(menubar, tearoff=0)
         menubar.add_cascade(label="Help", menu=help_menu)
+        help_menu.add_command(label="Check for Updates...", command=self._check_for_updates)
+        help_menu.add_separator()
         help_menu.add_command(label="Quick Start Guide", command=self._show_quick_start)
         help_menu.add_command(label="Keyboard Shortcuts", command=self._show_shortcuts)
         help_menu.add_separator()
@@ -2592,12 +2600,20 @@ Chance:    {result.get('chance', 0):.2f}%
         """Show about dialog."""
         messagebox.showinfo(
             "About DuckDice Bot",
-            "DuckDice Bot Ultimate Edition v3.0\n\n"
+            "DuckDice Bot Ultimate Edition v3.2.0\n\n"
             "Advanced betting automation for DuckDice.io\n"
-            "17 built-in strategies • Modern GUI • Open Source\n\n"
+            "17 built-in strategies • Faucet Mode • Auto-Update\n\n"
             "MIT License © 2025\n"
-            "https://github.com/your-repo/duckdice-bot"
+            "https://github.com/sushiomsky/duckdice-bot"
         )
+    
+    def _check_for_updates(self):
+        """Check for updates manually."""
+        self.auto_updater.check_and_prompt_update(self)
+    
+    def _update_log(self, message: str):
+        """Callback for auto-updater to log messages."""
+        Toast.show(self, message, toast_type="info")
     
     def _quick_connect(self):
         """Quick connect to API."""

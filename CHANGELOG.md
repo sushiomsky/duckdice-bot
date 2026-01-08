@@ -10,6 +10,14 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [3.2.0] - 2026-01-08 - Ultimate Edition 🎉
 
 ### Added
+- **Auto-Update System**
+  - Automatic update checking on startup (configurable)
+  - Manual update check via Help → Check for Updates
+  - One-click download and installation from GitHub releases
+  - Automatic backup before update with rollback on failure
+  - Background update checking (non-blocking)
+  - Version comparison logic for semantic versioning
+  
 - **Modern UI/UX Redesign**
   - Clear mode indicator banner (Simulation vs Live) - impossible to confuse modes
   - Modern status bar showing connection, mode, and balance

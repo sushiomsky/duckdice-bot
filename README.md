@@ -12,8 +12,10 @@ A comprehensive command-line interface and GUI for the [DuckDice Bot API](https:
 
 🎉 **Major Upgrade Release!**
 
+- 🔄 **Auto-Update System**: Automatic update checking with one-click installation from GitHub releases
 - 🎨 **Modern UI/UX**: Clear mode indicators (Simulation vs Live), beautiful status bars, modern color scheme
 - 💱 **Dynamic Currency Fetching**: Auto-loads your available currencies from API (no more hardcoded lists!)
+- 🚰 **Faucet Mode**: Separate main/faucet balance tracking with auto-claim functionality
 - 📝 **DiceBot-Compatible Script Editor**: Write custom strategies with syntax highlighting, auto-save, and example scripts
 - 🔄 **Enhanced API Integration**: Smart caching, manual refresh (F6), seamless connectivity
 - 🎯 **16 Enhanced Strategies**: Each with detailed info, risk indicators, expert tips, and pros/cons analysis
@@ -32,8 +34,10 @@ A comprehensive command-line interface and GUI for the [DuckDice Bot API](https:
 **Professional Interface:**
 - ✨ **Modern UI** with dark/light theme support
 - 🟢 **Clear Mode Indicators**: Impossible to confuse Simulation vs Live betting
+- 🔄 **Auto-Update**: Checks for new versions and installs with one click
 - 📊 **Live Dashboard**: Real-time balance, profit, win rate, and streak tracking
 - 💱 **Dynamic Currencies**: Auto-loads your available currencies from DuckDice API
+- 🚰 **Faucet Mode**: Auto-claim with 60s cooldown, separate balance tracking
 - 🔔 **Smart Notifications**: Toast popups for all important events
 
 **Betting & Automation:**
