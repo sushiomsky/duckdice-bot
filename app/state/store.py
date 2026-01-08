@@ -6,6 +6,7 @@ All application state lives here - UI components react to changes
 from typing import Optional, Dict, List, Any
 from dataclasses import dataclass, field
 from datetime import datetime
+from app.config import MAX_BET_HISTORY, HOUSE_EDGE_MAIN, HOUSE_EDGE_FAUCET
 
 
 @dataclass
@@ -56,7 +57,7 @@ class AppStore:
         
         # Bet history
         self.bet_history: List[BetResult] = []
-        self.max_history = 1000  # Keep last 1000 bets
+        self.max_history = MAX_BET_HISTORY
         
         # Faucet state
         self.faucet_auto_claim = False
@@ -123,7 +124,7 @@ class AppStore:
         
     def get_house_edge(self) -> float:
         """Get house edge for current betting mode"""
-        return 0.01 if self.betting_mode == "main" else 0.03
+        return HOUSE_EDGE_MAIN if self.betting_mode == "main" else HOUSE_EDGE_FAUCET
     
     def to_dict(self) -> Dict[str, Any]:
         """Serialize state for storage"""

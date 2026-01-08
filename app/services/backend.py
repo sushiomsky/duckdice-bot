@@ -4,7 +4,7 @@ Provides async interface for UI components
 """
 
 import asyncio
-from typing import Optional, List, Dict, Any
+from typing import Optional, List, Dict, Any, Tuple
 from datetime import datetime
 import sys
 from pathlib import Path
@@ -35,6 +35,8 @@ from betbot_strategies import (
 )
 from faucet_manager import FaucetManager, FaucetConfig, CookieManager
 from app.state.store import store, BetResult
+from app.config import BALANCE_REFRESH_INTERVAL
+from app.utils.logger import log_info, log_error, log_warning
 
 
 class Backend:
@@ -46,7 +48,7 @@ class Backend:
         self.cookie_manager = CookieManager()
         self._refresh_task: Optional[asyncio.Task] = None
         
-    def start_auto_refresh(self, interval: int = 30):
+    def start_auto_refresh(self, interval: int = BALANCE_REFRESH_INTERVAL) -> None:
         """Start automatic balance refresh"""
         if self._refresh_task and not self._refresh_task.done():
             return
@@ -56,19 +58,22 @@ class Backend:
                 await asyncio.sleep(interval)
                 await self.refresh_balances()
         
+        log_info(f"Starting auto-refresh with {interval}s interval")
         self._refresh_task = asyncio.create_task(refresh_loop())
     
-    def stop_auto_refresh(self):
+    def stop_auto_refresh(self) -> None:
         """Stop automatic balance refresh"""
         if self._refresh_task and not self._refresh_task.done():
             self._refresh_task.cancel()
+            log_info("Stopped auto-refresh")
         
-    async def connect(self, api_key: str) -> tuple[bool, str]:
+    async def connect(self, api_key: str) -> Tuple[bool, str]:
         """
         Connect to DuckDice API
         Returns: (success, message)
         """
         try:
+            log_info("Attempting to connect to DuckDice API")
             config = DuckDiceConfig(api_key=api_key)
             self.api = DuckDiceAPI(config)
             
@@ -99,16 +104,19 @@ class Backend:
                 store.faucet_cookie = saved_cookie
             
             # Start auto-refresh
-            self.start_auto_refresh(30)
+            self.start_auto_refresh(BALANCE_REFRESH_INTERVAL)
             
+            log_info(f"Connected successfully as {store.username}")
             return True, f"Connected as {store.username}"
             
         except Exception as e:
             store.connected = False
+            log_error("Connection failed", e)
             return False, f"Connection failed: {str(e)}"
     
-    async def disconnect(self):
+    async def disconnect(self) -> None:
         """Disconnect from API"""
+        log_info("Disconnecting from DuckDice API")
         if self.faucet_manager:
             self.faucet_manager.stop_auto_claim()
         
@@ -146,7 +154,7 @@ class Backend:
         chance: float,
         target: float,
         game_type: str = "dice"
-    ) -> tuple[bool, str, Optional[BetResult]]:
+    ) -> Tuple[bool, str, Optional[BetResult]]:
         """
         Place a single bet
         Returns: (success, message, result)
@@ -158,6 +166,9 @@ class Backend:
             # Determine if simulation
             is_simulation = store.mode == "simulation"
             use_faucet = store.betting_mode == "faucet"
+            
+            log_info(f"Placing bet: {amount} {store.currency} @ {chance}% chance", 
+                    simulation=is_simulation, faucet=use_faucet)
             
             # Place bet
             if game_type == "dice":

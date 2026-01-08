@@ -3,6 +3,7 @@ DuckDice Bot - NiceGUI Edition
 Main entry point with routing
 """
 
+from typing import Dict
 from nicegui import ui, app
 from app.ui.layout import create_layout
 from app.ui.pages.dashboard import dashboard_content
@@ -13,6 +14,8 @@ from app.ui.pages.faucet import faucet_content
 from app.ui.pages.strategies import strategies_content
 from app.ui.pages.history import history_content
 from app.ui.theme import Theme
+from app.config import KEYBOARD_SHORTCUTS, DEFAULT_PORT
+from app.utils.logger import log_info
 
 
 # Configure app
@@ -20,80 +23,71 @@ app.add_static_files('/assets', 'app/assets')
 
 
 # Keyboard shortcuts handler
-def setup_keyboard_shortcuts():
+def setup_keyboard_shortcuts() -> None:
     """Setup global keyboard shortcuts"""
     ui.keyboard(
         on_key=lambda e: handle_keyboard_event(e.key, e.modifiers)
     )
 
 
-def handle_keyboard_event(key: str, modifiers: dict):
+def handle_keyboard_event(key: str, modifiers: Dict) -> None:
     """Handle keyboard shortcuts"""
     ctrl = modifiers.get('ctrl', False) or modifiers.get('meta', False)
     
     if not ctrl:
         return
     
-    shortcuts = {
-        'b': '/quick-bet',
-        'a': '/auto-bet',
-        'f': '/faucet',
-        'h': '/history',
-        's': '/settings',
-        'd': '/',
-    }
-    
-    if key in shortcuts:
-        ui.navigate.to(shortcuts[key])
+    if key in KEYBOARD_SHORTCUTS:
+        ui.navigate.to(KEYBOARD_SHORTCUTS[key])
 
 
 @ui.page('/')
-def index_page():
+def index_page() -> None:
     """Dashboard - main page"""
     setup_keyboard_shortcuts()
     create_layout(dashboard_content)
 
 
 @ui.page('/quick-bet')
-def quick_bet_page():
+def quick_bet_page() -> None:
     """Quick bet page"""
     create_layout(quick_bet_content)
 
 
 @ui.page('/auto-bet')
-def auto_bet_page():
+def auto_bet_page() -> None:
     """Auto bet page"""
     create_layout(auto_bet_content)
 
 
 @ui.page('/faucet')
-def faucet_page():
+def faucet_page() -> None:
     """Faucet page"""
     create_layout(faucet_content)
 
 
 @ui.page('/strategies')
-def strategies_page():
+def strategies_page() -> None:
     """Strategies browser"""
     create_layout(strategies_content)
 
 
 @ui.page('/history')
-def history_page():
+def history_page() -> None:
     """Bet history"""
     create_layout(history_content)
 
 
 @ui.page('/settings')
-def settings_page():
+def settings_page() -> None:
     """Settings and configuration"""
     create_layout(settings_content)
 
 
 @ui.page('/help')
-def help_page():
+def help_page() -> None:
     """Help page"""
-    def help_content():
+    def help_content() -> None:
         from app.ui.components import card
         
         ui.label('❓ Help').classes('text-3xl font-bold')
@@ -137,9 +131,9 @@ def help_page():
 
 
 @ui.page('/about')
-def about_page():
+def about_page() -> None:
     """About page"""
-    def about_content():
+    def about_content() -> None:
         from app.ui.components import card
         
         ui.label('ℹ️ About').classes('text-3xl font-bold')
@@ -174,9 +168,10 @@ def about_page():
 
 # Run the application
 if __name__ in {'__main__', '__mp_main__'}:
+    log_info("Starting DuckDice Bot NiceGUI server", port=DEFAULT_PORT)
     ui.run(
         title='DuckDice Bot',
-        port=8080,
+        port=DEFAULT_PORT,
         reload=False,
         show=True,
         dark=True,
