@@ -64,6 +64,15 @@ from gui_enhancements import (
     ConfirmDialog
 )
 from gui_enhancements.keyboard_shortcuts import KeyboardShortcutManager, ShortcutsDialog
+from gui_enhancements.modern_ui import (
+    ModernColorScheme,
+    ModeIndicatorBanner,
+    ModernButton,
+    ConnectionStatusBar
+)
+from script_editor import ScriptEditor, DiceBotAPI
+from faucet_manager import FaucetManager, FaucetConfig, CookieManager
+
 
 
 class ModernTheme:
@@ -654,11 +663,16 @@ class UltimateGUI(tk.Tk):
         self.emergency_stop = None
         self.sound_manager = None
         self.shortcut_manager = KeyboardShortcutManager(self)
+        self.faucet_manager = None  # Initialized when API connected
         
         # State
         self.current_session_id = None
         self.is_betting = False
         self.is_simulation = False
+        self.betting_mode = "main"  # "main" or "faucet"
+        # Load cached currencies or use defaults
+        cached = self.config_manager.get('cached_currencies', None)
+        self.available_currencies = cached if cached else ["BTC", "ETH", "DOGE", "LTC", "TRX", "XRP"]
         
         # Setup UI
         self._setup_window()
@@ -766,6 +780,8 @@ class UltimateGUI(tk.Tk):
         menubar.add_cascade(label="View", menu=view_menu)
         view_menu.add_command(label="Refresh Balances", command=self._refresh_balances,
                              accelerator="F5")
+        view_menu.add_command(label="Refresh Currencies", command=self._refresh_currencies,
+                             accelerator="F6")
         view_menu.add_command(label="Toggle Theme", command=self._toggle_theme)
         view_menu.add_separator()
         view_menu.add_checkbutton(label="Show Tooltips",
@@ -796,12 +812,17 @@ class UltimateGUI(tk.Tk):
         self.bind_all('<Control-comma>', lambda e: self._show_settings())
         self.bind_all('<Control-q>', lambda e: self._on_closing())
         self.bind_all('<F5>', lambda e: self._refresh_balances())
+        self.bind_all('<F6>', lambda e: self._refresh_currencies())
     
     def _create_ui(self):
         """Create main UI layout."""
         # Main container
         main_container = ttk.Frame(self, padding=0)
         main_container.pack(fill=tk.BOTH, expand=True)
+        
+        # ===== MODE INDICATOR BANNER (TOP) =====
+        self.mode_banner = ModeIndicatorBanner(main_container)
+        self.mode_banner.pack(fill=tk.X, padx=10, pady=10)
         
         # Top bar (status and quick actions)
         self._create_top_bar(main_container)
@@ -816,8 +837,12 @@ class UltimateGUI(tk.Tk):
         # Right main panel (dashboard and tabs)
         self._create_main_panel(content_area)
         
-        # Bottom status bar
-        self._create_status_bar(main_container)
+        # ===== CONNECTION STATUS BAR (BOTTOM) =====
+        self.status_bar = ConnectionStatusBar(main_container)
+        self.status_bar.pack(fill=tk.X, side=tk.BOTTOM)
+        
+        # Old status bar (keeping for backwards compatibility temporarily)
+        # self._create_status_bar(main_container)
     
     def _create_top_bar(self, parent):
         """Create top bar with connection status and quick actions."""
@@ -994,6 +1019,11 @@ class UltimateGUI(tk.Tk):
         self.stats_tab = ttk.Frame(self.notebook, padding=10)
         self.notebook.add(self.stats_tab, text="📈 Statistics")
         self._create_statistics_tab(self.stats_tab)
+        
+        # Script Editor tab
+        self.script_tab = ttk.Frame(self.notebook, padding=0)
+        self.notebook.add(self.script_tab, text="📝 Script Editor")
+        self._create_script_editor_tab(self.script_tab)
     
     def _create_dashboard(self, parent):
         """Create main dashboard view."""
@@ -1008,22 +1038,28 @@ class UltimateGUI(tk.Tk):
         cards_frame = ttk.Frame(parent)
         cards_frame.pack(fill=tk.X, pady=(0, 20))
         
-        # Configure grid
-        for i in range(4):
+        # Configure grid - now 5 columns for main + faucet balances
+        for i in range(5):
             cards_frame.columnconfigure(i, weight=1, uniform='card')
         
         # Create cards
-        self.card_balance = DashboardCard(cards_frame, "Current Balance")
-        self.card_balance.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
+        self.card_main_balance = DashboardCard(cards_frame, "💰 Main Balance")
+        self.card_main_balance.grid(row=0, column=0, padx=5, pady=5, sticky='ew')
+        
+        self.card_faucet_balance = DashboardCard(cards_frame, "🚰 Faucet Balance")
+        self.card_faucet_balance.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
         
         self.card_profit = DashboardCard(cards_frame, "Session Profit")
-        self.card_profit.grid(row=0, column=1, padx=5, pady=5, sticky='ew')
+        self.card_profit.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
         
         self.card_bets = DashboardCard(cards_frame, "Total Bets")
-        self.card_bets.grid(row=0, column=2, padx=5, pady=5, sticky='ew')
+        self.card_bets.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
         
         self.card_winrate = DashboardCard(cards_frame, "Win Rate")
-        self.card_winrate.grid(row=0, column=3, padx=5, pady=5, sticky='ew')
+        self.card_winrate.grid(row=0, column=4, padx=5, pady=5, sticky='ew')
+        
+        # Keep old card for compatibility
+        self.card_balance = self.card_main_balance
         
         # Chart area
         chart_frame = ttk.LabelFrame(parent, text="Profit/Loss Chart", padding=10)
@@ -1053,33 +1089,56 @@ class UltimateGUI(tk.Tk):
         config_frame = ttk.LabelFrame(left_frame, text="Bet Configuration", padding=15)
         config_frame.pack(fill=tk.X, pady=(0, 10))
         
+        # Mode selection (Main / Faucet)
+        ttk.Label(config_frame, text="Mode:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.qb_mode_var = tk.StringVar(value=self.betting_mode)
+        mode_combo = ttk.Combobox(
+            config_frame,
+            textvariable=self.qb_mode_var,
+            values=["main", "faucet"],
+            state='readonly',
+            width=15
+        )
+        mode_combo.grid(row=0, column=1, sticky=tk.W, pady=5, padx=5)
+        mode_combo.bind('<<ComboboxSelected>>', self._on_qb_mode_changed)
+        
         # Currency selection
-        ttk.Label(config_frame, text="Currency:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        ttk.Label(config_frame, text="Currency:").grid(row=1, column=0, sticky=tk.W, pady=5)
         self.qb_symbol_var = tk.StringVar(value="DOGE")
         symbol_combo = ttk.Combobox(
             config_frame,
             textvariable=self.qb_symbol_var,
-            values=["BTC", "ETH", "DOGE", "LTC", "TRX", "XRP"],
+            values=self.available_currencies,
             state='readonly',
             width=15
         )
-        symbol_combo.grid(row=0, column=1, sticky=tk.W, pady=5, padx=5)
+        symbol_combo.grid(row=1, column=1, sticky=tk.W, pady=5, padx=5)
+        self.qb_symbol_combo = symbol_combo  # Store reference for updating
+        
+        # Faucet claim button (only visible in faucet mode)
+        self.qb_claim_btn = ttk.Button(
+            config_frame,
+            text="🚰 Claim Faucet",
+            command=self._claim_faucet_now,
+            width=20
+        )
+        self.qb_claim_label = ttk.Label(config_frame, text="", foreground="gray")
         
         # Bet amount
-        ttk.Label(config_frame, text="Bet Amount:").grid(row=1, column=0, sticky=tk.W, pady=5)
+        ttk.Label(config_frame, text="Bet Amount:").grid(row=2, column=0, sticky=tk.W, pady=5)
         self.qb_amount_var = tk.StringVar(value="1.0")
         amount_entry = ttk.Entry(config_frame, textvariable=self.qb_amount_var, width=18)
-        amount_entry.grid(row=1, column=1, sticky=tk.W, pady=5, padx=5)
+        amount_entry.grid(row=2, column=1, sticky=tk.W, pady=5, padx=5)
         
         # Win chance
-        ttk.Label(config_frame, text="Win Chance %:").grid(row=2, column=0, sticky=tk.W, pady=5)
+        ttk.Label(config_frame, text="Win Chance %:").grid(row=3, column=0, sticky=tk.W, pady=5)
         self.qb_chance_var = tk.StringVar(value="50.0")
         chance_entry = ttk.Entry(config_frame, textvariable=self.qb_chance_var, width=18)
-        chance_entry.grid(row=2, column=1, sticky=tk.W, pady=5, padx=5)
+        chance_entry.grid(row=3, column=1, sticky=tk.W, pady=5, padx=5)
         
         # Chance presets
         preset_frame = ttk.Frame(config_frame)
-        preset_frame.grid(row=3, column=0, columnspan=2, pady=10)
+        preset_frame.grid(row=4, column=0, columnspan=2, pady=10)
         
         for chance in [10, 25, 50, 75, 90]:
             ttk.Button(
@@ -1090,11 +1149,11 @@ class UltimateGUI(tk.Tk):
             ).pack(side=tk.LEFT, padx=2)
         
         # High/Low selection
-        ttk.Label(config_frame, text="Bet Type:").grid(row=4, column=0, sticky=tk.W, pady=5)
+        ttk.Label(config_frame, text="Bet Type:").grid(row=5, column=0, sticky=tk.W, pady=5)
         self.qb_is_high_var = tk.BooleanVar(value=True)
         
         bet_type_frame = ttk.Frame(config_frame)
-        bet_type_frame.grid(row=4, column=1, sticky=tk.W, pady=5)
+        bet_type_frame.grid(row=5, column=1, sticky=tk.W, pady=5)
         
         ttk.Radiobutton(
             bet_type_frame,
@@ -1443,26 +1502,49 @@ Chance:    {result.get('chance', 0):.2f}%
         bet_settings_frame = ttk.LabelFrame(right_frame, text="Bet Settings", padding=15)
         bet_settings_frame.pack(fill=tk.X, pady=(0, 10))
         
+        # Mode selection (Main / Faucet)
+        ttk.Label(bet_settings_frame, text="Betting Mode:",
+                 font=('Segoe UI', 9, 'bold')).grid(row=0, column=0, sticky=tk.W, pady=5)
+        self.ab_mode_var = tk.StringVar(value=self.betting_mode)
+        mode_combo = ttk.Combobox(
+            bet_settings_frame,
+            textvariable=self.ab_mode_var,
+            values=["main", "faucet"],
+            state='readonly',
+            width=13
+        )
+        mode_combo.grid(row=0, column=1, sticky=tk.W, pady=5, padx=(10, 0))
+        mode_combo.bind('<<ComboboxSelected>>', self._on_ab_mode_changed)
+        
+        # House edge display
+        self.ab_house_edge_label = ttk.Label(
+            bet_settings_frame,
+            text="House Edge: 1%",
+            font=('Segoe UI', 8),
+            foreground="gray"
+        )
+        self.ab_house_edge_label.grid(row=0, column=2, sticky=tk.W, pady=5, padx=(10, 0))
+        
         # Max bets
         ttk.Label(bet_settings_frame, text="Max Bets (0 = unlimited):",
-                 font=('Segoe UI', 9)).grid(row=0, column=0, sticky=tk.W, pady=5)
+                 font=('Segoe UI', 9)).grid(row=1, column=0, sticky=tk.W, pady=5)
         self.max_bets_var = tk.StringVar(value="0")
         ttk.Entry(bet_settings_frame, textvariable=self.max_bets_var,
-                 width=15).grid(row=0, column=1, sticky=tk.W, pady=5, padx=(10, 0))
+                 width=15).grid(row=1, column=1, sticky=tk.W, pady=5, padx=(10, 0))
         
         # Stop on profit
         ttk.Label(bet_settings_frame, text="Stop on Profit:",
-                 font=('Segoe UI', 9)).grid(row=1, column=0, sticky=tk.W, pady=5)
+                 font=('Segoe UI', 9)).grid(row=2, column=0, sticky=tk.W, pady=5)
         self.stop_profit_var = tk.StringVar(value="")
         ttk.Entry(bet_settings_frame, textvariable=self.stop_profit_var,
-                 width=15).grid(row=1, column=1, sticky=tk.W, pady=5, padx=(10, 0))
+                 width=15).grid(row=2, column=1, sticky=tk.W, pady=5, padx=(10, 0))
         
         # Stop on loss
         ttk.Label(bet_settings_frame, text="Stop on Loss:",
-                 font=('Segoe UI', 9)).grid(row=2, column=0, sticky=tk.W, pady=5)
+                 font=('Segoe UI', 9)).grid(row=3, column=0, sticky=tk.W, pady=5)
         self.stop_loss_var = tk.StringVar(value="")
         ttk.Entry(bet_settings_frame, textvariable=self.stop_loss_var,
-                 width=15).grid(row=2, column=1, sticky=tk.W, pady=5, padx=(10, 0))
+                 width=15).grid(row=3, column=1, sticky=tk.W, pady=5, padx=(10, 0))
         
         # Simulation mode checkbox
         self.sim_mode_var = tk.BooleanVar(value=False)
@@ -1471,7 +1553,7 @@ Chance:    {result.get('chance', 0):.2f}%
             text="Simulation Mode (Test Only)",
             variable=self.sim_mode_var,
             command=self._on_sim_mode_changed
-        ).grid(row=3, column=0, columnspan=2, sticky=tk.W, pady=(10, 0))
+        ).grid(row=4, column=0, columnspan=3, sticky=tk.W, pady=(10, 0))
         
         # Control buttons
         control_frame = ttk.LabelFrame(right_frame, text="Controls", padding=15)
@@ -1821,10 +1903,25 @@ Chance:    {result.get('chance', 0):.2f}%
     
     def _on_sim_mode_changed(self):
         """Handle simulation mode toggle."""
-        if self.sim_mode_var.get():
+        is_simulation = self.sim_mode_var.get()
+        self.is_simulation = is_simulation
+        
+        # Update mode banner
+        if hasattr(self, 'mode_banner'):
+            mode = "simulation" if is_simulation else "live"
+            self.mode_banner.set_mode(mode)
+        
+        # Update status bar
+        if hasattr(self, 'status_bar'):
+            mode_text = "Simulation" if is_simulation else "Live Betting"
+            self.status_bar.set_mode(mode_text)
+        
+        # Update status message
+        if is_simulation:
             self._update_auto_status("⚠️ Simulation mode enabled - no real bets will be placed.")
         else:
             self._update_auto_status("✓ Live mode enabled - real bets will be placed.")
+
     
     def _update_auto_status(self, message: str):
         """Update auto bet status display."""
@@ -1916,6 +2013,29 @@ Chance:    {result.get('chance', 0):.2f}%
         self.stats_dashboard = StatisticsDashboard(parent, bet_logger=self.bet_logger)
         self.stats_dashboard.pack(fill=tk.BOTH, expand=True)
     
+    def _create_script_editor_tab(self, parent):
+        """Create script editor tab."""
+        # Title and description
+        header = tk.Frame(parent, bg="white", height=60)
+        header.pack(fill=tk.X, padx=0, pady=0)
+        
+        ttk.Label(
+            header,
+            text="DiceBot-Compatible Script Editor",
+            font=('Segoe UI', 16, 'bold')
+        ).pack(anchor=tk.W, padx=20, pady=(10, 0))
+        
+        ttk.Label(
+            header,
+            text="Write custom betting strategies using Python. Compatible with DiceBot script syntax.",
+            font=('Segoe UI', 9),
+            foreground="#666"
+        ).pack(anchor=tk.W, padx=20, pady=(0, 10))
+        
+        # Script editor widget
+        self.script_editor = ScriptEditor(parent)
+        self.script_editor.pack(fill=tk.BOTH, expand=True)
+    
     def _create_status_bar(self, parent):
         """Create bottom status bar."""
         status_bar = ttk.Frame(parent, padding=5)
@@ -1973,6 +2093,10 @@ Chance:    {result.get('chance', 0):.2f}%
     
     def _on_closing(self):
         """Handle window close event."""
+        # Stop faucet manager if running
+        if self.faucet_manager:
+            self.faucet_manager.stop_auto_claim()
+        
         if self.is_betting:
             if ConfirmDialog.ask(
                 self,
@@ -1984,6 +2108,63 @@ Chance:    {result.get('chance', 0):.2f}%
                 self.quit()
         else:
             self.quit()
+    
+    def _on_qb_mode_changed(self, event=None):
+        """Handle Quick Bet mode change (main/faucet)."""
+        mode = self.qb_mode_var.get()
+        self.betting_mode = mode
+        self.config_manager.set('betting_mode', mode)
+        
+        # Show/hide faucet claim button
+        if mode == "faucet":
+            self.qb_claim_btn.grid(row=1, column=2, padx=5, pady=5)
+            self.qb_claim_label.grid(row=1, column=3, padx=5, pady=5)
+            self._update_faucet_claim_status()
+        else:
+            self.qb_claim_btn.grid_forget()
+            self.qb_claim_label.grid_forget()
+        
+        Toast.show(self, f"Switched to {mode.title()} mode", toast_type="info")
+    
+    def _on_ab_mode_changed(self, event=None):
+        """Handle Auto Bet mode change (main/faucet)."""
+        mode = self.ab_mode_var.get()
+        self.betting_mode = mode
+        self.config_manager.set('betting_mode', mode)
+        
+        # Update house edge display
+        house_edge = "3%" if mode == "faucet" else "1%"
+        self.ab_house_edge_label.config(text=f"House Edge: {house_edge}")
+        
+        Toast.show(self, f"Auto Bet mode: {mode.title()} ({house_edge} house edge)", toast_type="info")
+    
+    def _claim_faucet_now(self):
+        """Manually claim faucet."""
+        if not self.faucet_manager:
+            Toast.show(self, "Please connect to API first", toast_type="warning")
+            return
+        
+        currency = self.qb_symbol_var.get()
+        success = self.faucet_manager.claim_now(currency)
+        
+        if success:
+            self._update_faucet_claim_status()
+    
+    def _update_faucet_claim_status(self):
+        """Update faucet claim button and countdown label."""
+        if not self.faucet_manager or not hasattr(self, 'qb_claim_label'):
+            return
+        
+        remaining = self.faucet_manager.get_next_claim_time()
+        
+        if remaining > 0:
+            self.qb_claim_btn.config(state='disabled')
+            self.qb_claim_label.config(text=f"Next claim in {int(remaining)}s")
+            # Schedule next update
+            self.after(1000, self._update_faucet_claim_status)
+        else:
+            self.qb_claim_btn.config(state='normal')
+            self.qb_claim_label.config(text="Ready to claim!")
     
     def _new_session(self):
         """Start a new betting session."""
@@ -2017,56 +2198,148 @@ Chance:    {result.get('chance', 0):.2f}%
                 Toast.show(self, f"Export failed: {e}", toast_type="error")
     
     def _show_settings(self):
-        """Show settings dialog."""
+        """Show enhanced settings dialog with tabs."""
         dialog = tk.Toplevel(self)
         dialog.title("Settings")
-        dialog.geometry("500x400")
+        dialog.geometry("600x500")
         dialog.transient(self)
         dialog.grab_set()
         
-        # API Settings
-        api_frame = ttk.LabelFrame(dialog, text="API Configuration", padding=15)
-        api_frame.pack(fill=tk.X, padx=10, pady=10)
+        # Create notebook for tabs
+        notebook = ttk.Notebook(dialog)
+        notebook.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
         
-        ttk.Label(api_frame, text="API Key:").grid(row=0, column=0, sticky=tk.W, pady=5)
+        # === API SETTINGS TAB ===
+        api_tab = ttk.Frame(notebook, padding=15)
+        notebook.add(api_tab, text="API Settings")
+        
+        ttk.Label(api_tab, text="API Key:", font=('', 10, 'bold')).grid(row=0, column=0, sticky=tk.W, pady=5)
         api_key_var = tk.StringVar(value=self.config_manager.get('api_key', ''))
-        api_key_entry = ttk.Entry(api_frame, textvariable=api_key_var, width=40, show="*")
-        api_key_entry.grid(row=0, column=1, pady=5, padx=5)
+        api_key_entry = ttk.Entry(api_tab, textvariable=api_key_var, width=50, show="*")
+        api_key_entry.grid(row=1, column=0, columnspan=2, pady=5, sticky=tk.EW)
         
         remember_var = tk.BooleanVar(value=self.config_manager.get('remember_api_key', False))
         ttk.Checkbutton(
-            api_frame,
+            api_tab,
             text="Remember API key",
             variable=remember_var
-        ).grid(row=1, column=1, sticky=tk.W, pady=5)
+        ).grid(row=2, column=0, sticky=tk.W, pady=5)
         
-        # Sound Settings
-        sound_frame = ttk.LabelFrame(dialog, text="Sound", padding=15)
-        sound_frame.pack(fill=tk.X, padx=10, pady=10)
+        ttk.Label(api_tab, text="\nGet your API key from DuckDice.io → Account Settings → Bot API",
+                 foreground="gray").grid(row=3, column=0, columnspan=2, sticky=tk.W)
+        
+        # === FAUCET SETTINGS TAB ===
+        faucet_tab = ttk.Frame(notebook, padding=15)
+        notebook.add(faucet_tab, text="Faucet Settings")
+        
+        # Auto-claim toggle
+        faucet_enabled_var = tk.BooleanVar(value=self.config_manager.get('faucet_auto_claim', False))
+        ttk.Checkbutton(
+            faucet_tab,
+            text="Enable Auto-Claim",
+            variable=faucet_enabled_var,
+            command=lambda: self._toggle_faucet_fields(faucet_enabled_var.get(), cookie_text, interval_spin)
+        ).grid(row=0, column=0, sticky=tk.W, pady=10)
+        
+        # Claim interval
+        ttk.Label(faucet_tab, text="Claim Interval (seconds):").grid(row=1, column=0, sticky=tk.W, pady=5)
+        interval_var = tk.IntVar(value=self.config_manager.get('faucet_interval', 60))
+        interval_spin = ttk.Spinbox(faucet_tab, from_=60, to=300, textvariable=interval_var, width=10)
+        interval_spin.grid(row=1, column=1, sticky=tk.W, pady=5)
+        
+        # Cookie input
+        ttk.Label(faucet_tab, text="Browser Cookie (required for auto-claim):", 
+                 font=('', 10, 'bold')).grid(row=2, column=0, columnspan=2, sticky=tk.W, pady=(15, 5))
+        
+        cookie_frame = ttk.Frame(faucet_tab)
+        cookie_frame.grid(row=3, column=0, columnspan=2, sticky=(tk.W, tk.E, tk.N, tk.S), pady=5)
+        
+        cookie_scrollbar = ttk.Scrollbar(cookie_frame)
+        cookie_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        
+        cookie_text = tk.Text(cookie_frame, height=8, width=60, yscrollcommand=cookie_scrollbar.set, wrap=tk.WORD)
+        cookie_text.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        cookie_scrollbar.config(command=cookie_text.yview)
+        
+        # Load existing cookie
+        cookie_mgr = CookieManager()
+        existing_cookie = cookie_mgr.get_cookie()
+        if existing_cookie:
+            cookie_text.insert('1.0', existing_cookie)
+        
+        # Instructions
+        instructions = tk.Text(faucet_tab, height=6, width=60, wrap=tk.WORD, bg="#f9f9f9", relief=tk.FLAT)
+        instructions.grid(row=4, column=0, columnspan=2, sticky=(tk.W, tk.E), pady=(15, 0))
+        instructions.insert('1.0', 
+            "How to get your cookie:\n"
+            "1. Open DuckDice.io in your browser and log in\n"
+            "2. Open Developer Tools (F12)\n"
+            "3. Go to Network tab → Reload page\n"
+            "4. Click any request → Headers → Copy entire 'Cookie' value\n"
+            "5. Paste it above and Save"
+        )
+        instructions.config(state='disabled')
+        
+        # Configure grid weights
+        faucet_tab.rowconfigure(3, weight=1)
+        faucet_tab.columnconfigure(0, weight=1)
+        
+        # Initially disable fields if auto-claim is off
+        if not faucet_enabled_var.get():
+            cookie_text.config(state='disabled')
+            interval_spin.config(state='disabled')
+        
+        # === SOUND SETTINGS TAB ===
+        sound_tab = ttk.Frame(notebook, padding=15)
+        notebook.add(sound_tab, text="Sound")
         
         sound_var = tk.BooleanVar(value=self.config_manager.get('sound_enabled', True))
         ttk.Checkbutton(
-            sound_frame,
+            sound_tab,
             text="Enable sound effects",
             variable=sound_var
-        ).pack(anchor=tk.W)
+        ).pack(anchor=tk.W, pady=10)
         
-        # Buttons
+        # === BUTTONS ===
         btn_frame = ttk.Frame(dialog)
         btn_frame.pack(fill=tk.X, padx=10, pady=10)
         
         def save_settings():
+            # Save API settings
             self.config_manager.set_many({
                 'api_key': api_key_var.get(),
                 'remember_api_key': remember_var.get(),
-                'sound_enabled': sound_var.get()
+                'sound_enabled': sound_var.get(),
+                'faucet_auto_claim': faucet_enabled_var.get(),
+                'faucet_interval': interval_var.get()
             })
             self.config_manager.save()
+            
+            # Save faucet cookie
+            cookie_str = cookie_text.get('1.0', 'end-1c').strip()
+            if cookie_str:
+                cookie_mgr.set_cookie(cookie_str)
+            
+            # Update faucet manager if exists
+            if self.faucet_manager:
+                self.faucet_manager.config.enabled = faucet_enabled_var.get()
+                self.faucet_manager.config.interval = interval_var.get()
+                if faucet_enabled_var.get():
+                    self.faucet_manager.start_auto_claim()
+                else:
+                    self.faucet_manager.stop_auto_claim()
+            
             messagebox.showinfo("Settings", "Settings saved successfully!")
             dialog.destroy()
         
         ttk.Button(btn_frame, text="Save", command=save_settings).pack(side=tk.RIGHT, padx=5)
         ttk.Button(btn_frame, text="Cancel", command=dialog.destroy).pack(side=tk.RIGHT)
+    
+    def _toggle_faucet_fields(self, enabled, cookie_text, interval_spin):
+        """Enable/disable faucet settings fields."""
+        state = 'normal' if enabled else 'disabled'
+        cookie_text.config(state=state)
+        interval_spin.config(state=state)
     
     def _refresh_balances(self):
         """Refresh account balances."""
@@ -2080,19 +2353,71 @@ Chance:    {result.get('chance', 0):.2f}%
         
         def refresh_task():
             try:
-                balances = self.api.get_balances()
-                # Update dashboard cards
-                if hasattr(self, 'card_balance'):
-                    total_btc = sum(float(b.get('btc_value', 0)) for b in balances.values())
-                    self.after(0, lambda: self.card_balance.set_value(f"{total_btc:.8f} BTC"))
+                # Get selected currency for detailed balance
+                currency = self.qb_symbol_var.get() if hasattr(self, 'qb_symbol_var') else "DOGE"
                 
-                self.after(0, lambda: loading.hide())
-                self.after(100, lambda: Toast.show(self, "Balances refreshed!", toast_type="success"))
+                # Get both main and faucet balances
+                main_balance = self.api.get_main_balance(currency)
+                faucet_balance = self.api.get_faucet_balance(currency)
+                
+                # Get total BTC value from all balances
+                balances = self.api.get_balances()
+                total_btc = sum(float(b.get('btc_value', 0)) for b in balances.values())
+                
+                # Update dashboard cards
+                def update_ui():
+                    if hasattr(self, 'card_main_balance'):
+                        self.card_main_balance.set_value(f"{main_balance:.8f} {currency}")
+                    if hasattr(self, 'card_faucet_balance'):
+                        self.card_faucet_balance.set_value(f"{faucet_balance:.8f} {currency}")
+                    if hasattr(self, 'card_balance'):
+                        self.card_balance.set_value(f"{total_btc:.8f} BTC")
+                    
+                    loading.hide()
+                    Toast.show(self, "Balances refreshed!", toast_type="success")
+                
+                self.after(0, update_ui)
             except Exception as e:
                 self.after(0, lambda: loading.hide())
                 self.after(100, lambda: Toast.show(self, f"Failed to refresh: {e}", toast_type="error"))
         
         threading.Thread(target=refresh_task, daemon=True).start()
+    
+    def _refresh_currencies(self):
+        """Refresh available currencies from API."""
+        if not self.api:
+            Toast.show(self, "Please connect to the API first", toast_type="warning")
+            return
+        
+        # Show brief feedback
+        Toast.show(self, "Refreshing currencies...", toast_type="info")
+        
+        def fetch_currencies():
+            try:
+                currencies = self.api.get_available_currencies()
+                
+                def update_ui():
+                    self.available_currencies = currencies
+                    # Cache for offline use
+                    self.config_manager.set('cached_currencies', currencies)
+                    
+                    # Update Quick Bet currency dropdown
+                    if hasattr(self, 'qb_symbol_combo'):
+                        current_value = self.qb_symbol_var.get()
+                        self.qb_symbol_combo['values'] = currencies
+                        # Restore selection if still valid
+                        if current_value not in currencies and currencies:
+                            self.qb_symbol_var.set(currencies[0])
+                    
+                    Toast.show(self, f"Currencies updated ({len(currencies)} available)", toast_type="success")
+                
+                self.after(0, update_ui)
+            except Exception as e:
+                def show_error():
+                    Toast.show(self, f"Failed to refresh currencies: {e}", toast_type="error")
+                self.after(0, show_error)
+        
+        threading.Thread(target=fetch_currencies, daemon=True).start()
     
     def _toggle_theme(self):
         """Toggle between light and dark theme."""
@@ -2295,6 +2620,7 @@ Chance:    {result.get('chance', 0):.2f}%
                 
                 # Test connection
                 balances = self.api.get_balances()
+                user_info = self.api.get_user_info() if hasattr(self.api, 'get_user_info') else {}
                 
                 # Update UI on main thread
                 def update_ui():
@@ -2302,10 +2628,49 @@ Chance:    {result.get('chance', 0):.2f}%
                     self.connection_status.set_status("Connected", "connected")
                     self.quick_connect_btn.config(text="🔌 Disconnect")
                     
+                    # Initialize faucet manager
+                    faucet_config = FaucetConfig(
+                        enabled=self.config_manager.get('faucet_auto_claim', False),
+                        interval=self.config_manager.get('faucet_interval', 60),
+                        currency=self.config_manager.get('faucet_currency', 'DOGE')
+                    )
+                    self.faucet_manager = FaucetManager(self.api, faucet_config)
+                    
+                    # Setup faucet callbacks
+                    self.faucet_manager.on_claim_success = lambda curr, bal: Toast.show(
+                        self, f"Faucet claimed! {curr} balance: {bal:.8f}", toast_type="success"
+                    )
+                    self.faucet_manager.on_claim_failure = lambda curr, err: Toast.show(
+                        self, f"Faucet claim failed: {err}", toast_type="error"
+                    )
+                    
+                    # Start auto-claim if enabled
+                    if faucet_config.enabled:
+                        self.faucet_manager.start_auto_claim()
+                    
+                    # Update new mode banner and status bar
+                    if hasattr(self, 'mode_banner'):
+                        mode = "simulation" if self.is_simulation else "live"
+                        self.mode_banner.set_mode(mode)
+                    
+                    if hasattr(self, 'status_bar'):
+                        self.status_bar.set_connection(True)
+                        mode_text = "Simulation" if self.is_simulation else "Live Betting"
+                        self.status_bar.set_mode(mode_text)
+                        
+                        # Update balance in status bar
+                        if balances:
+                            first_currency = list(balances.keys())[0]
+                            amount = balances[first_currency].get('amount', '0')
+                            self.status_bar.set_balance(amount, first_currency)
+                    
                     # Update dashboard
                     if hasattr(self, 'card_balance'):
                         total_btc = sum(float(b.get('btc_value', 0)) for b in balances.values())
                         self.card_balance.set_value(f"{total_btc:.8f} BTC")
+                    
+                    # Refresh available currencies
+                    self._refresh_currencies()
                     
                     Toast.show(self, "Successfully connected to DuckDice!", toast_type="success")
                 
@@ -2315,6 +2680,13 @@ Chance:    {result.get('chance', 0):.2f}%
                 def show_error():
                     loading.hide()
                     self.connection_status.set_status("Error", "error")
+                    
+                    # Update mode banner to disconnected
+                    if hasattr(self, 'mode_banner'):
+                        self.mode_banner.set_mode("disconnected")
+                    if hasattr(self, 'status_bar'):
+                        self.status_bar.set_connection(False)
+                    
                     Toast.show(self, f"Connection failed: {e}", toast_type="error")
                 
                 self.after(0, show_error)
