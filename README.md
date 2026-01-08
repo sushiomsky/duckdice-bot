@@ -27,9 +27,46 @@ A comprehensive command-line interface and GUI for the [DuckDice Bot API](https:
 
 **Download:** Pre-built executables available on [Releases](../../releases) page (Windows `.exe`, macOS `.app`, Linux binary)
 
+### Web Interface (NiceGUI) - NEW! 🌟
+
+Run the modern web interface for remote access and mobile support:
+
+```bash
+./run_nicegui.sh
+# Opens at http://localhost:8080
+```
+
+**Features:**
+- 🌐 Access from any device on your network
+- 📱 Mobile-responsive design
+- 🎨 Modern dark-mode interface
+- ⚡ Real-time updates and animations
+- ⌨️ Keyboard shortcuts (Ctrl+B, Ctrl+A, Ctrl+F, etc.)
+
+See [NICEGUI_README.md](NICEGUI_README.md) for full documentation.
+
 ## 🌟 Key Features
 
-### 🖥️ DuckDice GUI Ultimate (Recommended)
+### 🌐 NiceGUI Web Interface (v1.0.0) - NEW!
+
+**Modern Web Application:**
+- 🌐 **Remote Access**: Use from any device on your network
+- 📱 **Mobile Responsive**: Full functionality on phones/tablets
+- 🎨 **Premium UX**: Smooth animations, dark mode, modern design
+- ⚡ **Real-time Updates**: Live balance refresh every 30 seconds
+- ⌨️ **Keyboard Shortcuts**: Fast navigation (Ctrl+B, Ctrl+A, etc.)
+
+**8 Complete Pages:**
+- 📊 Dashboard - Live statistics and performance overview
+- 🎲 Quick Bet - Manual betting with instant feedback
+- 🤖 Auto Bet - Strategy automation with 16 strategies
+- 🚰 Faucet - Auto-claim with live countdown timer
+- 📚 Strategies - Browse and learn about all strategies
+- 📈 History - Bet history with CSV export
+- ⚙️ Settings - API configuration and preferences
+- ❓ Help/About - Keyboard shortcuts and documentation
+
+### 🖥️ DuckDice GUI Ultimate (Tkinter)
 
 **Professional Interface:**
 - ✨ **Modern UI** with dark/light theme support
@@ -136,7 +173,11 @@ cd duckdice-bot
 # 2. Install dependencies
 pip install -r requirements.txt
 
-# 3. Run GUI
+# 3A. Run NiceGUI Web Interface (NEW!)
+./run_nicegui.sh
+# Opens at http://localhost:8080
+
+# 3B. Run Tkinter GUI
 python3 duckdice_gui_ultimate.py
 ```
 
@@ -208,6 +249,15 @@ See [WINDOWS_BUILD.md](WINDOWS_BUILD.md) for detailed build instructions.
 
 ### Keyboard Shortcuts
 
+**NiceGUI Web Interface:**
+- `Ctrl+D` - Dashboard
+- `Ctrl+B` - Quick Bet
+- `Ctrl+A` - Auto Bet
+- `Ctrl+F` - Faucet
+- `Ctrl+H` - History
+- `Ctrl+S` - Settings
+
+**Tkinter GUI:**
 - `Ctrl+K` - Quick Connect/Disconnect
 - `F5` - Refresh Balances
 - `F6` - Refresh Currencies
