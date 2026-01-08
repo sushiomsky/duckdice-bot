@@ -11,7 +11,7 @@ from decimal import Decimal
 from typing import Any, Dict, Optional, Tuple
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 
 @register("range-50-random")
@@ -25,6 +25,41 @@ class Range50Random:
     @classmethod
     def describe(cls) -> str:
         return "Range-dice at 50% chance: pick a random 5000-wide window each bet; stake = U[min_frac,max_frac] of balance."
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="Medium",
+            bankroll_required="Small",
+            volatility="Medium",
+            time_to_profit="Moderate",
+            recommended_for="Intermediate",
+            pros=[
+                "Uses Range Dice for 50/50 odds",
+                "Randomization adds unpredictability",
+                "Different game type provides variety",
+                "True 50% probability",
+                "Good for breaking patterns"
+            ],
+            cons=[
+                "Randomness doesn't improve odds",
+                "Still subject to house edge",
+                "No mathematical advantage",
+                "Complexity doesn't add value",
+                "May confuse bet tracking"
+            ],
+            best_use_case="For variety and testing Range Dice. No real advantage over standard play.",
+            tips=[
+                "Understand this is experimental/fun",
+                "No proven edge over simple betting",
+                "Good for exploring Range Dice",
+                "Use conservative bet sizing",
+                "Mainly for entertainment/variety",
+                "Track results vs simple strategies"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

@@ -16,7 +16,7 @@ import json
 from pathlib import Path
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 # Pattern detection thresholds
 PATTERN_HIGH_NUMBER_THRESHOLD = 0.52  # > 52% high numbers suggests high betting bias
@@ -38,6 +38,41 @@ class RNGAnalysisStrategy:
     @classmethod
     def describe(cls) -> str:
         return "Uses RNG analysis insights (educational only - doesn't beat house edge)"
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="High",
+            bankroll_required="Large",
+            volatility="High",
+            time_to_profit="Variable",
+            recommended_for="Experts",
+            pros=[
+                "Advanced statistical analysis",
+                "Pattern detection algorithms",
+                "Machine learning potential",
+                "Intellectually fascinating",
+                "Research-grade implementation"
+            ],
+            cons=[
+                "RNG patterns don't exist (cryptographic RNG)",
+                "False pattern detection (gambler's fallacy)",
+                "Overfitting to randomness",
+                "Complexity creates illusion of edge",
+                "No mathematical advantage possible"
+            ],
+            best_use_case="EXPERIMENTAL ONLY. For statistical research, not profit. Use simulation mode.",
+            tips=[
+                "Understand this cannot beat cryptographic RNG",
+                "Use ONLY for research/educational purposes",
+                "Test extensively in simulation",
+                "Any 'patterns' are statistical noise",
+                "Great learning tool for statistics/ML",
+                "Do not expect real profits from pattern detection"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

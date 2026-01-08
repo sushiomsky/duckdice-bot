@@ -13,7 +13,7 @@ from typing import Any, Dict, Optional
 from decimal import Decimal, getcontext
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 getcontext().prec = 28
 
@@ -29,6 +29,41 @@ class KellyCapped:
     @classmethod
     def describe(cls) -> str:
         return "Kelly fraction from EWMA winrate, capped and clamped; experimental."
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="Medium",
+            bankroll_required="Medium",
+            volatility="Medium",
+            time_to_profit="Moderate",
+            recommended_for="Experts",
+            pros=[
+                "Mathematically optimal bet sizing",
+                "Adapts to actual win rates dynamically",
+                "Based on proven Kelly Criterion theory",
+                "EWMA smoothing reduces variance",
+                "Self-adjusting to game conditions"
+            ],
+            cons=[
+                "Complex mathematics may confuse beginners",
+                "Requires understanding of probability theory",
+                "House edge makes true Kelly often suggest zero bet",
+                "Parameter tuning requires expertise",
+                "Can be overly conservative"
+            ],
+            best_use_case="For mathematically-inclined experts. Experimental research tool.",
+            tips=[
+                "Start with kelly_cap at 0.25 (quarter Kelly)",
+                "Adjust house_edge to match actual game edge",
+                "Set bankroll_hint accurately for correct sizing",
+                "Monitor EWMA winrate adjustments carefully",
+                "This is experimental - use with caution",
+                "Best for those who understand Kelly Criterion deeply"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

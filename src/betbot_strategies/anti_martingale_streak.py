@@ -9,7 +9,7 @@ from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 
 @register("anti-martingale-streak")
@@ -23,6 +23,40 @@ class AntiMartingaleStreak:
     @classmethod
     def describe(cls) -> str:
         return "Reverse martingale: multiply stake on each win up to a cap; reset on loss."
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="Medium",
+            bankroll_required="Medium",
+            volatility="High",
+            time_to_profit="Quick",
+            recommended_for="Intermediate",
+            pros=[
+                "Capitalizes on winning streaks",
+                "Limited downside on losses",
+                "Exciting during hot streaks",
+                "Base bet stays constant on losses",
+                "Better risk profile than Martingale"
+            ],
+            cons=[
+                "Requires winning streaks to profit",
+                "Loses all streak progress on single loss",
+                "Highly dependent on luck/variance",
+                "Frustrating when streaks break early"
+            ],
+            best_use_case="For players who want to ride winning streaks. Good for short burst sessions.",
+            tips=[
+                "Set realistic streak_target (3-5 is optimal)",
+                "Exit after hitting 1-2 max streaks",
+                "Works best with 45-50% win probability",
+                "Consider 'partial reset' after breaking streak",
+                "Great for bonus hunting strategies",
+                "Use strict session time limits"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

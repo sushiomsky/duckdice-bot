@@ -24,7 +24,7 @@ import time
 import requests
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 
 @dataclass
@@ -48,6 +48,41 @@ class FaucetCashout:
     @classmethod
     def describe(cls) -> str:
         return "USD-targeted staged growth: 50% bets with conservative sizing to reach a USD balance target."
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="Very Low",
+            bankroll_required="None (Free)",
+            volatility="Low",
+            time_to_profit="Slow",
+            recommended_for="Beginners",
+            pros=[
+                "Zero risk - uses free faucet bets",
+                "Perfect for learning without deposit",
+                "Slow grind but absolutely free",
+                "Great for testing strategies",
+                "Can build up from nothing"
+            ],
+            cons=[
+                "Extremely slow progress",
+                "Requires huge time investment",
+                "Faucet limits may apply",
+                "Not realistic profit strategy",
+                "Better options exist for real play"
+            ],
+            best_use_case="Learning tool for absolute beginners. Test platform features risk-free.",
+            tips=[
+                "Be patient - this is a marathon not a sprint",
+                "Use to learn platform mechanics",
+                "Don't expect meaningful profits",
+                "Great for strategy testing",
+                "Transition to real betting once comfortable",
+                "Set realistic cashout targets (e.g., 0.0001)"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

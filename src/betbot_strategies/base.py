@@ -89,6 +89,20 @@ class StrategyContext:
         return self.starting_balance
 
 
+@dataclass
+class StrategyMetadata:
+    """Rich metadata for strategy display in GUI."""
+    risk_level: str  # "Low", "Medium", "High", "Very High"
+    bankroll_required: str  # "Small", "Medium", "Large", "Very Large"
+    volatility: str  # "Low", "Medium", "High"
+    time_to_profit: str  # "Quick", "Moderate", "Slow"
+    recommended_for: str  # "Beginners", "Intermediate", "Advanced", "Experts"
+    pros: list[str]
+    cons: list[str]
+    best_use_case: str
+    tips: list[str]
+
+
 class AutoBetStrategy(Protocol):
     """Protocol all strategies must implement."""
 
@@ -97,6 +111,9 @@ class AutoBetStrategy(Protocol):
 
     @classmethod
     def describe(cls) -> str: ...
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata: ...
 
     @classmethod
     def schema(cls) -> Dict[str, Any]: ...

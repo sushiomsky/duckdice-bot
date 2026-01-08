@@ -10,7 +10,7 @@ from decimal import Decimal
 from typing import Any, Dict, Optional
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 
 @register("max-wager-flow")
@@ -24,6 +24,41 @@ class MaxWagerFlow:
     @classmethod
     def describe(cls) -> str:
         return "Maximize wagering throughput using ~50% odds and fraction-of-balance sizing."
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="High",
+            bankroll_required="Large",
+            volatility="Very High",
+            time_to_profit="Quick",
+            recommended_for="Experts",
+            pros=[
+                "Aggressive profit targeting",
+                "Can generate quick wins",
+                "Maximum utilization of bankroll",
+                "Exciting high-action play",
+                "Good for bonus clearing"
+            ],
+            cons=[
+                "Very high risk of ruin",
+                "Not for risk-averse players",
+                "Can lose bankroll quickly",
+                "Requires nerves of steel",
+                "House edge amplified by bet size"
+            ],
+            best_use_case="High-risk/high-reward play. Only for experienced players with large bankrolls.",
+            tips=[
+                "Set very strict stop-loss (10-20% max)",
+                "Use only with money you can afford to lose",
+                "Exit immediately on profit target",
+                "Not recommended for beginners",
+                "Consider as entertainment expense",
+                "Know when to walk away"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

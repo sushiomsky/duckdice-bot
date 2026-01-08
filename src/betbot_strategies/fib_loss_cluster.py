@@ -8,7 +8,7 @@ from typing import Any, Dict, Optional
 from decimal import Decimal
 
 from . import register
-from .base import StrategyContext, BetSpec, BetResult
+from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 
 @register("fib-loss-cluster")
@@ -22,6 +22,41 @@ class FibLossCluster:
     @classmethod
     def describe(cls) -> str:
         return "Fibonacci progression when loss streak exceeds threshold; flat otherwise."
+
+
+
+    @classmethod
+    def metadata(cls) -> StrategyMetadata:
+        return StrategyMetadata(
+            risk_level="Medium",
+            bankroll_required="Medium",
+            volatility="High",
+            time_to_profit="Moderate",
+            recommended_for="Advanced",
+            pros=[
+                "Fibonacci with cluster detection",
+                "Adapts to losing patterns",
+                "More sophisticated than basic Fibonacci",
+                "Can reduce damage from bad variance",
+                "Good for pattern-aware betting"
+            ],
+            cons=[
+                "Complex logic harder to understand",
+                "Cluster detection adds overhead",
+                "Still vulnerable to sustained bad luck",
+                "Requires parameter tuning",
+                "Not proven more effective than basic Fib"
+            ],
+            best_use_case="For advanced players who believe in pattern detection. Experimental.",
+            tips=[
+                "Tune cluster_size to game characteristics",
+                "Monitor cluster detection effectiveness",
+                "Combine with strict stop-loss",
+                "Test in simulation mode first",
+                "May not outperform basic Fibonacci",
+                "For players who enjoy complexity"
+            ]
+        )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:

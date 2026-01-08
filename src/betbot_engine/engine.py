@@ -30,6 +30,18 @@ try:
     from betbot_strategies import max_wager_flow  # noqa: F401
     from betbot_strategies import faucet_cashout  # noqa: F401
     from betbot_strategies import rng_analysis_strategy  # noqa: F401
+    # New dicebot-inspired strategies
+    from betbot_strategies import classic_martingale  # noqa: F401
+    from betbot_strategies import dalembert  # noqa: F401
+    from betbot_strategies import fibonacci  # noqa: F401
+    from betbot_strategies import labouchere  # noqa: F401
+    from betbot_strategies import paroli  # noqa: F401
+    from betbot_strategies import oscars_grind  # noqa: F401
+    from betbot_strategies import one_three_two_six  # noqa: F401
+    # Target-aware strategy
+    from betbot_strategies import target_aware  # noqa: F401
+    # Scripting engine
+    from betbot_strategies import custom_script  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass

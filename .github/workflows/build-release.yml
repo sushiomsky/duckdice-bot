@@ -1,0 +1,250 @@
+name: Build and Release DuckDice Bot
+
+on:
+  push:
+    branches: [ main, develop ]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version number (e.g., 3.1.0)'
+        required: false
+        default: '3.1.0'
+
+jobs:
+  # Test on all platforms first
+  test:
+    name: Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.11']
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+    
+    - name: Test imports
+      run: |
+        python -c "import sys; sys.path.insert(0, 'src'); from betbot_strategies import list_strategies; print(f'Found {len(list_strategies())} strategies')"
+    
+    - name: Syntax check
+      run: |
+        python -m py_compile duckdice_gui_ultimate.py
+        python -m py_compile duckdice.py
+    
+    - name: Run strategy metadata test
+      if: matrix.os == 'ubuntu-latest'
+      run: |
+        python test_strategy_info.py
+
+  build-windows:
+    name: Build Windows Executable
+    runs-on: windows-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --clean duckdice_gui_ultimate.spec
+    
+    - name: Test executable exists
+      run: |
+        if (Test-Path "dist/DuckDiceBot.exe") {
+          Write-Host "✓ Executable created successfully"
+          Get-Item "dist/DuckDiceBot.exe" | Select-Object Name, Length
+        } else {
+          Write-Error "Build failed - executable not found"
+          exit 1
+        }
+    
+    - name: Create release package
+      run: |
+        Compress-Archive -Path "dist/DuckDiceBot.exe","COMPLETE_FEATURES.md","QUICK_START_GUIDE.md","README.md","LICENSE" -DestinationPath "DuckDiceBot-Windows-x64.zip"
+    
+    - name: Upload Windows artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: DuckDiceBot-Windows-x64
+        path: DuckDiceBot-Windows-x64.zip
+        retention-days: 30
+
+  build-macos:
+    name: Build macOS Application
+    runs-on: macos-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --clean duckdice_gui_ultimate.spec
+    
+    - name: Create package
+      run: |
+        if [ -d "dist/DuckDiceBot.app" ]; then
+          echo "✓ App bundle created"
+          cd dist
+          zip -r ../DuckDiceBot-macOS-universal.zip DuckDiceBot.app
+          cd ..
+        elif [ -f "dist/DuckDiceBot" ]; then
+          echo "✓ Executable created"
+          cd dist
+          zip ../DuckDiceBot-macOS-universal.zip DuckDiceBot
+          cd ..
+        fi
+    
+    - name: Upload macOS artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: DuckDiceBot-macOS
+        path: DuckDiceBot-macOS-universal.zip
+        retention-days: 30
+
+  build-linux:
+    name: Build Linux Executable
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y python3-tk
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Build with PyInstaller
+      run: |
+        pyinstaller --clean duckdice_gui_ultimate.spec
+    
+    - name: Create release package
+      run: |
+        cd dist
+        tar -czf ../DuckDiceBot-Linux-x64.tar.gz DuckDiceBot
+        cd ..
+    
+    - name: Upload Linux artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: DuckDiceBot-Linux-x64
+        path: DuckDiceBot-Linux-x64.tar.gz
+        retention-days: 30
+
+  create-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows, build-macos, build-linux]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - uses: actions/checkout@v3
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v3
+      with:
+        path: artifacts
+    
+    - name: Display structure
+      run: ls -R artifacts
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v1
+      with:
+        files: |
+          artifacts/DuckDiceBot-Windows-x64/DuckDiceBot-Windows-x64.zip
+          artifacts/DuckDiceBot-macOS/DuckDiceBot-macOS-universal.zip
+          artifacts/DuckDiceBot-Linux-x64/DuckDiceBot-Linux-x64.tar.gz
+        body: |
+          # DuckDice Bot Release ${{ github.ref_name }}
+          
+          ## 🎉 What's New
+          
+          - ✅ 16 enhanced strategies with comprehensive metadata
+          - 🎨 Beautiful GUI with risk indicators (🟢🟡🟠🔴)
+          - 🔬 Offline simulation mode
+          - 📊 Database logging and live charts
+          - 💡 Expert tips for all strategies
+          - 🚀 Complete UX enhancements
+          
+          ## 📦 Downloads
+          
+          Choose your platform:
+          
+          - **Windows**: `DuckDiceBot-Windows-x64.zip` (~50-80 MB)
+          - **macOS**: `DuckDiceBot-macOS-universal.zip` (~60-90 MB)
+          - **Linux**: `DuckDiceBot-Linux-x64.tar.gz` (~50-80 MB)
+          
+          ## 🚀 Quick Start
+          
+          1. Download the package for your platform
+          2. Extract the archive
+          3. Run `DuckDiceBot` (or `DuckDiceBot.exe` on Windows)
+          4. Set your API key in Settings
+          5. Enjoy!
+          
+          ## 📚 Documentation
+          
+          - [Quick Start Guide](https://github.com/${{ github.repository }}/blob/main/QUICK_START_GUIDE.md)
+          - [Complete Features](https://github.com/${{ github.repository }}/blob/main/COMPLETE_FEATURES.md)
+          - [Enhanced Strategy Info](https://github.com/${{ github.repository }}/blob/main/docs/ENHANCED_STRATEGY_INFO.md)
+          - [Windows Build](https://github.com/${{ github.repository }}/blob/main/WINDOWS_BUILD.md)
+          
+          ## ⚙️ Or Run from Source
+          
+          ```bash
+          pip install -r requirements.txt
+          python duckdice_gui_ultimate.py
+          ```
+          
+          Get your API key from [DuckDice](https://duckdice.io) → Account Settings → Bot API
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
