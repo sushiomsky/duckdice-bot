@@ -19,9 +19,38 @@ from app.ui.theme import Theme
 app.add_static_files('/assets', 'app/assets')
 
 
+# Keyboard shortcuts handler
+def setup_keyboard_shortcuts():
+    """Setup global keyboard shortcuts"""
+    ui.keyboard(
+        on_key=lambda e: handle_keyboard_event(e.key, e.modifiers)
+    )
+
+
+def handle_keyboard_event(key: str, modifiers: dict):
+    """Handle keyboard shortcuts"""
+    ctrl = modifiers.get('ctrl', False) or modifiers.get('meta', False)
+    
+    if not ctrl:
+        return
+    
+    shortcuts = {
+        'b': '/quick-bet',
+        'a': '/auto-bet',
+        'f': '/faucet',
+        'h': '/history',
+        's': '/settings',
+        'd': '/',
+    }
+    
+    if key in shortcuts:
+        ui.navigate.to(shortcuts[key])
+
+
 @ui.page('/')
 def index_page():
     """Dashboard - main page"""
+    setup_keyboard_shortcuts()
     create_layout(dashboard_content)
 
 

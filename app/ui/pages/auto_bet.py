@@ -2,6 +2,7 @@
 Auto Bet page - automated betting with strategies
 """
 
+import asyncio
 from nicegui import ui
 from app.ui.components import (
     card, primary_button, danger_button, secondary_button,
@@ -113,16 +114,61 @@ def auto_bet_content():
     # Start/Stop buttons
     with ui.row().classes('gap-4 mt-6'):
         async def start_auto_bet():
+            # Get selected strategy ID
+            selected_name = strategy_select.value
+            if not selected_name:
+                toast('Please select a strategy', 'error')
+                return
+            
+            strategy = next((s for s in strategies if s['name'] == selected_name), None)
+            if not strategy:
+                toast('Strategy not found', 'error')
+                return
+            
+            # Validate inputs
+            if base_bet.value <= 0:
+                toast('Base bet must be greater than 0', 'error')
+                return
+            
+            # Confirmation for live mode
             if store.mode == 'live':
-                # Show confirmation for live mode
-                toast('Auto-bet not fully implemented yet', 'warning')
-                # In full implementation, this would start the betting loop
+                from app.ui.components import confirm_dialog
+                
+                def do_start():
+                    asyncio.create_task(_start_auto_bet_task())
+                
+                confirm_dialog(
+                    title='Start Live Auto-Bet?',
+                    message=f'This will use REAL funds with {strategy["name"]} strategy. Continue?',
+                    on_confirm=do_start,
+                    confirm_text='Start',
+                    danger=True
+                )
             else:
-                toast('Simulation mode auto-bet coming soon', 'info')
+                await _start_auto_bet_task()
         
-        def stop_auto_bet():
-            store.auto_bet_running = False
+        async def _start_auto_bet_task():
+            selected_name = strategy_select.value
+            strategy = next((s for s in strategies if s['name'] == selected_name), None)
+            
+            success, message = await backend.start_auto_bet(
+                strategy_id=strategy['id'],
+                base_bet=base_bet.value,
+                max_bets=int(max_bets.value),
+                stop_loss=stop_loss.value,
+                take_profit=take_profit.value
+            )
+            
+            if success:
+                toast(message, 'success')
+                ui.navigate.to('/auto-bet')  # Refresh page
+            else:
+                toast(message, 'error')
+        
+        async def stop_auto_bet():
+            await backend.stop_auto_bet()
             toast('Auto-bet stopped', 'info')
+            ui.navigate.to('/auto-bet')
         
         if not store.auto_bet_running:
             primary_button(
