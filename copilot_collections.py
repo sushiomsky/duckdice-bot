@@ -13,7 +13,7 @@ import os
 import re
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Union
+from typing import Any, Dict, Iterable, List, Optional, Sequence, Set, Tuple, Union
 
 import requests
 import yaml
@@ -207,7 +207,7 @@ def suggest_collections(
 
     available = list(collections) if collections is not None else fetch_available_collections(session=session)
 
-    scored: List[tuple[int, CopilotCollection]] = []
+    scored: List[Tuple[int, CopilotCollection]] = []
     for collection in available:
         score = _score_collection(collection, keywords)
         if score > 0:
@@ -271,7 +271,11 @@ def _format_suggestion(collection: CopilotCollection) -> str:
 
 
 def main(argv: Optional[Sequence[str]] = None) -> int:
-    """Simple CLI for suggesting and installing Copilot collections."""
+    """
+    Simple CLI for suggesting and installing Copilot collections.
+
+    Returns 0 on success, 1 when fetching or installation fails.
+    """
     import argparse
 
     parser = argparse.ArgumentParser(description="Suggest and install Copilot collections.")
