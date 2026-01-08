@@ -55,3 +55,24 @@ def list_strategies() -> List[Dict[str, str]]:
                 desc = ""
         items.append({"name": name, "description": desc or getattr(cls, "__doc__", "").strip()})
     return items
+
+# Import all strategy modules to trigger registration
+from . import (
+    classic_martingale,
+    anti_martingale_streak,
+    labouchere,
+    dalembert,
+    fibonacci,
+    paroli,
+    oscars_grind,
+    one_three_two_six,
+    rng_analysis_strategy,
+    target_aware,
+    faucet_cashout,
+    faucet_grind,  # NEW STRATEGY!
+    kelly_capped,
+    max_wager_flow,
+    range50_random,
+    fib_loss_cluster,
+    custom_script
+)

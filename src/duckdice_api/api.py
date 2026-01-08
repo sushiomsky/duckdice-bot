@@ -9,6 +9,7 @@ from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 import json
 import sys
+import time
 import requests
 
 
@@ -172,12 +173,26 @@ class DuckDiceAPI:
         except Exception as e:
             print(f"Failed to get faucet balance: {e}", file=sys.stderr)
             return 0.0
-            return 0.0
+    
+    def get_faucet_balance_usd(self, symbol: str) -> float:
+        """
+        Get faucet balance in USD equivalent.
+        
+        Args:
+            symbol: Currency symbol
+            
+        Returns:
+            Faucet balance in USD
+        """
+        try:
+            from utils.currency_converter import to_usd
+            balance = self.get_faucet_balance(symbol)
+            return to_usd(balance, symbol)
         except Exception as e:
-            print(f"Failed to get faucet balance: {e}", file=sys.stderr)
+            print(f"Failed to get faucet balance in USD: {e}", file=sys.stderr)
             return 0.0
     
-    def claim_faucet(self, symbol: str, cookie: Optional[str] = None) -> bool:
+    def claim_faucet(self, symbol: str, cookie: Optional[str] = None) -> Dict[str, Any]:
         """
         Claim faucet for specified currency.
         Requires browser cookie for authentication.
@@ -187,7 +202,14 @@ class DuckDiceAPI:
             cookie: Browser cookie string (from logged-in session)
             
         Returns:
-            True if claim successful, False otherwise
+            Dict with claim info: {
+                'success': bool,
+                'amount': float,  # Amount claimed in crypto
+                'cooldown': int,  # Cooldown in seconds (0-60)
+                'claims_remaining': int,  # Claims left today (0-60)
+                'next_reset': float,  # Timestamp when daily limit resets
+                'error': str  # Error message if failed
+            }
         """
         try:
             headers = {
@@ -207,7 +229,116 @@ class DuckDiceAPI:
                 timeout=self.config.timeout
             )
             
-            return response.status_code == 200
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'success': True,
+                    'amount': float(data.get('amount', 0)),
+                    'cooldown': int(data.get('cooldown', 60)),
+                    'claims_remaining': int(data.get('claimsRemaining', 60)),
+                    'next_reset': float(data.get('nextReset', time.time() + 86400)),
+                    'error': ''
+                }
+            else:
+                return {
+                    'success': False,
+                    'amount': 0,
+                    'cooldown': 60,
+                    'claims_remaining': 0,
+                    'next_reset': time.time() + 86400,
+                    'error': f"HTTP {response.status_code}"
+                }
         except Exception as e:
             print(f"Failed to claim faucet: {e}", file=sys.stderr)
-            return False
+            return {
+                'success': False,
+                'amount': 0,
+                'cooldown': 60,
+                'claims_remaining': 0,
+                'next_reset': time.time() + 86400,
+                'error': str(e)
+            }
+    
+    def cashout_faucet(self, symbol: str, amount: Optional[float] = None, cookie: Optional[str] = None) -> Dict[str, Any]:
+        """
+        Transfer faucet balance to main balance.
+        Requires minimum $20 USD equivalent.
+        
+        Args:
+            symbol: Currency symbol
+            amount: Amount to cashout (None = all faucet balance)
+            cookie: Browser cookie for authentication
+            
+        Returns:
+            Dict with cashout result: {
+                'success': bool,
+                'amount': float,  # Amount transferred
+                'new_main_balance': float,
+                'new_faucet_balance': float,
+                'error': str
+            }
+        """
+        try:
+            # Get current balances
+            faucet_balance = self.get_faucet_balance(symbol)
+            
+            if amount is None:
+                amount = faucet_balance
+            
+            # Check minimum threshold ($20 USD)
+            from utils.currency_converter import to_usd
+            amount_usd = to_usd(amount, symbol)
+            
+            if amount_usd < 20.0:
+                return {
+                    'success': False,
+                    'amount': 0,
+                    'new_main_balance': 0,
+                    'new_faucet_balance': faucet_balance,
+                    'error': f'Minimum cashout is $20 USD (attempted: ${amount_usd:.2f})'
+                }
+            
+            # Make cashout request
+            headers = {
+                "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36",
+                "Content-Type": "application/json",
+            }
+            
+            if cookie:
+                headers["Cookie"] = cookie
+            
+            url = f"{self.config.base_url}/faucet/cashout"
+            response = self.session.post(
+                url,
+                headers=headers,
+                json={"symbol": symbol.upper(), "amount": str(amount)},
+                timeout=self.config.timeout
+            )
+            
+            if response.status_code == 200:
+                data = response.json()
+                return {
+                    'success': True,
+                    'amount': amount,
+                    'new_main_balance': float(data.get('mainBalance', 0)),
+                    'new_faucet_balance': float(data.get('faucetBalance', 0)),
+                    'error': ''
+                }
+            else:
+                return {
+                    'success': False,
+                    'amount': 0,
+                    'new_main_balance': 0,
+                    'new_faucet_balance': faucet_balance,
+                    'error': f"HTTP {response.status_code}: {response.text}"
+                }
+                
+        except Exception as e:
+            print(f"Failed to cashout faucet: {e}", file=sys.stderr)
+            return {
+                'success': False,
+                'amount': 0,
+                'new_main_balance': 0,
+                'new_faucet_balance': 0,
+                'error': str(e)
+            }
