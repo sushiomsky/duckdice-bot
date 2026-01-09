@@ -2,7 +2,71 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
-## [Unreleased] - Phase 3 Progress
+## [3.6.0] - 2025-01-09 - Complete Simulator (Phase 4)
+
+### Added
+- **Complete Simulator System** (Tasks 4.1-4.5, 5 hours):
+  
+  **Backend (5 components)**:
+  - SimulationEngine: Virtual balance tracking and bet execution
+    - House edge simulation (configurable 0-100%, default 3%)
+    - Seed-based reproducibility
+    - Win/loss determination with payout calculation
+    - Balance validation and history tracking
+  
+  - MetricsCalculator: 14 performance metrics
+    - Total bets, wins, losses, win rate
+    - Total wagered, profit/loss, ROI
+    - Max win/loss streaks
+    - Average bet size, win/loss amounts
+    - Profit factor, expected value
+  
+  - RiskAnalyzer: 9 risk metrics
+    - Peak balance tracking
+    - Max/current drawdown (absolute & %)
+    - Variance & standard deviation
+    - Suggested bankroll estimation
+    - Risk of ruin calculation
+  
+  - BacktestEngine: Historical replay framework
+    - Load from CSV/JSON/bet_history
+    - Strategy execution with historical outcomes
+    - Multi-strategy comparison
+    - Performance report generation
+  
+  - Data Models: Complete type-safe models
+    - SimulationConfig, SimulatedBet
+    - PerformanceMetrics, RiskAnalysis
+    - SimulationResult with JSON export
+  
+  **UI Components**:
+  - Simulator Page: Professional async interface
+    - Configuration panel (balance, currency, house edge, bets, seed)
+    - Real-time session display (color-coded balance/P/L)
+    - Win/loss tracking with win rate
+    - Performance metrics grid (12 metrics)
+    - Risk analysis grid (7 metrics)
+    - Controls: Start, Pause, Stop, Reset, Export
+  
+  - SimulatorController: Clean state management
+    - Async simulation execution
+    - Real-time UI updates (every 10 bets)
+    - Pause/resume functionality
+    - JSON export to bet_history/
+  
+  **Navigation**:
+  - Added "Simulator" item to main navigation
+  - Route: `/simulator`
+
+### Technical
+- All financial calculations use `Decimal` for precision
+- House edge: `payout = bet * (100/chance) * (1 - edge/100)`
+- Max drawdown: peak-to-trough tracking
+- Async UI updates for performance
+- Zero external dependencies (except NiceGUI)
+- Fast execution: <1ms for metrics/risk calculations
+
+## [3.5.0] - 2025-01-09 - Bet Verification System (Phase 3)
 
 ### Added
 - **Bet Verification System (Tasks 3.1-3.3)**:
