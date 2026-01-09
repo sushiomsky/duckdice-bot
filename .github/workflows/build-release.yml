@@ -25,10 +25,10 @@ jobs:
         python-version: ['3.9', '3.11']
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python ${{ matrix.python-version }}
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: ${{ matrix.python-version }}
     
@@ -57,10 +57,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -89,7 +89,7 @@ jobs:
         Compress-Archive -Path "dist/DuckDiceBot.exe","COMPLETE_FEATURES.md","QUICK_START_GUIDE.md","README.md","LICENSE" -DestinationPath "DuckDiceBot-Windows-x64.zip"
     
     - name: Upload Windows artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: DuckDiceBot-Windows-x64
         path: DuckDiceBot-Windows-x64.zip
@@ -101,10 +101,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -133,7 +133,7 @@ jobs:
         fi
     
     - name: Upload macOS artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: DuckDiceBot-macOS
         path: DuckDiceBot-macOS-universal.zip
@@ -145,10 +145,10 @@ jobs:
     needs: test
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Set up Python 3.11
-      uses: actions/setup-python@v4
+      uses: actions/setup-python@v5
       with:
         python-version: '3.11'
     
@@ -171,7 +171,7 @@ jobs:
         cd ..
     
     - name: Upload Linux artifact
-      uses: actions/upload-artifact@v3
+      uses: actions/upload-artifact@v4
       with:
         name: DuckDiceBot-Linux-x64
         path: DuckDiceBot-Linux-x64.tar.gz
@@ -184,10 +184,10 @@ jobs:
     if: startsWith(github.ref, 'refs/tags/v')
     
     steps:
-    - uses: actions/checkout@v3
+    - uses: actions/checkout@v4
     
     - name: Download all artifacts
-      uses: actions/download-artifact@v3
+      uses: actions/download-artifact@v4
       with:
         path: artifacts
     
