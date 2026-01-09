@@ -43,13 +43,19 @@ venv.bak/
 *~
 .DS_Store
 
-# Logs
+# Logs and runtime data
 *.log
 logs/
+bet_history/
+rng_analysis/
 
 # Balance history files
 balance_history.json
 balance_*.json
+
+# Custom scripts saved by users
+templates/custom_scripts/
+user_scripts/
 
 # Testing
 .pytest_cache/
