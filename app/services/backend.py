@@ -372,8 +372,10 @@ class Backend:
                 
                 if success:
                     store.auto_bet_count += 1
-                    # Small delay between bets
-                    await asyncio.sleep(1)
+                    # Delay between bets (0ms in turbo mode)
+                    if not store.turbo_mode:
+                        await asyncio.sleep(1)
+                    # else: no delay in turbo mode for maximum speed
                 else:
                     # Error occurred, stop
                     await self.stop_auto_bet()

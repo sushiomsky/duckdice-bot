@@ -18,18 +18,35 @@ class DuckDiceConfig:
     api_key: str
     base_url: str = "https://duckdice.io/api"
     timeout: int = 30
+    pool_connections: int = 10  # Connection pool size
+    pool_maxsize: int = 20  # Max connections in pool
+    max_retries: int = 3  # Retry failed requests
 
 
 class DuckDiceAPI:
     def __init__(self, config: DuckDiceConfig):
         self.config = config
+        # Create session with connection pooling for better performance
         self.session = requests.Session()
+        
+        # Configure adapter with connection pooling
+        adapter = requests.adapters.HTTPAdapter(
+            pool_connections=config.pool_connections,
+            pool_maxsize=config.pool_maxsize,
+            max_retries=config.max_retries,
+            pool_block=False  # Don't block when pool is full
+        )
+        self.session.mount('http://', adapter)
+        self.session.mount('https://', adapter)
+        
+        # Set headers
         self.session.headers.update(
             {
                 "Content-Type": "application/json",
-                "User-Agent": "DuckDiceCLI/1.0.0",
+                "User-Agent": "DuckDiceCLI/3.9.0-Turbo",
                 "Accept": "*/*",
                 "Cache-Control": "no-cache",
+                "Connection": "keep-alive",  # Enable HTTP keep-alive
             }
         )
 

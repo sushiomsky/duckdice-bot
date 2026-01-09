@@ -113,6 +113,25 @@ def settings_content():
             on_change=lambda e: setattr(store, 'betting_mode', e.value)
         )
     
+    # Performance Settings
+    with card().classes('mt-6'):
+        ui.label('Performance').classes('text-xl font-semibold mb-4')
+        
+        # Turbo Mode Toggle
+        with ui.row().classes('items-center gap-4 mb-2'):
+            turbo_toggle = toggle_switch(
+                label='⚡ Turbo Mode (Maximum Speed)',
+                value=store.turbo_mode,
+                on_change=lambda e: setattr(store, 'turbo_mode', e.value)
+            )
+        
+        ui.label('Removes all delays for fastest betting (0ms between bets)').classes(
+            'text-xs text-amber-400 ml-8 mb-2'
+        )
+        ui.label('⚠️ May increase server load - use responsibly').classes(
+            'text-xs text-slate-500 ml-8'
+        )
+    
     # Faucet Settings
     with card().classes('mt-6'):
         ui.label('Faucet Configuration').classes('text-xl font-semibold mb-4')

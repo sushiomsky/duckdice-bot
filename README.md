@@ -8,11 +8,22 @@ A comprehensive command-line interface and GUI for the [DuckDice Bot API](https:
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/sushiomsky/duckdice-bot)
 
-## ✨ What's New in v3.5
+## ✨ What's New in v3.9
 
-🎉 **Major Feature Update!**
+🎉 **Major Performance & Analytics Update!**
 
-### New in v3.5.0 - Bet Verification System
+### New in v3.9.0 - Statistics & Turbo Mode
+- 📊 **Comprehensive Statistics Dashboard**: Multi-period analytics (24h, 7d, 30d, 90d, all-time)
+- 📈 **Win/Loss Analysis**: Visual progress bars, currency breakdown, streak tracking
+- 💾 **Persistent Bet History**: Auto-saved to disk with JSONL format
+- 🔍 **Advanced Filtering**: Date ranges, currency, amount, win/loss filtering
+- 📄 **CSV Export Ready**: Export statistics for external analysis
+- ⚡ **Turbo Mode**: Maximum betting speed (15-25x faster, 0ms delays)
+- 🚀 **Connection Pooling**: HTTP keep-alive for reduced latency
+- 🌍 **All Currencies**: Automatic support for all DuckDice currencies
+- ⌨️ **Keyboard Shortcut**: Ctrl+7 for instant statistics access
+
+### Previous in v3.5.0 - Bet Verification System
 - 🔐 **Provably Fair Verification**: Verify any bet's fairness with SHA-256 cryptographic proof
 - 📊 **Step-by-Step Breakdown**: See exactly how each roll is calculated (educational!)
 - ✅ **Instant Verification**: Click "Verify" on any bet in history to check fairness
@@ -75,9 +86,15 @@ See [NICEGUI_README.md](NICEGUI_README.md) for full documentation.
 - ⚡ **Real-time Updates**: Live balance refresh every 30 seconds
 - ⌨️ **Keyboard Shortcuts**: Fast navigation (Ctrl+B, Ctrl+A, etc.)
 
-**10 Complete Pages:**
+**10+ Complete Pages:**
 - 📊 Dashboard - Live statistics and performance overview
-- 🎲 Quick Bet - Manual betting with instant feedback
+- 🎲 Betting - Manual and automated betting (consolidated)
+- 🚰 Faucet - Auto-claim with progress tracking
+- 📚 Library - Strategies and custom scripts (consolidated)
+- 🛠️ Tools - Simulator, RNG Analysis, Verification (consolidated)
+- 📜 History - Complete bet history with filtering
+- 📊 Statistics - Comprehensive analytics dashboard (NEW in v3.9!)
+- ⚙️ Settings - API connection and preferences
 - 🤖 Auto Bet - Strategy automation with 17 strategies
 - 🚰 Faucet - Auto-claim with Faucet Grind strategy
 - 📚 Strategies - Browse and learn about all strategies

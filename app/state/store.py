@@ -44,6 +44,7 @@ class AppStore:
         self.betting_mode = "main"  # 'main', 'faucet'
         self.is_betting = False
         self.current_strategy = None
+        self.turbo_mode = False  # Enable maximum betting speed
         
         # Statistics
         self.total_bets = 0
