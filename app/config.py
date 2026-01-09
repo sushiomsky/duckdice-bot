@@ -15,14 +15,25 @@ FAUCET_COOLDOWN = 60  # seconds
 MAX_BET_HISTORY = 1000
 MAX_CONCURRENT_BETS = 1
 
-# Keyboard shortcuts
+# Keyboard shortcuts (Ctrl/Cmd + key)
 KEYBOARD_SHORTCUTS = {
-    'b': '/quick-bet',
-    'a': '/auto-bet',
-    'f': '/faucet',
-    'h': '/history',
-    's': '/settings',
-    'd': '/',
+    # Navigation shortcuts (Ctrl+1 through Ctrl+7)
+    '1': '/',  # Dashboard
+    '2': '/betting',  # Betting
+    '3': '/faucet',  # Faucet
+    '4': '/library',  # Library
+    '5': '/tools',  # Tools
+    '6': '/history',  # History
+    '7': '/settings',  # Settings
+    
+    # Legacy letter shortcuts (for backwards compatibility)
+    'b': '/betting',  # Betting (was Quick Bet)
+    'f': '/faucet',  # Faucet
+    'h': '/history',  # History
+    's': '/settings',  # Settings
+    'd': '/',  # Dashboard
+    'l': '/library',  # Library
+    't': '/tools',  # Tools
 }
 
 # House edges

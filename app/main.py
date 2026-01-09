@@ -21,31 +21,13 @@ from app.ui.pages.script_editor import create_script_editor_page
 from app.ui.pages.simulator import simulator_content
 from app.ui.pages.rng_analysis import rng_analysis_content
 from app.ui.theme import Theme
-from app.config import KEYBOARD_SHORTCUTS, DEFAULT_PORT
+from app.ui.keyboard import setup_keyboard_shortcuts
+from app.config import DEFAULT_PORT
 from app.utils.logger import log_info
 
 
 # Configure app
 app.add_static_files('/assets', 'app/assets')
-
-
-# Keyboard shortcuts handler
-def setup_keyboard_shortcuts() -> None:
-    """Setup global keyboard shortcuts"""
-    ui.keyboard(
-        on_key=lambda e: handle_keyboard_event(e.key, e.modifiers)
-    )
-
-
-def handle_keyboard_event(key: str, modifiers: Dict) -> None:
-    """Handle keyboard shortcuts"""
-    ctrl = modifiers.get('ctrl', False) or modifiers.get('meta', False)
-    
-    if not ctrl:
-        return
-    
-    if key in KEYBOARD_SHORTCUTS:
-        ui.navigate.to(KEYBOARD_SHORTCUTS[key])
 
 
 @ui.page('/')

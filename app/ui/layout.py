@@ -88,21 +88,37 @@ def create_sidebar():
         # Bottom actions
         with ui.column().classes('gap-2 w-full mt-auto'):
             ui.separator()
+            
+            # Keyboard shortcuts button
+            def show_shortcuts():
+                from app.ui.keyboard import keyboard_manager
+                keyboard_manager._show_help_dialog()
+            
+            create_nav_item('keyboard', 'Shortcuts (?)', None, on_click=show_shortcuts)
             create_nav_item('help', 'Help', '/help')
             create_nav_item('info', 'About', '/about')
     
     return drawer
 
 
-def create_nav_item(icon: str, label: str, path: str):
+def create_nav_item(icon: str, label: str, path: str = None, on_click = None):
     """
     Single navigation item with hover effect
+    
+    Args:
+        icon: Material icon name
+        label: Display label
+        path: Navigation path (optional if on_click provided)
+        on_click: Optional click handler (overrides path navigation)
     """
     # Check if current page
-    is_active = ui.context.client.page.path == path
+    is_active = path and ui.context.client.page.path == path
+    
+    # Determine click handler
+    click_handler = on_click if on_click else (lambda: ui.navigate.to(path) if path else None)
     
     with ui.button(
-        on_click=lambda: ui.navigate.to(path)
+        on_click=click_handler
     ).props('flat no-caps').classes('w-full justify-start px-4 py-3 rounded-lg'):
         
         # Active state styling
