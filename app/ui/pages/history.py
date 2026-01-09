@@ -1,9 +1,10 @@
 """
-History page - view bet history with filtering
+History page - view bet history with filtering and verification
 """
 
 from nicegui import ui
 from app.ui.components import card, secondary_button, empty_state, select_field
+from app.ui.components.verification_dialog import show_verification_dialog
 from app.ui.theme import Theme
 from app.state.store import store
 
@@ -134,7 +135,8 @@ def history_content():
                     ui.label('Chance').classes('text-xs font-medium text-slate-400 w-24')
                     ui.label('Target').classes('text-xs font-medium text-slate-400 w-24')
                     ui.label('Result').classes('text-xs font-medium text-slate-400 w-24')
-                    ui.label('Profit').classes('text-xs font-medium text-slate-400 flex-1')
+                    ui.label('Profit').classes('text-xs font-medium text-slate-400 w-32')
+                    ui.label('Actions').classes('text-xs font-medium text-slate-400 w-24')
                 
                 # Table rows (paginate to first 100)
                 for bet in filtered_bets[:100]:
@@ -153,9 +155,20 @@ def history_content():
                         
                         profit_color = Theme.ACCENT if bet.is_win else Theme.ERROR
                         icon = '✓' if bet.is_win else '✗'
-                        ui.label(f'{icon} {bet.profit:.8f}').classes('text-sm font-medium flex-1').style(
+                        ui.label(f'{icon} {bet.profit:.8f}').classes('text-sm font-medium w-32').style(
                             f'color: {profit_color}'
                         )
+                        
+                        # Verify button
+                        def create_verify_handler(b=bet):
+                            def verify():
+                                show_verify_input_dialog(b)
+                            return verify
+                        
+                        ui.button(
+                            icon='verified',
+                            on_click=create_verify_handler()
+                        ).props('flat dense round').classes('w-24').tooltip('Verify bet fairness')
                 
                 # Pagination info
                 if len(filtered_bets) > 100:
@@ -169,6 +182,81 @@ def history_content():
     # Re-render on filter changes
     mode_filter.on_value_change(lambda: render_history())
     result_filter.on_value_change(lambda: render_history())
+
+
+def show_verify_input_dialog(bet):
+    """
+    Show dialog to input seeds for verification.
+    
+    Args:
+        bet: BetResult object to verify
+    """
+    
+    with ui.dialog() as dialog, ui.card().classes('w-full max-w-lg'):
+        ui.label('Enter Verification Details').classes('text-xl font-bold mb-4')
+        
+        # Bet info
+        with ui.card().classes('w-full mb-4'):
+            ui.label('Bet Information').classes('text-sm font-semibold mb-2')
+            ui.label(f'Amount: {bet.amount:.8f} {bet.currency}').classes('text-sm')
+            ui.label(f'Roll Result: {bet.result:.3f}').classes('text-sm')
+            ui.label(f'Win: {"Yes" if bet.is_win else "No"}').classes('text-sm')
+        
+        # Input fields
+        ui.label('Enter the seeds used for this bet:').classes('text-sm text-gray-400 mb-2')
+        
+        server_seed_input = ui.input(
+            'Server Seed',
+            placeholder='Enter revealed server seed'
+        ).props('outlined').classes('w-full mb-2')
+        
+        client_seed_input = ui.input(
+            'Client Seed',
+            placeholder='Enter your client seed'
+        ).props('outlined').classes('w-full mb-2')
+        
+        nonce_input = ui.input(
+            'Nonce',
+            placeholder='Enter bet nonce (usually 0, 1, 2...)',
+            value='0'
+        ).props('outlined type=number').classes('w-full mb-2')
+        
+        ui.label('ℹ️ You can find these values on the DuckDice website under your betting history or fairness settings.').classes(
+            'text-xs text-gray-400 mb-4'
+        )
+        
+        # Actions
+        with ui.row().classes('w-full justify-end gap-2'):
+            ui.button('Cancel', on_click=dialog.close).props('outline')
+            
+            def verify():
+                # Validate inputs
+                if not server_seed_input.value or not client_seed_input.value:
+                    ui.notify('Please enter both server and client seeds', type='warning')
+                    return
+                
+                try:
+                    nonce = int(nonce_input.value or 0)
+                except ValueError:
+                    ui.notify('Invalid nonce value', type='warning')
+                    return
+                
+                # Close input dialog
+                dialog.close()
+                
+                # Show verification result
+                show_verification_dialog(
+                    server_seed=server_seed_input.value,
+                    client_seed=client_seed_input.value,
+                    nonce=nonce,
+                    actual_roll=bet.result,
+                    bet_amount=bet.amount,
+                    currency=bet.currency
+                )
+            
+            ui.button('Verify', icon='verified', on_click=verify).props('color=primary')
+    
+    dialog.open()
 
 
 from app.ui.components import toast

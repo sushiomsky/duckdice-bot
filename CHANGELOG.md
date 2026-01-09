@@ -2,6 +2,48 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
+## [Unreleased] - Phase 3 Progress
+
+### Added
+- **Bet Verification System (Tasks 3.1-3.3)**:
+  
+  **Backend (Complete)**:
+  - BetVerifier: Provably fair verification engine
+    - SHA-256 algorithm implementation
+    - Single and batch verification
+    - Calculation step breakdown
+    - Win/loss validation
+  
+  - VerificationResult: Result model with status icons
+  - VerificationReport: Batch report with CSV export
+  - 100% accurate DuckDice algorithm
+  - Float tolerance (0.001) for precision
+  
+  **UI Components (Complete)**:
+  - Verification Dialog: Detailed verification display
+    - Step-by-step calculation breakdown
+    - Expandable sections for each step
+    - Seed display with readonly inputs
+    - Comparison visualization
+    - Export report functionality
+  
+  - Batch Verification Dialog: Multiple bet results
+    - Summary statistics
+    - Pass rate calculation
+    - Individual result breakdown
+  
+  - History Page Integration:
+    - "Verify" button on each bet row
+    - Seed input dialog
+    - Seamless verification workflow
+    - Visual feedback (✅ ❌ ⚠️)
+
+### Technical
+- DuckDice algorithm: server_seed + client_seed + nonce → SHA-256 → (hex % 100000) / 1000
+- Verification dialogs use NiceGUI modals
+- CSV export for batch verification
+- Text export for single bet reports
+
 ## [3.4.0] - 2026-01-09 - Unified Script System (Phase 2 Complete)
 
 ### Added
