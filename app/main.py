@@ -10,6 +10,7 @@ from app.ui.pages.dashboard import dashboard_content
 from app.ui.pages.settings import settings_content
 from app.ui.pages.betting import betting_content
 from app.ui.pages.library import library_content
+from app.ui.pages.tools import tools_content
 from app.ui.pages.quick_bet import quick_bet_content
 from app.ui.pages.auto_bet import auto_bet_content
 from app.ui.pages.faucet import faucet_content
@@ -126,16 +127,22 @@ def scripts_editor_page(name: str = None, template: str = None, new: str = None)
     create_layout(editor_content)
 
 
+@ui.page('/tools')
+def tools_page() -> None:
+    """Consolidated tools page (Simulator + RNG Analysis + Verify)"""
+    create_layout(tools_content)
+
+
 @ui.page('/simulator')
 def simulator_page() -> None:
-    """Simulator page"""
-    create_layout(simulator_content)
+    """Simulator page (legacy - redirects to /tools)"""
+    ui.navigate.to('/tools')
 
 
 @ui.page('/rng-analysis')
 def rng_analysis_page() -> None:
-    """RNG Analysis page"""
-    create_layout(rng_analysis_content)
+    """RNG Analysis page (legacy - redirects to /tools)"""
+    ui.navigate.to('/tools')
 
 
 @ui.page('/help')

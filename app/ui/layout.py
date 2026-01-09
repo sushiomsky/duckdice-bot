@@ -73,8 +73,7 @@ def create_sidebar():
             ('casino', 'Betting', '/betting'),
             ('water_drop', 'Faucet', '/faucet'),
             ('library_books', 'Library', '/library'),
-            ('science', 'Simulator', '/simulator'),
-            ('analytics', 'RNG Analysis', '/rng-analysis'),
+            ('build', 'Tools', '/tools'),
             ('history', 'History', '/history'),
             ('settings', 'Settings', '/settings'),
         ]
