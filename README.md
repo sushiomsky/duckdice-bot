@@ -34,11 +34,12 @@ source venv/bin/activate  # On Windows: venv\Scripts\activate
 # Install dependencies
 pip install -r requirements.txt
 
-# Run the GUI
+# Run the Desktop GUI
 python duckdice_gui_ultimate.py
 
-# Or run the web interface
-./run_nicegui.sh  # On Windows: python app/main.py
+# Or run the new web interface (recommended)
+python gui/app.py
+# Or use: ./run_gui_web.sh
 ```
 
 Get your API key from [DuckDice](https://duckdice.io) → Account Settings → Bot API
@@ -54,11 +55,16 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **Offline Simulator**: Test strategies without risking funds
 - **Database Logging**: Persistent bet history with JSONL format
 
-#### Web Interface (NiceGUI)
-- **Modern Web UI**: Access from any device on your network
-- **Responsive Design**: Works on desktop, tablet, and mobile
-- **Real-time Updates**: Live betting status and statistics
-- **Dark/Light Themes**: Beautiful, customizable interface
+#### Web Interface (NiceGUI) - **NEW!** ⭐
+- **Modern Web UI**: Beautiful, safety-focused interface at localhost:8080
+- **Real-time Dashboard**: Live stats updating every 250ms
+- **Offline Simulator**: Test strategies with configurable parameters
+- **Strategy Manager**: Configure and save strategy profiles
+- **Bet History**: Paginated view with analytics and CSV export
+- **Safety First**: Simulation mode by default, emergency stop always accessible
+- **Thread-safe**: Concurrent operation with no race conditions
+
+📖 **[View Web GUI Documentation →](GUI_README.md)**
 
 ### 🎯 Core Features
 
