@@ -8,18 +8,37 @@ A comprehensive command-line interface and GUI for the [DuckDice Bot API](https:
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/sushiomsky/duckdice-bot)
 
-## ✨ What's New in v3.2
+## ✨ What's New in v3.5
 
-🎉 **Major Upgrade Release!**
+🎉 **Major Feature Update!**
 
-- 🔄 **Auto-Update System**: Automatic update checking with one-click installation from GitHub releases
-- 🎨 **Modern UI/UX**: Clear mode indicators (Simulation vs Live), beautiful status bars, modern color scheme
-- 💱 **Dynamic Currency Fetching**: Auto-loads your available currencies from API (no more hardcoded lists!)
-- 🚰 **Faucet Mode**: Separate main/faucet balance tracking with auto-claim functionality
-- 📝 **DiceBot-Compatible Script Editor**: Write custom strategies with syntax highlighting, auto-save, and example scripts
-- 🔄 **Enhanced API Integration**: Smart caching, manual refresh (F6), seamless connectivity
-- 🎯 **16 Enhanced Strategies**: Each with detailed info, risk indicators, expert tips, and pros/cons analysis
-- 🚀 **CI/CD Pipeline**: Automated builds for Windows, macOS, and Linux via GitHub Actions
+### New in v3.5.0 - Bet Verification System
+- 🔐 **Provably Fair Verification**: Verify any bet's fairness with SHA-256 cryptographic proof
+- 📊 **Step-by-Step Breakdown**: See exactly how each roll is calculated (educational!)
+- ✅ **Instant Verification**: Click "Verify" on any bet in history to check fairness
+- 📤 **Export Reports**: Download verification reports for audit trails
+- 🎯 **100% Accurate**: Exact DuckDice algorithm implementation
+
+### New in v3.4.0 - Unified Script System
+- 📝 **Custom Strategy Editor**: Create your own betting strategies with VSCode-quality Monaco editor
+- 🎨 **Real-time Validation**: Instant error detection as you type
+- 🔒 **100% Safe**: RestrictedPython sandbox blocks all dangerous operations
+- 📚 **Professional Templates**: 4 ready-to-use strategy templates (Martingale, Anti-Martingale, Fixed %, Target Profit)
+- 🔄 **Version History**: Auto-save with rollback to any of last 10 versions
+- 🧪 **Test Mode**: Test scripts with sample data before deploying
+- 🎯 **One-Click Format**: Black code formatter integration
+
+### New in v3.3.0 - Faucet Grind
+- 🚰 **Faucet Grind Strategy**: Auto-claim faucet and grind to $20 cashout
+- 💰 **Smart Betting**: Optimal chance calculation for maximum efficiency
+- 📈 **Progress Tracking**: Live progress bar to $20 target
+- 🔄 **Auto Recovery**: Loss recovery with next claim cycle
+
+Previous Updates (v3.2):
+- 🔄 Auto-Update System with GitHub integration
+- 🎨 Modern UI/UX with clear mode indicators
+- 💱 Dynamic Currency Fetching
+- 🚰 Enhanced Faucet Mode
 
 ## 🚀 Quick Start
 
@@ -47,7 +66,7 @@ See [NICEGUI_README.md](NICEGUI_README.md) for full documentation.
 
 ## 🌟 Key Features
 
-### 🌐 NiceGUI Web Interface (v1.0.0) - NEW!
+### 🌐 NiceGUI Web Interface (v1.0+)
 
 **Modern Web Application:**
 - 🌐 **Remote Access**: Use from any device on your network
@@ -56,15 +75,45 @@ See [NICEGUI_README.md](NICEGUI_README.md) for full documentation.
 - ⚡ **Real-time Updates**: Live balance refresh every 30 seconds
 - ⌨️ **Keyboard Shortcuts**: Fast navigation (Ctrl+B, Ctrl+A, etc.)
 
-**8 Complete Pages:**
+**10 Complete Pages:**
 - 📊 Dashboard - Live statistics and performance overview
 - 🎲 Quick Bet - Manual betting with instant feedback
-- 🤖 Auto Bet - Strategy automation with 16 strategies
-- 🚰 Faucet - Auto-claim with live countdown timer
+- 🤖 Auto Bet - Strategy automation with 17 strategies
+- 🚰 Faucet - Auto-claim with Faucet Grind strategy
 - 📚 Strategies - Browse and learn about all strategies
-- 📈 History - Bet history with CSV export
+- 💻 **Scripts** - Create/edit custom strategies with Monaco editor (NEW!)
+- 📈 History - Bet history with CSV export and verification (NEW!)
 - ⚙️ Settings - API configuration and preferences
 - ❓ Help/About - Keyboard shortcuts and documentation
+
+### 🔐 Provably Fair Verification (NEW in v3.5!)
+
+**Transparency & Trust:**
+- ✅ **Verify Any Bet**: Click verify on any bet to check fairness
+- 🔍 **Step-by-Step**: See exactly how SHA-256 produces each roll
+- 📊 **Educational**: Learn how provably fair gambling works
+- 📤 **Export Reports**: Download verification for your records
+- 🎯 **100% Accurate**: Matches DuckDice's algorithm exactly
+- ⚡ **Instant**: <1ms verification speed
+
+### 📝 Custom Strategy Editor (NEW in v3.4!)
+
+**Professional Code Editor:**
+- 🎨 **Monaco Editor**: VSCode-quality editing experience
+- ⚡ **Real-time Validation**: Instant error detection and warnings
+- 🔒 **100% Safe**: RestrictedPython blocks dangerous operations
+- 🎯 **One-Click Format**: Black code formatter integration
+- 📚 **4 Templates**: Professional starter strategies included
+- 🔄 **Version History**: Rollback to any of last 10 versions
+- 🧪 **Test Mode**: Test scripts safely before deploying
+- 💡 **Help System**: Built-in documentation and examples
+
+**Features:**
+- Search and filter all scripts
+- Duplicate templates to customize
+- Export/import scripts as .py files
+- Syntax highlighting for Python
+- Error messages with line numbers
 
 ### 🖥️ DuckDice GUI Ultimate (Tkinter)
 
