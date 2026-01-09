@@ -23,11 +23,11 @@ def tools_content():
     ui.label('Tools').classes('text-3xl font-bold mb-2')
     ui.label('Advanced tools for analysis and verification').classes('text-sm text-slate-400 mb-6')
     
-    # Tabs
+    # Tabs - responsive: stack on mobile, inline on desktop
     with ui.tabs().classes('w-full') as tabs:
-        simulator_tab = ui.tab('🧪 Simulator')
-        rng_tab = ui.tab('📊 RNG Analysis')
-        verify_tab = ui.tab('✓ Verify')
+        simulator_tab = ui.tab('🧪 Simulator').classes('text-xs sm:text-sm')
+        rng_tab = ui.tab('📊 RNG Analysis').classes('text-xs sm:text-sm')
+        verify_tab = ui.tab('✓ Verify').classes('text-xs sm:text-sm')
     
     with ui.tab_panels(tabs, value=simulator_tab).classes('w-full'):
         with ui.tab_panel(simulator_tab):

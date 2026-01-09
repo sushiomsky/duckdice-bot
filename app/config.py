@@ -43,7 +43,16 @@ HOUSE_EDGE_FAUCET = 0.03  # 3%
 # UI settings
 TOAST_DURATION = 3  # seconds
 ANIMATION_DURATION = 300  # milliseconds
-MOBILE_BREAKPOINT = 1024  # pixels
+
+# Responsive breakpoints (Tailwind CSS standard)
+MOBILE_BREAKPOINT = 640  # pixels (sm)
+TABLET_BREAKPOINT = 768  # pixels (md)
+DESKTOP_BREAKPOINT = 1024  # pixels (lg)
+WIDE_BREAKPOINT = 1280  # pixels (xl)
+
+# Touch-friendly sizes (WCAG AAA guidelines)
+MIN_TOUCH_TARGET = 44  # pixels (minimum for touch)
+RECOMMENDED_TOUCH_TARGET = 48  # pixels (recommended)
 
 # Version
 APP_VERSION = "3.2.0"

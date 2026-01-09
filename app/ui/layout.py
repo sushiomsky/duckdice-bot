@@ -55,6 +55,7 @@ def connection_indicator():
 def create_sidebar():
     """
     Left sidebar navigation - collapses on mobile with toggle button
+    Improved mobile breakpoint at 768px (md) instead of 1024px
     """
     # Mobile menu toggle
     drawer = ui.left_drawer(
@@ -63,8 +64,8 @@ def create_sidebar():
         elevated=False
     ).classes('p-4').style(f'background-color: {Theme.BG_PRIMARY}')
     
-    # Make drawer collapse on mobile by default
-    drawer.props('breakpoint=1024')  # Collapse below 1024px (lg breakpoint)
+    # Collapse below 768px (md breakpoint) for better mobile/tablet experience
+    drawer.props('breakpoint=768')  # Changed from 1024 to 768
     
     with drawer:
         # Navigation items
@@ -230,6 +231,6 @@ def create_layout(content_fn):
     # Sidebar
     create_sidebar()
     
-    # Main content area
-    with ui.column().classes('w-full max-w-7xl mx-auto p-6 gap-6'):
+    # Main content area - responsive padding
+    with ui.column().classes('w-full max-w-7xl mx-auto p-4 sm:p-6 lg:p-8 gap-6'):
         content_fn()

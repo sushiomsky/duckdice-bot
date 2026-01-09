@@ -144,21 +144,22 @@ def strategies_panel():
             # Classic strategies
             if classic:
                 ui.label('⚡ Classic Strategies').classes('text-xl font-semibold mt-4')
-                with ui.grid(columns=3).classes('w-full gap-4'):
+                # Responsive grid: 1 col mobile, 2 col tablet, 3 col desktop
+                with ui.grid(columns=1).classes('w-full gap-4 sm:grid-cols-2 lg:grid-cols-3'):
                     for strategy in classic:
                         strategy_card_component(strategy)
             
             # Advanced strategies
             if advanced:
                 ui.label('🎯 Advanced Strategies').classes('text-xl font-semibold mt-6')
-                with ui.grid(columns=3).classes('w-full gap-4'):
+                with ui.grid(columns=1).classes('w-full gap-4 sm:grid-cols-2 lg:grid-cols-3'):
                     for strategy in advanced:
                         strategy_card_component(strategy)
             
             # Experimental
             if experimental:
                 ui.label('🧪 Experimental').classes('text-xl font-semibold mt-6')
-                with ui.grid(columns=3).classes('w-full gap-4'):
+                with ui.grid(columns=1).classes('w-full gap-4 sm:grid-cols-2 lg:grid-cols-3'):
                     for strategy in experimental:
                         strategy_card_component(strategy)
             
@@ -289,14 +290,15 @@ def scripts_panel():
             # Builtin scripts
             if builtin:
                 ui.label('📦 Built-in Scripts').classes('text-xl font-semibold mt-4')
-                with ui.grid(columns=2).classes('w-full gap-4'):
+                # Responsive grid: 1 col mobile, 2 col tablet+
+                with ui.grid(columns=1).classes('w-full gap-4 md:grid-cols-2'):
                     for script in builtin:
                         script_card(script, storage, load_scripts, is_builtin=True)
             
             # Custom scripts
             if custom:
                 ui.label('🎨 Custom Scripts').classes('text-xl font-semibold mt-6')
-                with ui.grid(columns=2).classes('w-full gap-4'):
+                with ui.grid(columns=1).classes('w-full gap-4 md:grid-cols-2'):
                     for script in custom:
                         script_card(script, storage, load_scripts, is_builtin=False)
     

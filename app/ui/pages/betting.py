@@ -54,7 +54,8 @@ def quick_bet_panel():
     with card():
         ui.label('Betting Mode').classes('text-lg font-semibold mb-4')
         
-        with ui.row().classes('gap-4'):
+        # Responsive layout: stack on mobile, row on desktop
+        with ui.column().classes('gap-4 sm:flex-row'):
             # Simulation/Live toggle
             mode_group = ui.radio(
                 ['simulation', 'live'],
@@ -111,13 +112,13 @@ def quick_bet_panel():
             suffix=store.currency
         )
         
-        # Quick amount buttons
-        with ui.row().classes('gap-2 mt-2'):
+        # Quick amount buttons - responsive flex wrap
+        with ui.row().classes('gap-2 mt-2 flex-wrap'):
             for pct, label in [(0.1, '10%'), (0.25, '25%'), (0.5, '50%'), (1.0, 'All')]:
                 ui.button(
                     label,
                     on_click=lambda p=pct: bet_amount.set_value(current_balance * p)
-                ).props('flat dense').classes('text-xs')
+                ).props('flat dense').classes('text-xs min-h-[44px] min-w-[60px]')  # Touch-friendly size
         
         # Win chance slider
         with ui.column().classes('w-full gap-2 mt-6'):
