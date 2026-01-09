@@ -62,10 +62,23 @@ class BotController:
         """Check if bot is paused"""
         return app_state.get('paused', False)
     
-    def start(self, strategy_name: str, strategy_params: Dict[str, Any]):
+    def start(self, strategy_name: str = None, strategy_params: Dict[str, Any] = None, 
+              simulation_mode: bool = None, max_bets: int = None, update_callback: Callable = None):
         """Start bot with given strategy"""
         if self.is_running():
             raise RuntimeError("Bot is already running")
+        
+        # Use provided values or defaults from app_state
+        if strategy_name is None:
+            strategy_name = app_state.strategy_name or 'martingale'
+        if strategy_params is None:
+            strategy_params = app_state.strategy_params or {}
+        if simulation_mode is not None:
+            app_state.update(simulation_mode=simulation_mode)
+        if max_bets is not None:
+            app_state.update(max_bets=max_bets)
+        if update_callback is not None:
+            self.update_callback = update_callback
         
         # Validate inputs
         if not app_state.api_key and not app_state.simulation_mode:
@@ -150,7 +163,11 @@ class BotController:
         app_state.update(starting_balance=balance, balance=balance)
         
         bet_count = 0
-        max_bets = strategy_params.get('max_bets', 100)
+        max_bets = app_state.max_bets or strategy_params.get('max_bets', 100)
+        
+        # Ensure max_bets is not None
+        if max_bets is None:
+            max_bets = 100
         
         while not self.stop_event.is_set() and bet_count < max_bets:
             # Check pause
@@ -242,16 +259,22 @@ class BotController:
     
     def _should_stop(self) -> bool:
         """Check if stop conditions are met"""
-        # Check profit target
-        if app_state.stop_profit and app_state.profit_percent >= (app_state.stop_profit * 100):
+        # Check profit target (percentage)
+        stop_profit = app_state.stop_profit_pct or app_state.stop_profit
+        if stop_profit and stop_profit > 0 and app_state.profit_percent >= stop_profit:
             return True
         
-        # Check loss limit
-        if app_state.stop_loss and app_state.profit_percent <= (app_state.stop_loss * 100):
+        # Check loss limit (percentage)  
+        stop_loss = app_state.stop_loss_pct or app_state.stop_loss
+        if stop_loss and stop_loss > 0 and app_state.profit_percent <= -abs(stop_loss):
             return True
         
         # Check max bets
-        if app_state.max_bets and app_state.total_bets >= app_state.max_bets:
+        if app_state.max_bets and app_state.max_bets > 0 and app_state.total_bets >= app_state.max_bets:
+            return True
+        
+        # Check min balance
+        if app_state.min_balance and app_state.min_balance > 0 and app_state.balance <= app_state.min_balance:
             return True
         
         return False
