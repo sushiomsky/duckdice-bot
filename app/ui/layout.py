@@ -76,6 +76,7 @@ def create_sidebar():
             ('list', 'Strategies', '/strategies'),
             ('code', 'Scripts', '/scripts'),
             ('science', 'Simulator', '/simulator'),
+            ('analytics', 'RNG Analysis', '/rng-analysis'),
             ('history', 'History', '/history'),
             ('settings', 'Settings', '/settings'),
         ]
