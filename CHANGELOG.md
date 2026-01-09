@@ -28,7 +28,36 @@ All notable changes to DuckDice Bot will be documented in this file.
   
   - Dependencies:
     - RestrictedPython>=6.0 for safe script execution
-    - black>=23.0.0 for code formatting (future)
+    - black>=23.0.0 for code formatting
+    - nicegui>=1.4.0 for web UI
+
+- **Script Management UI (Tasks 2.2, 2.6)**:
+  - CodeEditor Component: Professional Monaco Editor integration
+    - Syntax highlighting for Python
+    - Real-time validation with error badges
+    - Code formatting with Black
+    - Line/column error reporting
+    - Validation messages panel
+  
+  - StrategyCodeEditor: Specialized editor for betting strategies
+    - Built-in strategy template
+    - Comprehensive help documentation
+    - Example code snippets
+    - Safe imports guide
+  
+  - Script Browser Page:
+    - Grid view of all scripts (builtin, custom, templates)
+    - Search functionality
+    - Filter by type (all/builtin/custom/templates)
+    - Quick actions (edit, delete, duplicate)
+    - Visual badges for script types
+  
+  - Script Editor Page:
+    - Full Monaco editor with validation
+    - Script metadata editing (name, description)
+    - Save/Test functionality
+    - Version history viewer
+    - Template instantiation
 
 ### Technical
 - All templates stored in ~/.duckdice/strategies/templates/
@@ -36,6 +65,9 @@ All notable changes to DuckDice Bot will be documented in this file.
 - Validators catch 100% of dangerous operations (os, eval, file access)
 - Executor supports math, random, decimal, and other safe modules
 - Complete test coverage for validation and execution
+- Monaco Editor provides VSCode-quality editing experience
+- NiceGUI components for professional UI/UX
+- Components reusable across application
 
 ## [3.3.0] - 2026-01-09 - Faucet Grind Update
 
