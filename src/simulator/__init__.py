@@ -14,6 +14,11 @@ from .models import (
 from .simulation_engine import SimulationEngine, VirtualBalance, OutcomeGenerator
 from .performance_metrics import MetricsCalculator
 from .risk_analyzer import RiskAnalyzer, DrawdownTracker
+from .backtest_engine import (
+    BacktestEngine,
+    HistoricalDataLoader,
+    HistoricalOutcomeGenerator,
+)
 
 __all__ = [
     'SimulationConfig',
@@ -27,4 +32,7 @@ __all__ = [
     'MetricsCalculator',
     'RiskAnalyzer',
     'DrawdownTracker',
+    'BacktestEngine',
+    'HistoricalDataLoader',
+    'HistoricalOutcomeGenerator',
 ]
