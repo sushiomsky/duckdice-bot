@@ -96,7 +96,7 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='assets/icon.ico' if is_windows else None,  # Add icon if available
+    icon='assets/icon.ico' if is_windows and Path('assets/icon.ico').exists() else None,
 )
 
 # macOS specific - create .app bundle
