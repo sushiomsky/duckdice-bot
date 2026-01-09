@@ -7,7 +7,92 @@ Merge scripts and strategies into a single unified system where all strategies a
 
 ## 📋 Detailed Task Breakdown
 
-### Task 2.1: Unified Strategy Script Model (2 hours)
+### ✅ Task 2.1: Unified Strategy Script Model (2 hours) - COMPLETE
+
+**Status**: ✅ Complete
+
+**Completed**:
+1. ✅ Created `StrategyScript` model with full versioning
+2. ✅ Created `ScriptStorage` with file-based storage in ~/.duckdice/strategies/
+3. ✅ Created `ScriptLoader` with validation and caching
+4. ✅ Implemented version history (keeps last 10 versions)
+
+**Files Created**:
+- ✅ `src/script_system/strategy_script.py` (4,516 bytes)
+- ✅ `src/script_system/script_storage.py` (6,741 bytes)
+- ✅ `src/script_system/script_loader.py` (5,104 bytes)
+
+---
+
+### ✅ Task 2.3: Script Validation Engine (1.5 hours) - COMPLETE
+
+**Status**: ✅ Complete
+
+**Completed**:
+1. ✅ Created AST-based syntax validator
+2. ✅ Implemented dangerous import detection (os, sys, subprocess, etc.)
+3. ✅ Added required function signature validation
+4. ✅ Safety checks for eval, exec, file operations
+5. ✅ Best practices warnings (global variables, etc.)
+
+**Files Created**:
+- ✅ `src/script_system/validator.py` (11,611 bytes)
+
+**Features**:
+- Line-by-line error reporting with severity levels
+- Validates required functions: next_bet(ctx)
+- Validates optional functions: on_result(ctx, result), init(ctx, params)
+- Blocks all dangerous operations
+
+---
+
+### ✅ Task 2.4: Safe Execution Sandbox (2.5 hours) - COMPLETE
+
+**Status**: ✅ Complete
+
+**Completed**:
+1. ✅ Integrated RestrictedPython for safe execution
+2. ✅ Implemented timeout protection (5s default)
+3. ✅ Created restricted globals with safe builtins only
+4. ✅ Added StrategyExecutor with betting-specific validation
+5. ✅ Function caching for performance
+
+**Files Created**:
+- ✅ `src/script_system/executor.py` (11,258 bytes)
+
+**Features**:
+- Safe import handler (only allows math, random, decimal, etc.)
+- Blocks os, sys, subprocess, file, eval, exec
+- Timeout protection prevents infinite loops
+- Validates bet parameters (amount > 0, 0 < chance < 100)
+- Full error context in exceptions
+
+---
+
+### ✅ Task 2.5: Template Library (1 hour) - COMPLETE
+
+**Status**: ✅ Complete
+
+**Completed**:
+1. ✅ Created 4 professional strategy templates
+2. ✅ Each template has metadata JSON with parameters
+3. ✅ Templates stored in ~/.duckdice/strategies/templates/
+
+**Templates Created**:
+- ✅ Simple Martingale (double on loss)
+- ✅ Anti-Martingale (double on win)  
+- ✅ Fixed Percentage (Kelly Criterion inspired)
+- ✅ Target Profit (auto-stop at goal)
+
+**Files Created**:
+- ✅ `~/.duckdice/strategies/templates/simple_martingale.py` + .meta.json
+- ✅ `~/.duckdice/strategies/templates/anti_martingale.py` + .meta.json
+- ✅ `~/.duckdice/strategies/templates/fixed_percentage.py` + .meta.json
+- ✅ `~/.duckdice/strategies/templates/target_profit.py` + .meta.json
+
+---
+
+### Task 2.2: Advanced Code Editor (3 hours) - NOT STARTED
 
 **Goal**: Create a model where all strategies are Python scripts
 

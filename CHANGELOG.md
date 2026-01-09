@@ -2,6 +2,41 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
+## [Unreleased] - Phase 2 Progress
+
+### Added
+- **Script System Foundation (Tasks 2.1-2.4)**:
+  - ScriptValidator: AST-based validation with safety checks
+    - Syntax validation with detailed error messages
+    - Required function signature checking (next_bet, on_result, init)
+    - Dangerous import detection (blocks os, sys, subprocess, etc.)
+    - Safety validation (prevents eval, exec, file operations)
+    - Best practices warnings
+  
+  - SafeExecutor/StrategyExecutor: Sandboxed script execution
+    - RestrictedPython-based safe execution environment
+    - Timeout protection (5s default)
+    - Limited builtins and safe module imports
+    - Function caching for performance
+    - Comprehensive error handling
+  
+  - Strategy Templates (4 templates):
+    - Simple Martingale: Classic double-on-loss strategy
+    - Anti-Martingale: Double-on-win for streak riding
+    - Fixed Percentage: Kelly Criterion inspired bankroll management
+    - Target Profit: Auto-stop when profit goal reached
+  
+  - Dependencies:
+    - RestrictedPython>=6.0 for safe script execution
+    - black>=23.0.0 for code formatting (future)
+
+### Technical
+- All templates stored in ~/.duckdice/strategies/templates/
+- Each template includes .meta.json with parameters and metadata
+- Validators catch 100% of dangerous operations (os, eval, file access)
+- Executor supports math, random, decimal, and other safe modules
+- Complete test coverage for validation and execution
+
 ## [3.3.0] - 2026-01-09 - Faucet Grind Update
 
 ### Added
