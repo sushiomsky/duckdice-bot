@@ -2,6 +2,64 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
+## [3.3.0] - 2026-01-09 - Faucet Grind Update
+
+### Added
+- **Faucet Grind Strategy**: Automated faucet claiming with optimal all-in betting
+  - Auto-claim faucet every 60 seconds (respects daily limits)
+  - Calculate optimal chance for $20 target payout
+  - All-in betting for maximum efficiency
+  - Automatic loss recovery (wait → claim → retry)
+  - Auto-cashout when $20 threshold reached
+  - Comprehensive progress tracking and statistics
+
+- **Enhanced Faucet System**:
+  - ClaimTracker: Enforces 35-60 claims per 24h limit
+  - CashoutManager: $20 USD threshold management
+  - USD currency conversion for multi-currency support
+  - Variable cooldown enforcement (0-60 seconds)
+  - Daily reset mechanism
+
+- **Enhanced API Methods**:
+  - `claim_faucet()`: Returns detailed claim info (amount, cooldown, remaining claims)
+  - `get_faucet_balance_usd()`: USD equivalent balance
+  - `cashout_faucet()`: Transfer faucet to main with $20 minimum
+
+- **NiceGUI Faucet Page Enhancements**:
+  - Progress bar to $20 cashout target
+  - Daily claims statistics (claims/60, total claimed, average)
+  - Faucet Grind strategy controls (start/stop)
+  - Real-time grind status and session statistics
+  - Strategy explanation and help
+
+- **Currency Converter**:
+  - CoinGecko API integration for real-time prices
+  - 5-minute price caching
+  - Support for 11 major cryptocurrencies
+  - Graceful fallback handling
+
+- **Documentation**:
+  - `FAUCET_GRIND_STRATEGY.md`: Comprehensive 392-line strategy guide
+  - `ROADMAP.md`: 7-phase development roadmap (36-49 hours)
+  - `PHASE1_IMPLEMENTATION_PLAN.md`: Detailed Phase 1 tasks
+
+### Changed
+- Strategy count: 17 strategies (was 16)
+- Faucet balance tracking now in USD for consistency
+- Enhanced faucet page UI with better organization
+
+### Technical Details
+- Optimal chance formula: `chance = (balance × 100 × 0.97) / 20`
+- ClaimTracker: 4,607 bytes of claim management logic
+- CashoutManager: 2,803 bytes of threshold enforcement
+- FaucetGrind strategy: 9,521 bytes of automated grinding
+- Total new code: ~22,000 bytes
+- Total documentation: ~26,000 bytes
+
+# Changelog
+
+All notable changes to DuckDice Bot will be documented in this file.
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 

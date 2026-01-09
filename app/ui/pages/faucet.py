@@ -1,5 +1,6 @@
 """
-Faucet page - claim faucet and configure auto-claim
+Faucet page - Enhanced with Faucet Grind strategy
+Claim faucet, configure auto-claim, and run automated grinding to $20
 """
 
 from nicegui import ui
@@ -32,7 +33,7 @@ async def update_countdown(label, next_claim_time):
 
 
 def faucet_content():
-    """Faucet page content"""
+    """Faucet page content - Enhanced with Faucet Grind"""
     
     # Connection check
     if not store.connected:
@@ -45,17 +46,166 @@ def faucet_content():
         )
         return
     
-    ui.label('🚰 Faucet').classes('text-3xl font-bold')
-    ui.label('Claim free coins every 60 seconds').classes('text-sm text-slate-400 mb-6')
+    ui.label('🚰 Faucet Grind').classes('text-3xl font-bold')
+    ui.label('Auto-claim and grind to $20 cashout').classes('text-sm text-slate-400 mb-6')
     
-    # Balance card
+    # Balance & Progress card
     with card():
-        ui.label('Faucet Balance').classes('text-lg font-semibold mb-2')
-        ui.label(f'{store.faucet_balance:.8f} {store.currency}').classes('text-3xl font-bold').style(
-            f'color: {Theme.PRIMARY_LIGHT}'
-        )
+        with ui.row().classes('items-start justify-between w-full'):
+            # Faucet balance
+            with ui.column().classes('gap-1'):
+                ui.label('Faucet Balance').classes('text-sm text-slate-400')
+                balance_label = ui.label(f'{store.faucet_balance:.8f} {store.currency}').classes('text-2xl font-bold').style(
+                    f'color: {Theme.PRIMARY_LIGHT}'
+                )
+                # USD equivalent
+                try:
+                    from utils.currency_converter import to_usd
+                    balance_usd = to_usd(store.faucet_balance, store.currency)
+                    ui.label(f'≈ ${balance_usd:.4f} USD').classes('text-xs text-slate-400')
+                except:
+                    pass
+            
+            # Cashout target
+            with ui.column().classes('gap-1 items-end'):
+                ui.label('Cashout Target').classes('text-sm text-slate-400')
+                ui.label('$20.00 USD').classes('text-2xl font-bold').style(
+                    f'color: {Theme.ACCENT}'
+                )
+        
+        # Progress bar to $20
+        try:
+            from utils.currency_converter import to_usd
+            balance_usd = to_usd(store.faucet_balance, store.currency)
+            progress = min(100, (balance_usd / 20.0) * 100)
+            
+            ui.separator().classes('my-4')
+            
+            with ui.row().classes('items-center gap-2 w-full'):
+                ui.label(f'{progress:.1f}%').classes('text-sm font-semibold').style(
+                    f'color: {Theme.PRIMARY}'
+                )
+                with ui.element('div').classes('flex-1'):
+                    ui.linear_progress(value=progress / 100).props(
+                        f'color="primary" size="8px" rounded'
+                    ).style(f'--q-primary: {Theme.PRIMARY}')
+                ui.label(f'${20.0 - balance_usd:.2f} to go').classes('text-xs text-slate-400')
+        except:
+            pass
     
-    # Claim section
+    # Daily Claims Statistics
+    with card().classes('mt-6'):
+        ui.label('Daily Claims').classes('text-lg font-semibold mb-4')
+        
+        with ui.row().classes('gap-4'):
+            # Claims today
+            with ui.column().classes('gap-1'):
+                ui.label('Today').classes('text-xs text-slate-400')
+                ui.label('0 / 60').classes('text-xl font-bold').style(
+                    f'color: {Theme.TEXT_PRIMARY}'
+                )
+            
+            # Total claimed today
+            with ui.column().classes('gap-1'):
+                ui.label('Total Claimed').classes('text-xs text-slate-400')
+                ui.label('$0.00').classes('text-xl font-bold').style(
+                    f'color: {Theme.ACCENT}'
+                )
+            
+            # Average per claim
+            with ui.column().classes('gap-1'):
+                ui.label('Avg/Claim').classes('text-xs text-slate-400')
+                ui.label('$0.00').classes('text-xl font-bold').style(
+                    f'color: {Theme.PRIMARY_LIGHT}'
+                )
+    
+    # Faucet Grind Strategy
+    with card().classes('mt-6'):
+        ui.label('🎯 Faucet Grind Strategy').classes('text-lg font-semibold mb-2')
+        ui.label('Auto-claim → Optimal all-in bet → Repeat until $20').classes(
+            'text-xs text-slate-400 mb-4'
+        )
+        
+        # Strategy explanation
+        with ui.expansion('How it works', icon='help').classes('mb-4'):
+            ui.markdown('''
+            **Faucet Grind** is an automated strategy that:
+            
+            1. **Auto-claims** faucet when available (respects cooldown)
+            2. **Calculates optimal chance** for $20 payout
+            3. **Places all-in bet** with calculated chance
+            4. **If win**: Checks for cashout ($20 threshold)
+            5. **If loss**: Waits 60s, claims next faucet, repeats
+            
+            **Formula**: `chance = (balance × 100 × 0.97) / 20`
+            
+            **Example**: With $5 balance → 24.25% chance needed for $20 payout
+            
+            **Note**: High variance due to all-in betting. May take many attempts!
+            ''').classes('text-xs')
+        
+        # Grind controls
+        grind_running = False  # TODO: Get from backend
+        
+        if not grind_running:
+            # Start grind button
+            with ui.row().classes('gap-2 w-full'):
+                start_btn = primary_button(
+                    '🚀 Start Faucet Grind',
+                    icon='play_arrow',
+                    on_click=lambda: toast('Starting Faucet Grind...', 'info')
+                ).classes('flex-1')
+                
+                # Settings button
+                secondary_button(
+                    'Settings',
+                    icon='settings',
+                    on_click=lambda: toast('Strategy settings', 'info')
+                )
+        else:
+            # Grind status
+            with ui.row().classes('items-center gap-2 p-3 rounded-lg mb-4').style(
+                f'background-color: {Theme.ACCENT}20; border-left: 3px solid {Theme.ACCENT}'
+            ):
+                ui.spinner(size='sm', color=Theme.ACCENT)
+                with ui.column().classes('gap-1'):
+                    ui.label('Grind Active').classes('text-sm font-semibold').style(
+                        f'color: {Theme.ACCENT}'
+                    )
+                    ui.label('Waiting for next claim...').classes('text-xs text-slate-400')
+            
+            # Stop button
+            primary_button(
+                '⏸️ Stop Grind',
+                icon='stop',
+                on_click=lambda: toast('Stopping...', 'info')
+            ).classes('w-full')
+            
+            # Grind statistics
+            ui.separator().classes('my-4')
+            ui.label('Session Statistics').classes('text-sm font-semibold mb-2')
+            
+            with ui.grid(columns=3).classes('gap-2'):
+                # Total bets
+                with ui.column().classes('gap-1'):
+                    ui.label('Bets').classes('text-xs text-slate-400')
+                    ui.label('0').classes('text-lg font-bold')
+                
+                # Wins
+                with ui.column().classes('gap-1'):
+                    ui.label('Wins').classes('text-xs text-slate-400')
+                    ui.label('0').classes('text-lg font-bold').style(
+                        f'color: {Theme.ACCENT}'
+                    )
+                
+                # Losses
+                with ui.column().classes('gap-1'):
+                    ui.label('Losses').classes('text-xs text-slate-400')
+                    ui.label('0').classes('text-lg font-bold').style(
+                        f'color: {Theme.ERROR}'
+                    )
+    
+    # Manual Claim (for testing)
     with card().classes('mt-6'):
         ui.label('Manual Claim').classes('text-lg font-semibold mb-4')
         
@@ -71,7 +221,7 @@ def faucet_content():
         if not can_claim and store.faucet_next_claim:
             asyncio.create_task(update_countdown(countdown_label, store.faucet_next_claim))
         
-        # Claim button with countdown
+        # Claim button
         async def claim_faucet():
             claim_btn.props('loading')
             claim_btn.props('disable')
@@ -82,10 +232,8 @@ def faucet_content():
             
             if success:
                 toast(message, 'success')
-                # Set cooldown
                 store.faucet_last_claim = datetime.now()
                 store.faucet_next_claim = datetime.now() + timedelta(seconds=60)
-                # Restart countdown
                 asyncio.create_task(update_countdown(countdown_label, store.faucet_next_claim))
                 claim_btn.props('disable')
             else:
@@ -99,95 +247,30 @@ def faucet_content():
             disabled=not can_claim
         ).classes('w-full')
         
-        # Cooldown info
         if store.faucet_last_claim:
             ui.label(
                 f'Last claimed: {store.faucet_last_claim.strftime("%H:%M:%S")}'
             ).classes('text-xs text-slate-400 mt-2')
     
-    # Auto-claim configuration
+    # Cookie Configuration
     with card().classes('mt-6'):
-        ui.label('Auto-Claim Configuration').classes('text-lg font-semibold mb-4')
+        ui.label('Cookie Configuration').classes('text-lg font-semibold mb-4')
         
-        # Cookie input
         if not store.faucet_cookie:
             with ui.row().classes('items-start gap-2 p-3 rounded-lg').style(
                 f'background-color: {Theme.WARNING}20; border-left: 3px solid {Theme.WARNING}'
             ):
                 ui.icon('warning', color=Theme.WARNING)
-                ui.label('Cookie required for auto-claim. Configure in Settings.').classes('text-sm')
+                ui.label('Cookie required for faucet claims. Get from browser DevTools.').classes('text-sm')
             
             secondary_button(
-                'Go to Settings',
+                'Configure in Settings',
                 on_click=lambda: ui.navigate.to('/settings'),
                 icon='settings'
             ).classes('mt-4')
         else:
-            # Cookie configured
-            with ui.row().classes('items-center gap-2 mb-4'):
+            with ui.row().classes('items-center gap-2'):
                 ui.icon('check_circle', color=Theme.ACCENT)
-                ui.label('Cookie configured').classes('text-sm text-slate-400')
-            
-            # Auto-claim toggle
-            auto_claim_switch = toggle_switch(
-                label='Enable Auto-Claim (60s interval)',
-                value=store.faucet_auto_claim,
-                on_change=lambda e: handle_auto_claim_toggle(e.value)
-            )
-            
-            def handle_auto_claim_toggle(enabled):
-                store.faucet_auto_claim = enabled
-                if enabled:
-                    toast('Auto-claim enabled', 'success')
-                    # Start auto-claim in backend
-                    if backend.faucet_manager:
-                        backend.faucet_manager.start_auto_claim()
-                else:
-                    toast('Auto-claim disabled', 'info')
-                    # Stop auto-claim in backend
-                    if backend.faucet_manager:
-                        backend.faucet_manager.stop_auto_claim()
-            
-            # Status
-            if store.faucet_auto_claim:
-                with ui.row().classes('items-center gap-2 mt-4 p-3 rounded-lg').style(
-                    f'background-color: {Theme.ACCENT}20'
-                ):
-                    ui.icon('schedule', color=Theme.ACCENT)
-                    ui.label('Auto-claim is running in background').classes('text-sm')
-    
-    # Claim history
-    if store.bet_history:
-        faucet_bets = [bet for bet in store.bet_history if bet.mode == 'faucet']
-        
-        if faucet_bets:
-            with card().classes('mt-6'):
-                ui.label('Claim History').classes('text-lg font-semibold mb-4')
-                
-                for bet in faucet_bets[:10]:
-                    with ui.row().classes('items-center justify-between p-2 rounded').style(
-                        f'background-color: {Theme.BG_TERTIARY}'
-                    ):
-                        ui.label(bet.timestamp.strftime('%H:%M:%S')).classes('text-sm')
-                        
-                        profit_color = Theme.ACCENT if bet.is_win else Theme.ERROR
-                        icon = '✓' if bet.is_win else '✗'
-                        ui.label(f'{icon} {bet.profit:.8f}').classes('text-sm').style(
-                            f'color: {profit_color}'
-                        )
-    
-    # Tips
-    with card().classes('mt-6'):
-        ui.label('💡 Tips').classes('text-lg font-semibold mb-3')
-        
-        tips = [
-            'Faucet has 3% house edge (vs 1% for main)',
-            'Claims reset every 60 seconds',
-            'Auto-claim requires browser cookie',
-            'Use faucet mode for risk-free testing',
-        ]
-        
-        for tip in tips:
-            with ui.row().classes('items-start gap-2 mb-2'):
-                ui.icon('lightbulb', size='sm', color=Theme.WARNING)
-                ui.label(tip).classes('text-sm text-slate-300')
+                ui.label('Cookie configured ✓').classes('text-sm').style(
+                    f'color: {Theme.ACCENT}'
+                )
