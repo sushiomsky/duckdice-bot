@@ -70,11 +70,9 @@ def create_sidebar():
         # Navigation items
         nav_items = [
             ('dashboard', 'Dashboard', '/'),
-            ('play_circle', 'Quick Bet', '/quick-bet'),
-            ('auto_play', 'Auto Bet', '/auto-bet'),
+            ('casino', 'Betting', '/betting'),
             ('water_drop', 'Faucet', '/faucet'),
-            ('list', 'Strategies', '/strategies'),
-            ('code', 'Scripts', '/scripts'),
+            ('library_books', 'Library', '/library'),
             ('science', 'Simulator', '/simulator'),
             ('analytics', 'RNG Analysis', '/rng-analysis'),
             ('history', 'History', '/history'),

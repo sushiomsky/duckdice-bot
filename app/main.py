@@ -8,6 +8,8 @@ from nicegui import ui, app
 from app.ui.layout import create_layout
 from app.ui.pages.dashboard import dashboard_content
 from app.ui.pages.settings import settings_content
+from app.ui.pages.betting import betting_content
+from app.ui.pages.library import library_content
 from app.ui.pages.quick_bet import quick_bet_content
 from app.ui.pages.auto_bet import auto_bet_content
 from app.ui.pages.faucet import faucet_content
@@ -52,16 +54,22 @@ def index_page() -> None:
     create_layout(dashboard_content)
 
 
+@ui.page('/betting')
+def betting_page() -> None:
+    """Consolidated betting page (Quick Bet + Auto Bet)"""
+    create_layout(betting_content)
+
+
 @ui.page('/quick-bet')
 def quick_bet_page() -> None:
-    """Quick bet page"""
-    create_layout(quick_bet_content)
+    """Quick bet page (legacy - redirects to /betting)"""
+    ui.navigate.to('/betting')
 
 
 @ui.page('/auto-bet')
 def auto_bet_page() -> None:
-    """Auto bet page"""
-    create_layout(auto_bet_content)
+    """Auto bet page (legacy - redirects to /betting)"""
+    ui.navigate.to('/betting')
 
 
 @ui.page('/faucet')
@@ -70,10 +78,22 @@ def faucet_page() -> None:
     create_layout(faucet_content)
 
 
+@ui.page('/library')
+def library_page() -> None:
+    """Consolidated library page (Strategies + Scripts)"""
+    create_layout(library_content)
+
+
 @ui.page('/strategies')
 def strategies_page() -> None:
-    """Strategies browser"""
-    create_layout(strategies_content)
+    """Strategies browser (legacy - redirects to /library)"""
+    ui.navigate.to('/library')
+
+
+@ui.page('/scripts')
+def scripts_page() -> None:
+    """Scripts browser (legacy - redirects to /library)"""
+    ui.navigate.to('/library')
 
 
 @ui.page('/history')
@@ -86,15 +106,6 @@ def history_page() -> None:
 def settings_page() -> None:
     """Settings and configuration"""
     create_layout(settings_content)
-
-
-@ui.page('/scripts')
-def scripts_browser_page() -> None:
-    """Script browser"""
-    def scripts_content() -> None:
-        create_script_browser_page()
-    
-    create_layout(scripts_content)
 
 
 @ui.page('/scripts/editor')
