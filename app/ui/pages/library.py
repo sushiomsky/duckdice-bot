@@ -12,6 +12,7 @@ from app.ui.theme import Theme
 from app.state.store import store
 from app.services.backend import backend
 from src.script_system import ScriptStorage, StrategyScript
+from app.utils.performance import Debouncer
 
 
 def library_content():
@@ -212,33 +213,19 @@ def scripts_panel():
             icon='add'
         )
     
-    # Search and filters
-    with card():
-        with ui.row().classes('w-full items-center gap-4'):
-            # Search
-            search_input = ui.input(
-                'Search scripts...'
-            ).props('outlined dense').classes('flex-1')
-            search_input.props('prepend-icon=search')
-            
-            # Filter dropdown
-            filter_select = ui.select(
-                ['all', 'builtin', 'custom', 'templates'],
-                value='all',
-                label='Filter'
-            ).props('outlined dense').classes('w-48')
-    
     # Scripts container
     scripts_container = ui.column().classes('w-full gap-4 mt-6')
     
-    def load_scripts():
-        """Load and display scripts"""
+    # Debouncer for search to avoid excessive reloads
+    search_debouncer = Debouncer(delay=0.5)
+    
+    def load_scripts(search_value='', filter_value='all'):
+        """Load and display scripts with search and filter"""
         scripts_container.clear()
         
         # Load all scripts based on filter
         all_scripts = []
-        filter_value = filter_select.value if hasattr(filter_select, 'value') else 'all'
-        search_value = search_input.value.lower() if hasattr(search_input, 'value') and search_input.value else ''
+        search_lower = search_value.lower()
         
         try:
             if filter_value in ['all', 'builtin']:
@@ -259,16 +246,16 @@ def scripts_panel():
                     'Error Loading Scripts',
                     str(e),
                     'Retry',
-                    load_scripts
+                    lambda: load_scripts(search_value, filter_value)
                 )
             return
         
         # Filter by search
-        if search_value:
+        if search_lower:
             all_scripts = [
                 s for s in all_scripts
-                if search_value in s.name.lower() or 
-                   (s.description and search_value in s.description.lower())
+                if search_lower in s.name.lower() or 
+                   (s.description and search_lower in s.description.lower())
             ]
         
         # Display scripts
@@ -277,9 +264,9 @@ def scripts_panel():
                 empty_state(
                     'code',
                     'No Scripts Found',
-                    'Create your first custom strategy script',
-                    'New Script',
-                    lambda: ui.navigate.to('/scripts/editor?new=true')
+                    'Create your first custom strategy script' if not search_lower else 'No scripts match your search',
+                    'New Script' if not search_lower else 'Clear Search',
+                    lambda: ui.navigate.to('/scripts/editor?new=true') if not search_lower else load_scripts('', filter_value)
                 )
                 return
             
@@ -293,21 +280,48 @@ def scripts_panel():
                 # Responsive grid: 1 col mobile, 2 col tablet+
                 with ui.grid(columns=1).classes('w-full gap-4 md:grid-cols-2'):
                     for script in builtin:
-                        script_card(script, storage, load_scripts, is_builtin=True)
+                        script_card(script, storage, lambda: load_scripts(search_value, filter_value), is_builtin=True)
             
             # Custom scripts
             if custom:
                 ui.label('🎨 Custom Scripts').classes('text-xl font-semibold mt-6')
                 with ui.grid(columns=1).classes('w-full gap-4 md:grid-cols-2'):
                     for script in custom:
-                        script_card(script, storage, load_scripts, is_builtin=False)
+                        script_card(script, storage, lambda: load_scripts(search_value, filter_value), is_builtin=False)
+    
+    # Search and filters with debouncing
+    with card():
+        with ui.row().classes('w-full items-center gap-4'):
+            # Search with debounced handler
+            search_input = ui.input(
+                'Search scripts...'
+            ).props('outlined dense').classes('flex-1')
+            search_input.props('prepend-icon=search')
+            
+            # Filter dropdown
+            filter_select = ui.select(
+                ['all', 'builtin', 'custom', 'templates'],
+                value='all',
+                label='Filter'
+            ).props('outlined dense').classes('w-48')
     
     # Load initial scripts
     load_scripts()
     
-    # Reload on search/filter change
-    search_input.on_value_change(lambda: load_scripts())
-    filter_select.on_value_change(lambda: load_scripts())
+    # Reload with debouncing on search (waits 0.5s after user stops typing)
+    async def debounced_search(e):
+        await search_debouncer.debounce(lambda: load_scripts(
+            search_input.value if search_input.value else '',
+            filter_select.value if filter_select.value else 'all'
+        ))()
+    
+    search_input.on_value_change(debounced_search)
+    
+    # Reload immediately on filter change
+    filter_select.on_value_change(lambda: load_scripts(
+        search_input.value if search_input.value else '',
+        filter_select.value if filter_select.value else 'all'
+    ))
     
     # Info card
     with card().classes('mt-6'):
