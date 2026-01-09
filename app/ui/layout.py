@@ -76,6 +76,7 @@ def create_sidebar():
             ('library_books', 'Library', '/library'),
             ('build', 'Tools', '/tools'),
             ('history', 'History', '/history'),
+            ('bar_chart', 'Statistics', '/statistics'),
             ('settings', 'Settings', '/settings'),
         ]
         

@@ -34,6 +34,8 @@ from betbot_strategies import (
     custom_script
 )
 from faucet_manager import FaucetManager, FaucetConfig, CookieManager
+from duckdice_api.endpoints.history import BetHistoryManager
+from duckdice_api.models.bet import BetResult as ApiBetResult
 from app.state.store import store, BetResult
 from app.config import BALANCE_REFRESH_INTERVAL
 from app.utils.logger import log_info, log_error, log_warning
@@ -46,6 +48,7 @@ class Backend:
         self.api: Optional[DuckDiceAPI] = None
         self.faucet_manager: Optional[FaucetManager] = None
         self.cookie_manager = CookieManager()
+        self.history_manager = BetHistoryManager()
         self._refresh_task: Optional[asyncio.Task] = None
         
     def start_auto_refresh(self, interval: int = BALANCE_REFRESH_INTERVAL) -> None:
@@ -201,6 +204,20 @@ class Backend:
             
             # Update store
             store.add_bet_result(bet_result)
+            
+            # Persist to disk
+            api_bet = ApiBetResult(
+                bet_id=bet_result.id,
+                timestamp=bet_result.timestamp,
+                currency=bet_result.currency,
+                amount=bet_result.amount,
+                chance=bet_result.chance,
+                target=bet_result.target,
+                result=bet_result.result,
+                profit=bet_result.profit,
+                is_win=bet_result.is_win
+            )
+            await asyncio.to_thread(self.history_manager.add_bet, api_bet)
             
             # Refresh balances if live
             if not is_simulation:

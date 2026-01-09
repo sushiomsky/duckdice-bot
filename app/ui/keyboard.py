@@ -87,7 +87,8 @@ class KeyboardShortcutManager:
                         ('Ctrl+4', 'Go to Library'),
                         ('Ctrl+5', 'Go to Tools'),
                         ('Ctrl+6', 'Go to History'),
-                        ('Ctrl+7', 'Go to Settings'),
+                        ('Ctrl+7', 'Go to Statistics'),
+                        ('Ctrl+8', 'Go to Settings'),
                     ]
                 )
                 
@@ -111,7 +112,7 @@ class KeyboardShortcutManager:
                     ui.label('💡 Pro Tips').classes('text-lg font-semibold mb-2')
                     tips = [
                         'On Mac, use Cmd instead of Ctrl',
-                        'Number shortcuts (1-7) match navigation order',
+                        'Number shortcuts (1-8) match navigation order',
                         'Letter shortcuts work on any page',
                     ]
                     for tip in tips:

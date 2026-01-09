@@ -16,6 +16,7 @@ from app.ui.pages.auto_bet import auto_bet_content
 from app.ui.pages.faucet import faucet_content
 from app.ui.pages.strategies import strategies_content
 from app.ui.pages.history import history_content
+from app.ui.pages.statistics import statistics_content
 from app.ui.pages.script_browser import create_script_browser_page
 from app.ui.pages.script_editor import create_script_editor_page
 from app.ui.pages.simulator import simulator_content
@@ -83,6 +84,12 @@ def scripts_page() -> None:
 def history_page() -> None:
     """Bet history"""
     create_layout(history_content)
+
+
+@ui.page('/statistics')
+def statistics_page() -> None:
+    """Betting statistics and analytics"""
+    create_layout(statistics_content)
 
 
 @ui.page('/settings')
