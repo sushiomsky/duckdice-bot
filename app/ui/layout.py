@@ -74,6 +74,7 @@ def create_sidebar():
             ('auto_mode', 'Auto Bet', '/auto-bet'),
             ('water_drop', 'Faucet', '/faucet'),
             ('strategy', 'Strategies', '/strategies'),
+            ('code', 'Scripts', '/scripts'),
             ('history', 'History', '/history'),
             ('settings', 'Settings', '/settings'),
         ]

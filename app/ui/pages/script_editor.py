@@ -7,7 +7,7 @@ Full-featured editor for creating and editing strategy scripts.
 from nicegui import ui
 from typing import Optional
 import json
-from urllib.parse import parse_qs
+import os
 
 from src.script_system import ScriptStorage, StrategyScript, execute_strategy_script
 from app.ui.components.code_editor import StrategyCodeEditor
@@ -234,7 +234,5 @@ class ScriptEditorPage:
 
 def create_script_editor_page(query_params: dict):
     """Create and render script editor page."""
-    import os
-    
     editor = ScriptEditorPage()
     editor.render(query_params)

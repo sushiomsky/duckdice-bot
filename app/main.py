@@ -13,6 +13,8 @@ from app.ui.pages.auto_bet import auto_bet_content
 from app.ui.pages.faucet import faucet_content
 from app.ui.pages.strategies import strategies_content
 from app.ui.pages.history import history_content
+from app.ui.pages.script_browser import create_script_browser_page
+from app.ui.pages.script_editor import create_script_editor_page
 from app.ui.theme import Theme
 from app.config import KEYBOARD_SHORTCUTS, DEFAULT_PORT
 from app.utils.logger import log_info
@@ -82,6 +84,33 @@ def history_page() -> None:
 def settings_page() -> None:
     """Settings and configuration"""
     create_layout(settings_content)
+
+
+@ui.page('/scripts')
+def scripts_browser_page() -> None:
+    """Script browser"""
+    def scripts_content() -> None:
+        create_script_browser_page()
+    
+    create_layout(scripts_content)
+
+
+@ui.page('/scripts/editor')
+def scripts_editor_page(name: str = None, template: str = None, new: str = None) -> None:
+    """Script editor"""
+    def editor_content() -> None:
+        # Build query params dict
+        query_params = {}
+        if name:
+            query_params['name'] = [name]
+        if template:
+            query_params['template'] = [template]
+        if new:
+            query_params['new'] = [new]
+        
+        create_script_editor_page(query_params)
+    
+    create_layout(editor_content)
 
 
 @ui.page('/help')
