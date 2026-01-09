@@ -15,6 +15,7 @@ from app.ui.pages.strategies import strategies_content
 from app.ui.pages.history import history_content
 from app.ui.pages.script_browser import create_script_browser_page
 from app.ui.pages.script_editor import create_script_editor_page
+from app.ui.pages.simulator import simulator_content
 from app.ui.theme import Theme
 from app.config import KEYBOARD_SHORTCUTS, DEFAULT_PORT
 from app.utils.logger import log_info
@@ -111,6 +112,12 @@ def scripts_editor_page(name: str = None, template: str = None, new: str = None)
         create_script_editor_page(query_params)
     
     create_layout(editor_content)
+
+
+@ui.page('/simulator')
+def simulator_page() -> None:
+    """Simulator page"""
+    create_layout(simulator_content)
 
 
 @ui.page('/help')
