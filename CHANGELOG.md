@@ -2,6 +2,56 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
+## [3.8.0] - 2026-01-09 - GUI Streamlining (Phase 7)
+
+### Added
+- **Consolidated Navigation**: Reduced from 10 to 7 items (30% reduction)
+  - Betting page (Quick Bet + Auto Bet tabs)
+  - Library page (Strategies + Scripts tabs)
+  - Tools page (Simulator + RNG Analysis + Verify tabs)
+- **New Verify Tool**: Provably fair bet verification panel
+  - Server seed, client seed, nonce verification
+  - SHA-256 hash comparison
+  - Example data and documentation links
+- **Keyboard Shortcuts System**: Full navigation without mouse
+  - Ctrl+1-7 for main pages
+  - Ctrl+B/F/L/T/H for quick access
+  - Ctrl+R for refresh, ? for help
+  - Mac Cmd support
+  - Interactive help dialog
+- **13 Reusable Components**: Created common component library
+  - balance_display, bet_controls, loading_spinner
+  - error_boundary, success_message, warning_banner
+  - metric_card, confirm_dialog, progress_bar_with_label
+  - stat_row, copy_button, empty_state
+- **Performance Utilities**: Optimization helpers
+  - Debouncer (0.5s delay for search)
+  - Throttler (limit execution frequency)
+  - LazyLoader (on-demand loading)
+  - VirtualScroller (efficient long lists)
+- **Responsive Design**: Mobile-first approach
+  - Grids: 1 col mobile, 2 tablet, 3 desktop
+  - Padding: p-4 mobile, p-6 tablet, p-8 desktop
+  - Touch targets: 44px minimum (WCAG AAA)
+  - Drawer breakpoint at 768px
+- **Legacy Route Redirects**: Backwards compatibility
+  - /quick-bet, /auto-bet → /betting
+  - /strategies, /scripts → /library
+  - /simulator, /rng-analysis → /tools
+
+### Changed
+- Navigation reduced from 10 to 7 items
+- Drawer breakpoint from 1024px to 768px
+- Search now debounced for better performance
+- All grids now responsive
+
+### Removed
+- app/ui/pages/faucet_old.py (obsolete)
+
+### Documentation
+- Created PHASE7_AUDIT.md, PHASE7_PROGRESS.md, PHASE7_COMPLETE.md
+- Updated keyboard shortcuts documentation
+
 ## [3.7.0] - 2025-01-09 - Enhanced RNG Analysis (Phase 5)
 
 ### Added
