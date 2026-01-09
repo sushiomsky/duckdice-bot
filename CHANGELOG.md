@@ -2,6 +2,73 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
+## [3.7.0] - 2025-01-09 - Enhanced RNG Analysis (Phase 5)
+
+### Added
+- **Enhanced RNG Analysis System** (Tasks 5.1-5.4, 7 hours):
+  
+  **Backend (4 components)**:
+  - FileImporter: Multi-format data import
+    - CSV, JSON, Excel file support
+    - Smart column mapping (flexible names)
+    - Seed extraction from verification links
+    - Data validation and cleanup
+    - Progress callback support
+  
+  - APIImporter: DuckDice API integration
+    - Placeholder for future API history endpoint
+    - File import with validation
+    - Save to bet_history/ directory
+  
+  - AnalysisEngine: Wrapper for existing modules
+    - Wraps ~100KB existing rng_analysis/ toolkit
+    - Statistical analysis (Chi-square, KS, runs test)
+    - Machine learning (Random Forest, XGBoost)
+    - Deep learning (LSTM, optional)
+    - Insights generation
+    - Exploitability assessment (NONE/VERY LOW/LOW)
+    - Realistic confidence levels
+  
+  - EnhancedScriptGenerator: Auto-generate strategies
+    - Template-based Python code generation
+    - 3 strategy types (pattern, ML, conservative)
+    - Phase 2 script system integration
+    - Saves to ~/.duckdice/strategies/generated/
+    - Complete metadata generation
+  
+  **UI Components**:
+  - RNG Analysis Page: Professional workflow UI
+    - File import with status display
+    - Analysis configuration (stat/ML/DL toggles)
+    - Real-time progress display with bar
+    - Results summary with insights
+    - Exploitability score (color-coded)
+    - Confidence level display
+    - Recommendations list
+    - Warning banner (educational use only)
+    - Export to JSON
+    - Generate strategy dialog
+    - Navigate to script editor
+  
+  **Navigation**:
+  - Added "RNG Analysis" item to main navigation
+  - Route: `/rng-analysis`
+
+### Technical Details
+- Multi-format import: CSV (multi-encoding), JSON (nested), Excel
+- Column mapping: Flexible names (outcome/number/roll, nonce/bet_id, etc.)
+- Seed extraction via regex from verification links
+- Async analysis execution (non-blocking UI)
+- Thread pool for CPU-intensive operations
+- Realistic warnings throughout UI
+
+### Important Warnings
+- ⚠️ Educational use only banner
+- Past patterns do NOT predict future outcomes
+- Cryptographic RNG designed to be unpredictable
+- All generated strategies include safety warnings
+- Exploitability levels are realistic (mostly VERY LOW)
+
 ## [3.6.0] - 2025-01-09 - Complete Simulator (Phase 4)
 
 ### Added
