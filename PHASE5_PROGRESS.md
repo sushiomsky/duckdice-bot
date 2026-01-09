@@ -155,30 +155,6 @@ None (Backend complete, UI pending)
 
 ## ⏳ Pending Tasks
 
-### Task 5.2: Analysis Engine Wrapper (1h)
-**Status**: ⏳ TODO
-
-**Components**:
-1. ⬜ AnalysisEngine class
-2. ⬜ Progress callbacks
-3. ⬜ Configuration options
-
-**File**: `src/rng_analysis/analysis_engine.py`
-
----
-
-### Task 5.3: Script Generator Enhancement (2h)
-**Status**: ⏳ TODO
-
-**Components**:
-1. ⬜ Template-based generation
-2. ⬜ Script types (pattern, ML, anti-corr, seed-aware)
-3. ⬜ Phase 2 integration
-
-**File**: `src/rng_analysis/script_generator.py`
-
----
-
 ### Task 5.4: RNG Analysis UI (2.5h)
 **Status**: ⏳ TODO
 
@@ -211,33 +187,32 @@ None (Backend complete, UI pending)
 
 ## 📊 Progress Summary
 
-**Overall**: 12% Complete (0.5/8 tasks, Task 5.1 20% done)
+**Overall**: 50% Complete (3/7 tasks)
 
 | Task | Status | Time | Progress |
 |------|--------|------|----------|
-| 5.1 File/API Importers | 🔄 | 1.5h | 20% (FileImporter done) |
-| 5.2 Analysis Engine | ⏳ | 1h | 0% |
-| 5.3 Script Generator | ⏳ | 2h | 0% |
+| 5.1 File/API Importers | ✅ | 1.5h | 100% |
+| 5.2 Analysis Engine | ✅ | 1h | 100% |
+| 5.3 Script Generator | ✅ | 2h | 100% |
 | 5.4 RNG Analysis UI | ⏳ | 2.5h | 0% |
 | 5.5 Results Viewer | ⏳ | 1.5h | 0% |
 | 5.6 Script Integration | ⏳ | 1h | 0% |
 | 5.7 Testing | ⏳ | 0.5h | 0% |
 
-**Time**: 0.3h spent / 9.7h remaining  
-**Estimated Completion**: ~8-10 hours total
+**Time**: 4.5h spent / 5.5h remaining  
+**Estimated Completion**: ~5-6 hours remaining
 
 ---
 
 ## 🎯 Next Steps
 
-1. ✅ Task 5.1: FileImporter - **20% DONE**
-2. ⏭️ Task 5.1: APIImporter
-3. ⏭️ Task 5.2: Analysis Engine Wrapper
-4. ⏭️ Task 5.3: Script Generator
-5. ⏭️ Task 5.4: RNG Analysis UI
-6. ⏭️ Task 5.5: Results Viewer
-7. ⏭️ Task 5.6: Script Integration
-8. ⏭️ Task 5.7: Integration & Testing
+1. ✅ Task 5.1: File/API Importers - **COMPLETE**
+2. ✅ Task 5.2: Analysis Engine Wrapper - **COMPLETE**
+3. ✅ Task 5.3: Script Generator - **COMPLETE**
+4. ⏭️ Task 5.4: RNG Analysis UI (next task)
+5. ⏭️ Task 5.5: Results Viewer
+6. ⏭️ Task 5.6: Script Integration
+7. ⏭️ Task 5.7: Integration & Testing
 
 ---
 
