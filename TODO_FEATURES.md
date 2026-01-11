@@ -33,12 +33,13 @@
 - [x] Win/loss distribution chart
 - [x] Export charts as PNG
 
-### 5. UI Enhancements
-- [ ] Add keyboard shortcuts (Ctrl+S for start/stop, etc.)
-- [ ] Mobile-responsive layout improvements
-- [ ] Loading states for async operations
-- [ ] Toast notifications for events
-- [ ] Confirmation dialogs for destructive actions
+### 5. UI Enhancements ✅ COMPLETED (Partial)
+- [x] Add loading spinner for async operations
+- [x] Toast notifications for events (with emojis and context)
+- [x] Auto-stop notifications (profit target, loss limit, max bets)
+- [ ] Keyboard shortcuts (Ctrl+S for start/stop, etc.) - future
+- [ ] Mobile-responsive layout improvements - future
+- [ ] Confirmation dialogs for destructive actions - future
 
 ### 6. Data Persistence
 - [ ] Save bet history to database (SQLite)
@@ -93,7 +94,8 @@
 
 ## Current Status Summary
 
-### ✅ Completed (Priority 1 - ALL DONE!)
+### ✅ Completed (Priority 1 & 2 - MAJOR PROGRESS!)
+**Priority 1 (Production Ready):**
 - Thread-safe state management
 - Simulation mode with fake bets
 - **17 strategies dynamically loaded from betbot_strategies**
@@ -112,15 +114,26 @@
 - **Rate limiting and safety features**
 - **All 17 strategies work in live mode**
 
+**Priority 2 (Enhanced Features):**
+- **Matplotlib charts (Balance, Profit/Loss, Distribution, Streaks)**
+- **Chart export to PNG**
+- **Auto-refresh charts every 10 bets**
+- **Loading spinner when bot running**
+- **Enhanced toast notifications with context**
+- **Auto-stop notifications (profit/loss/max bets)**
+
 ### 🚧 Next Priority (Priority 2-3)
-- Matplotlib charts for visualization
-- Database persistence for bet history
-- Advanced analytics and statistics
+- Database persistence for bet history (SQLite)
+- Strategy profiles save/load functionality
+- Keyboard shortcuts
+- Advanced analytics dashboard
+- WebSocket real-time updates
 
 ### ❌ Lower Priority (Priority 4)
 - Multi-user support
-- WebSocket real-time updates
 - User authentication
+- Confirmation dialogs
+- Mobile responsiveness improvements
 
 ## Implementation Order
 
