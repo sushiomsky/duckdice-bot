@@ -41,12 +41,15 @@
 - [ ] Mobile-responsive layout improvements - future
 - [ ] Confirmation dialogs for destructive actions - future
 
-### 6. Data Persistence
-- [ ] Save bet history to database (SQLite)
-- [ ] Auto-save strategy profiles
-- [ ] Session recovery on crash
-- [ ] Export/import configuration
-- [ ] Backup/restore functionality
+### 6. Data Persistence ✅ COMPLETED
+- [x] Save bet history to database (SQLite)
+- [x] Auto-save strategy profiles
+- [x] Session tracking with statistics
+- [x] Load bet history from database
+- [x] Profile management UI (save/load/delete)
+- [ ] Session recovery on crash (future)
+- [ ] Export/import configuration (CSV already implemented)
+- [ ] Backup/restore functionality (future)
 
 ## Priority 3: Advanced Features
 
