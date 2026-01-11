@@ -381,17 +381,23 @@ class BotController:
                 app_state.update(current_streak=1, streak_type="loss")
     
     def _should_stop(self) -> bool:
-        """Check if stop conditions are met"""
+        """
+        Check if stop conditions are met.
+        Sets app_state.stop_reason if a condition is met.
+        """
         # Check profit target
         if app_state.stop_profit and app_state.profit_percent >= (app_state.stop_profit * 100):
+            app_state.update(stop_reason=f'🎯 Profit target reached: +{app_state.profit_percent:.2f}%')
             return True
         
         # Check loss limit
         if app_state.stop_loss and app_state.profit_percent <= (app_state.stop_loss * 100):
+            app_state.update(stop_reason=f'🛑 Loss limit reached: {app_state.profit_percent:.2f}%')
             return True
         
         # Check max bets
         if app_state.max_bets and app_state.total_bets >= app_state.max_bets:
+            app_state.update(stop_reason=f'📊 Max bets reached: {app_state.total_bets}')
             return True
         
         return False

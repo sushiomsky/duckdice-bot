@@ -27,6 +27,7 @@ class Dashboard:
         self.resume_button = None
         self.chart_container = None
         self.chart_generator = get_chart_generator()
+        self.spinner = None
         
     def render(self):
         """Render dashboard UI"""
@@ -53,8 +54,12 @@ class Dashboard:
                 # Title
                 ui.label('Dashboard').classes('text-2xl font-bold')
                 
-                # Status badge (most prominent)
+                # Status badges and spinner
                 with ui.row().classes('items-center gap-2'):
+                    # Spinner (only visible when running)
+                    self.spinner = ui.spinner('dots', size='md', color='green')
+                    self.spinner.visible = False
+                    
                     self.status_badge = ui.badge('IDLE').props('outline')
                     
                     # Mode indicator
@@ -276,20 +281,34 @@ class Dashboard:
         with ui.card().classes('w-full'):
             ui.label('Session Info').classes('text-lg font-bold mb-2')
             
-            with ui.column().classes('gap-2'):
-                # Stop conditions
-                if app_state.stop_profit:
-                    ui.label(f'Stop at profit: +{app_state.stop_profit * 100:.1f}%').classes('text-sm')
-                
-                if app_state.stop_loss:
-                    ui.label(f'Stop at loss: {app_state.stop_loss * 100:.1f}%').classes('text-sm')
-                
-                if app_state.max_bets:
-                    ui.label(f'Max bets: {app_state.max_bets}').classes('text-sm')
-                
-                # Error display
-                if app_state.last_error:
-                    ui.label(f'⚠️ Error: {app_state.last_error}').classes('text-sm text-red-500')
+            self.session_info_container = ui.column().classes('gap-2')
+            self._update_session_info()
+    
+    def _update_session_info(self):
+        """Update session info display"""
+        if not hasattr(self, 'session_info_container'):
+            return
+        
+        self.session_info_container.clear()
+        
+        with self.session_info_container:
+            # Stop conditions
+            if app_state.stop_profit:
+                ui.label(f'Stop at profit: +{app_state.stop_profit * 100:.1f}%').classes('text-sm')
+            
+            if app_state.stop_loss:
+                ui.label(f'Stop at loss: {app_state.stop_loss * 100:.1f}%').classes('text-sm')
+            
+            if app_state.max_bets:
+                ui.label(f'Max bets: {app_state.max_bets}').classes('text-sm')
+            
+            # Stop reason (if bot auto-stopped)
+            if app_state.stop_reason:
+                ui.label(f'ℹ️ {app_state.stop_reason}').classes('text-sm text-blue-500 font-semibold')
+            
+            # Error display
+            if app_state.last_error:
+                ui.label(f'⚠️ Error: {app_state.last_error}').classes('text-sm text-red-500')
     
     def _can_start(self) -> bool:
         """Check if bot can be started"""
@@ -310,6 +329,13 @@ class Dashboard:
     def _on_start(self):
         """Handle start button click"""
         try:
+            # Confirm if not in simulation mode
+            if not app_state.simulation_mode:
+                # This would need a confirmation dialog
+                # For now, add a clear warning
+                ui.notify('⚠️ Starting in LIVE mode with real money!', 
+                         type='warning', position='top', timeout=3000)
+            
             # Get strategy parameters from app_state
             params = app_state.strategy_params.copy()
             
@@ -325,35 +351,58 @@ class Dashboard:
             # Update UI
             self.update_display()
             
-            ui.notify('Bot started', type='positive')
+            mode = 'SIMULATION' if app_state.simulation_mode else 'LIVE'
+            ui.notify(f'🤖 Bot started in {mode} mode', type='positive', 
+                     position='top', timeout=2000)
         except Exception as e:
-            ui.notify(f'Failed to start: {str(e)}', type='negative')
+            ui.notify(f'❌ Failed to start: {str(e)}', type='negative', 
+                     position='top', timeout=5000)
     
     def _on_stop(self):
         """Handle stop button click"""
         bot_controller.stop()
         self.update_display()
-        ui.notify('Bot stopped', type='warning')
+        
+        # Show summary
+        total = app_state.total_bets
+        profit = app_state.profit
+        currency = app_state.currency.upper() if app_state.currency else "BTC"
+        
+        # Check if there's a stop reason (automatic stop)
+        if app_state.stop_reason:
+            ui.notify(f'{app_state.stop_reason}', type='info', position='top', timeout=5000)
+            app_state.update(stop_reason="")  # Clear it
+        
+        ui.notify(f'🛑 Bot stopped. {total} bets, {profit:+.8f} {currency}', 
+                 type='warning', position='top', timeout=3000)
     
     def _on_pause(self):
         """Handle pause button click"""
         bot_controller.pause()
         self.update_display()
-        ui.notify('Bot paused', type='info')
+        ui.notify('⏸️ Bot paused', type='info', position='top')
     
     def _on_resume(self):
         """Handle resume button click"""
         bot_controller.resume()
         self.update_display()
-        ui.notify('Bot resumed', type='positive')
+        ui.notify('▶️ Bot resumed', type='positive', position='top')
     
     def _update_status_badge(self):
-        """Update status badge based on current state"""
+        """Update status badge and spinner based on current state"""
         if not self.status_badge:
             return
         
-        if bot_controller.is_running():
-            if bot_controller.is_paused():
+        is_running = bot_controller.is_running()
+        is_paused = bot_controller.is_paused()
+        
+        # Update spinner visibility
+        if self.spinner:
+            self.spinner.visible = is_running and not is_paused
+        
+        # Update badge
+        if is_running:
+            if is_paused:
                 self.status_badge.set_text('PAUSED')
                 self.status_badge.props('color=yellow')
             else:
@@ -401,6 +450,9 @@ class Dashboard:
         # Update charts every 10 bets (to avoid performance issues)
         if app_state.total_bets > 0 and app_state.total_bets % 10 == 0:
             self._update_charts()
+        
+        # Update session info
+        self._update_session_info()
         
         # Update button visibility
         is_running = bot_controller.is_running()

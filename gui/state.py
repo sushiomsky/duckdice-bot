@@ -69,6 +69,7 @@ class AppState:
     # Error state
     last_error: str = ""
     error_count: int = 0
+    stop_reason: str = ""  # Reason why bot stopped (if applicable)
     
     # Thread safety
     _lock: Lock = field(default_factory=Lock, repr=False, compare=False)
