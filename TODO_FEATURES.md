@@ -26,12 +26,12 @@
 
 ## Priority 2: Enhanced Features
 
-### 4. Matplotlib Charts
-- [ ] Add balance over time chart in simulator
-- [ ] Add profit/loss chart in history
-- [ ] Max drawdown visualization
-- [ ] Win/loss distribution chart
-- [ ] Export charts as PNG
+### 4. Matplotlib Charts ✅ COMPLETED
+- [x] Add balance over time chart in simulator
+- [x] Add profit/loss chart in history
+- [x] Max drawdown visualization (via streak analysis)
+- [x] Win/loss distribution chart
+- [x] Export charts as PNG
 
 ### 5. UI Enhancements
 - [ ] Add keyboard shortcuts (Ctrl+S for start/stop, etc.)
