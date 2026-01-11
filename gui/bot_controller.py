@@ -10,11 +10,13 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), '..'))
 import threading
 import time
 import logging
+import uuid
 from typing import Optional, Callable, Dict, Any
 from datetime import datetime
 from decimal import Decimal
 
 from gui.state import app_state, BetRecord
+from gui.database import get_db_manager
 
 # Optional imports - not needed for simulation mode
 try:
@@ -49,6 +51,9 @@ class BotController:
         self.api_client: Optional[DuckDiceClient] = None
         self.strategy_runner: Optional[Callable] = None
         self.update_callback: Optional[Callable] = None
+        self.session_id: Optional[str] = None
+        self.db = get_db_manager()
+        self.update_callback: Optional[Callable] = None
         
     def set_update_callback(self, callback: Callable):
         """Set callback for UI updates"""
@@ -71,6 +76,18 @@ class BotController:
         if not app_state.api_key and not app_state.simulation_mode:
             raise ValueError("API key required for live mode")
         
+        # Create new session
+        self.session_id = str(uuid.uuid4())
+        
+        # Save session to database
+        self.db.save_session(
+            session_id=self.session_id,
+            strategy_name=strategy_name,
+            starting_balance=app_state.balance,
+            simulation_mode=1 if app_state.simulation_mode else 0,
+            started_at=datetime.now().isoformat()
+        )
+        
         # Reset state
         app_state.update(
             running=True,
@@ -90,7 +107,7 @@ class BotController:
             daemon=True
         )
         self.thread.start()
-        logger.info(f"Bot started with strategy: {strategy_name}")
+        logger.info(f"Bot started with strategy: {strategy_name}, session: {self.session_id}")
     
     def stop(self):
         """Stop bot immediately"""
@@ -101,10 +118,46 @@ class BotController:
         self.stop_event.set()
         app_state.update(running=False, paused=False)
         
+        # Save session end data
+        if self.session_id:
+            self.db.save_session(
+                session_id=self.session_id,
+                ending_balance=app_state.balance,
+                total_bets=app_state.total_bets,
+                wins=app_state.wins,
+                losses=app_state.losses,
+                profit=app_state.profit,
+                profit_percent=app_state.profit_percent,
+                ended_at=datetime.now().isoformat(),
+                stop_reason=app_state.stop_reason or "Manual stop"
+            )
+        
         if self.thread:
             self.thread.join(timeout=5.0)
         
         logger.info("Bot stopped")
+    
+    def load_history_from_db(self, session_id: Optional[str] = None, limit: int = 1000):
+        """
+        Load bet history from database.
+        
+        Args:
+            session_id: Optional session ID to filter by
+            limit: Maximum number of bets to load
+        """
+        try:
+            bets = self.db.get_bet_history(session_id=session_id, limit=limit)
+            
+            # Clear current history and add loaded bets
+            app_state.bet_history.clear()
+            for bet in reversed(bets):  # Add in chronological order
+                app_state.add_bet(bet)
+            
+            logger.info(f"Loaded {len(bets)} bets from database")
+            return len(bets)
+        except Exception as e:
+            logger.error(f"Error loading history from database: {e}")
+            return 0
     
     def pause(self):
         """Pause bot (between bets)"""
@@ -232,6 +285,15 @@ class BotController:
         )
         app_state.add_bet(bet_record)
         
+        # Save to database
+        if self.session_id:
+            self.db.save_bet(
+                bet_record,
+                session_id=self.session_id,
+                currency=app_state.currency or "btc",
+                simulation_mode=app_state.simulation_mode
+            )
+        
         # Trigger UI update
         if self.update_callback:
             self.update_callback()
@@ -326,6 +388,15 @@ class BotController:
                 # Convert to BetRecord for GUI
                 bet_record = bet_result_to_bet_record(bet_result, strategy_name)
                 app_state.add_bet(bet_record)
+                
+                # Save to database
+                if self.session_id:
+                    self.db.save_bet(
+                        bet_record,
+                        session_id=self.session_id,
+                        currency=app_state.currency or "btc",
+                        simulation_mode=app_state.simulation_mode
+                    )
                 
                 # Update statistics
                 self._update_stats_from_bet(bet_record)
