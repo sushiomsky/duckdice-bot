@@ -7,6 +7,7 @@ from nicegui import ui
 from gui.state import app_state
 from gui.bot_controller import bot_controller
 from gui.utils import format_balance, format_profit, format_number, get_status_color
+from gui.charts import get_chart_generator
 
 
 class Dashboard:
@@ -24,6 +25,8 @@ class Dashboard:
         self.stop_button = None
         self.pause_button = None
         self.resume_button = None
+        self.chart_container = None
+        self.chart_generator = get_chart_generator()
         
     def render(self):
         """Render dashboard UI"""
@@ -36,6 +39,9 @@ class Dashboard:
             
             # Live stats grid
             self._render_stats()
+            
+            # Charts section
+            self._render_charts()
             
             # Session info
             self._render_session_info()
@@ -153,6 +159,117 @@ class Dashboard:
                 with ui.card().classes('p-4 bg-gray-800'):
                     ui.label('Strategy').classes('text-sm text-gray-400')
                     ui.label(app_state.current_strategy).classes('text-xl font-bold')
+    
+    def _render_charts(self):
+        """Render charts section with bet history visualizations"""
+        with ui.card().classes('w-full'):
+            with ui.row().classes('w-full items-center justify-between mb-4'):
+                ui.label('Charts & Analytics').classes('text-lg font-bold')
+                ui.button('Refresh Charts', on_click=self._update_charts, 
+                         icon='refresh').props('flat dense')
+            
+            # Chart container
+            self.chart_container = ui.column().classes('w-full gap-4')
+            
+            # Initial chart render
+            self._update_charts()
+    
+    def _update_charts(self):
+        """Update all charts with current bet history"""
+        if not self.chart_container:
+            return
+        
+        self.chart_container.clear()
+        
+        # Get bet history
+        bets = app_state.bet_history
+        
+        if not bets or len(bets) < 2:
+            with self.chart_container:
+                ui.label('No bet history available. Charts will appear after placing bets.').classes(
+                    'text-sm text-gray-500 text-center p-8'
+                )
+            return
+        
+        with self.chart_container:
+            # Balance chart
+            with ui.expansion('Balance Over Time', icon='show_chart').classes('w-full').props('default-opened'):
+                balance_chart = self.chart_generator.balance_over_time(bets)
+                if balance_chart:
+                    ui.html(f'<img src="{balance_chart}" style="max-width: 100%; height: auto;" />')
+            
+            # Profit/Loss chart
+            with ui.expansion('Cumulative Profit/Loss', icon='trending_up').classes('w-full'):
+                profit_chart = self.chart_generator.profit_loss_chart(bets)
+                if profit_chart:
+                    ui.html(f'<img src="{profit_chart}" style="max-width: 100%; height: auto;" />')
+            
+            # Distribution charts
+            with ui.expansion('Win/Loss Distribution', icon='pie_chart').classes('w-full'):
+                dist_chart = self.chart_generator.win_loss_distribution(bets)
+                if dist_chart:
+                    ui.html(f'<img src="{dist_chart}" style="max-width: 100%; height: auto;" />')
+            
+            # Streak analysis
+            with ui.expansion('Streak Analysis', icon='equalizer').classes('w-full'):
+                streak_chart = self.chart_generator.streak_analysis(bets)
+                if streak_chart:
+                    ui.html(f'<img src="{streak_chart}" style="max-width: 100%; height: auto;" />')
+            
+            # Export button
+            with ui.row().classes('w-full justify-end gap-2 mt-4'):
+                ui.button('Export All Charts', on_click=self._export_charts, 
+                         icon='download').props('outline')
+    
+    def _export_charts(self):
+        """Export all charts to PNG files"""
+        from datetime import datetime
+        import os
+        
+        bets = app_state.bet_history
+        if not bets:
+            ui.notify('No bet history to export', type='warning')
+            return
+        
+        # Create exports directory
+        export_dir = 'exports/charts'
+        os.makedirs(export_dir, exist_ok=True)
+        
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        
+        try:
+            # Generate and save each chart
+            saved_files = []
+            
+            balance_chart = self.chart_generator.balance_over_time(bets)
+            if balance_chart:
+                filename = f'{export_dir}/balance_{timestamp}.png'
+                self.chart_generator.save_chart_to_file(balance_chart, filename)
+                saved_files.append('balance')
+            
+            profit_chart = self.chart_generator.profit_loss_chart(bets)
+            if profit_chart:
+                filename = f'{export_dir}/profit_loss_{timestamp}.png'
+                self.chart_generator.save_chart_to_file(profit_chart, filename)
+                saved_files.append('profit/loss')
+            
+            dist_chart = self.chart_generator.win_loss_distribution(bets)
+            if dist_chart:
+                filename = f'{export_dir}/distribution_{timestamp}.png'
+                self.chart_generator.save_chart_to_file(dist_chart, filename)
+                saved_files.append('distribution')
+            
+            streak_chart = self.chart_generator.streak_analysis(bets)
+            if streak_chart:
+                filename = f'{export_dir}/streak_{timestamp}.png'
+                self.chart_generator.save_chart_to_file(streak_chart, filename)
+                saved_files.append('streak')
+            
+            ui.notify(f'Exported {len(saved_files)} charts to {export_dir}/', 
+                     type='positive', position='top')
+        
+        except Exception as e:
+            ui.notify(f'Error exporting charts: {e}', type='negative')
     
     def _render_session_info(self):
         """Render session information"""
@@ -280,6 +397,10 @@ class Dashboard:
         if self.streak_label:
             streak_text = f"{app_state.current_streak} {app_state.streak_type}"
             self.streak_label.set_text(streak_text)
+        
+        # Update charts every 10 bets (to avoid performance issues)
+        if app_state.total_bets > 0 and app_state.total_bets % 10 == 0:
+            self._update_charts()
         
         # Update button visibility
         is_running = bot_controller.is_running()
