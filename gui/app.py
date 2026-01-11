@@ -14,6 +14,7 @@ from gui.strategies_ui import StrategiesUI
 from gui.simulator import Simulator
 from gui.history import History
 from gui.settings import Settings
+from gui.analytics_ui import AnalyticsUI
 from gui.state import app_state
 from gui.bot_controller import bot_controller
 
@@ -26,6 +27,7 @@ def main():
     strategies_ui = StrategiesUI()
     simulator = Simulator()
     history = History()
+    analytics_ui = AnalyticsUI()
     settings = Settings()
     
     # Main page
@@ -55,6 +57,7 @@ def main():
             tab_strategies = ui.tab('Strategies', icon='psychology')
             tab_simulator = ui.tab('Simulator', icon='science')
             tab_history = ui.tab('History', icon='history')
+            tab_analytics = ui.tab('Analytics', icon='analytics')
             tab_settings = ui.tab('Settings', icon='settings')
         
         with ui.tab_panels(tabs, value=tab_dashboard).classes('w-full'):
@@ -74,6 +77,10 @@ def main():
             # History tab
             with ui.tab_panel(tab_history):
                 history.render()
+            
+            # Analytics tab
+            with ui.tab_panel(tab_analytics):
+                analytics_ui.render()
             
             # Settings tab
             with ui.tab_panel(tab_settings):
