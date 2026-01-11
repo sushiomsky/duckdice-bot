@@ -59,12 +59,19 @@
 - [ ] Real-time balance updates from API
 - [ ] Live bet feed display
 
-### 8. Analytics
-- [ ] Statistical analysis of results
-- [ ] Strategy performance comparison
-- [ ] Risk analysis metrics
-- [ ] Bankroll management calculator
-- [ ] ROI tracking
+### 8. Analytics ✅ COMPLETED
+- [x] Statistical analysis of results
+- [x] Win rate, ROI, profit factor
+- [x] Max drawdown calculation
+- [x] Streak statistics
+- [x] Standard deviation and variance
+- [x] Sharpe ratio
+- [x] Strategy performance comparison
+- [x] Historical session comparison
+- [x] Best performers identification
+- [ ] Risk analysis metrics (advanced)
+- [ ] Bankroll management calculator (future)
+- [ ] ROI tracking over time (done via sessions)
 
 ### 9. Multi-user Support
 - [ ] Per-session state isolation
