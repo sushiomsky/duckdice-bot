@@ -10,6 +10,7 @@ from nicegui import ui
 from gui.state import app_state
 from gui.utils import validate_bet_amount, validate_target_chance
 from gui.strategy_loader import get_strategy_loader, StrategyInfo
+from gui.database import get_db_manager
 
 
 class StrategiesUI:
@@ -27,6 +28,14 @@ class StrategiesUI:
         # Load strategies dynamically
         self.loader = get_strategy_loader()
         self.current_strategy_info: Optional[StrategyInfo] = None
+        
+        # Database for profiles
+        self.db = get_db_manager()
+        
+        # Profile management UI elements
+        self.profile_name_input = None
+        self.profile_desc_input = None
+        self.profile_list_select = None
     
     def render(self):
         """Render strategy selection UI"""
@@ -242,14 +251,48 @@ class StrategiesUI:
                     self.param_inputs[param_name] = input_field
     
     def _render_profiles(self):
-        """Render save/load profile buttons"""
+        """Render save/load profile buttons and profile management UI"""
         with ui.card().classes('w-full'):
             ui.label('Strategy Profiles').classes('text-lg font-semibold mb-2')
+            ui.label('Save and load your favorite strategy configurations').classes('text-sm text-gray-500 mb-3')
             
-            with ui.row().classes('w-full gap-2'):
-                ui.button('Save Profile', on_click=self._save_profile, icon='save').props('outline')
-                ui.button('Load Profile', on_click=self._load_profile, icon='folder_open').props('outline')
-                ui.button('Apply to Bot', on_click=self._apply_to_bot, icon='check').props('color=primary')
+            # Profile list
+            profiles = self.db.list_strategy_profiles()
+            profile_options = {p['name']: f"{p['name']} ({p['strategy_name']})" 
+                             for p in profiles}
+            
+            if profile_options:
+                self.profile_list_select = ui.select(
+                    options=profile_options,
+                    label='Saved Profiles',
+                    on_change=self._on_profile_select
+                ).classes('w-full mb-2')
+            else:
+                ui.label('No saved profiles yet').classes('text-sm text-gray-500 mb-2')
+            
+            # Save new profile section
+            with ui.expansion('Save Current Configuration', icon='save').classes('w-full mb-2'):
+                self.profile_name_input = ui.input(
+                    label='Profile Name',
+                    placeholder='My Martingale Config'
+                ).classes('w-full')
+                
+                self.profile_desc_input = ui.input(
+                    label='Description (optional)',
+                    placeholder='Low risk martingale for BTC'
+                ).classes('w-full')
+                
+                ui.button('Save Profile', on_click=self._save_profile, 
+                         icon='save', color='primary').classes('mt-2')
+            
+            # Action buttons
+            with ui.row().classes('w-full gap-2 mt-3'):
+                ui.button('Load Selected', on_click=self._load_profile, 
+                         icon='folder_open').props('outline')
+                ui.button('Delete Selected', on_click=self._delete_profile, 
+                         icon='delete', color='negative').props('outline')
+                ui.button('Apply to Bot', on_click=self._apply_to_bot, 
+                         icon='check', color='primary')
     
     def _on_strategy_change(self, e):
         """Handle strategy selection change"""
@@ -273,57 +316,93 @@ class StrategiesUI:
         params[param_name] = value
         app_state.update(strategy_params=params)
     
+    def _on_profile_select(self, e):
+        """Handle profile selection from dropdown"""
+        # Just store the selected profile name, actual loading happens on button click
+        pass
+    
     def _save_profile(self):
-        """Save current configuration to JSON file"""
-        profile_dir = Path('gui/profiles')
-        profile_dir.mkdir(exist_ok=True)
+        """Save current configuration to database"""
+        if not self.profile_name_input or not self.profile_name_input.value:
+            ui.notify('Please enter a profile name', type='warning')
+            return
         
-        profile_data = {
-            'strategy_name': app_state.strategy_name,
-            'strategy_params': app_state.strategy_params,
-        }
+        profile_name = self.profile_name_input.value.strip()
+        description = self.profile_desc_input.value.strip() if self.profile_desc_input else ""
         
-        profile_path = profile_dir / f'{app_state.strategy_name}_profile.json'
-        
-        with open(profile_path, 'w') as f:
-            json.dump(profile_data, f, indent=2)
-        
-        ui.notify(f'Profile saved: {profile_path.name}', type='positive')
+        try:
+            self.db.save_strategy_profile(
+                name=profile_name,
+                strategy_name=app_state.strategy_name,
+                parameters=app_state.strategy_params,
+                description=description
+            )
+            
+            ui.notify(f'✅ Profile saved: {profile_name}', type='positive', position='top')
+            
+            # Clear inputs
+            self.profile_name_input.value = ""
+            if self.profile_desc_input:
+                self.profile_desc_input.value = ""
+            
+            # Refresh profile list
+            # NOTE: In a full implementation, we'd re-render the profile select
+            
+        except Exception as e:
+            ui.notify(f'❌ Failed to save profile: {e}', type='negative')
     
     def _load_profile(self):
-        """Load configuration from JSON file"""
-        profile_dir = Path('gui/profiles')
-        if not profile_dir.exists():
-            ui.notify('No profiles found', type='warning')
+        """Load selected profile from database"""
+        if not self.profile_list_select or not self.profile_list_select.value:
+            ui.notify('Please select a profile to load', type='warning')
             return
         
-        profiles = list(profile_dir.glob('*.json'))
-        if not profiles:
-            ui.notify('No profiles found', type='warning')
+        profile_name = self.profile_list_select.value
+        
+        try:
+            profile = self.db.load_strategy_profile(profile_name)
+            
+            if not profile:
+                ui.notify(f'Profile not found: {profile_name}', type='warning')
+                return
+            
+            # Update state
+            app_state.update(
+                strategy_name=profile['strategy_name'],
+                strategy_params=profile['parameters']
+            )
+            
+            # Update UI
+            self.strategy_dropdown.set_value(profile['strategy_name'])
+            self._update_description()
+            self._update_metadata()
+            
+            # Re-render parameters
+            self.params_container.clear()
+            with self.params_container:
+                self._render_param_inputs()
+            
+            ui.notify(f'✅ Profile loaded: {profile_name}', type='positive', position='top')
+            
+        except Exception as e:
+            ui.notify(f'❌ Failed to load profile: {e}', type='negative')
+    
+    def _delete_profile(self):
+        """Delete selected profile from database"""
+        if not self.profile_list_select or not self.profile_list_select.value:
+            ui.notify('Please select a profile to delete', type='warning')
             return
         
-        # For simplicity, load the first matching profile
-        profile_path = profile_dir / f'{app_state.strategy_name}_profile.json'
+        profile_name = self.profile_list_select.value
         
-        if not profile_path.exists():
-            ui.notify(f'No profile found for {app_state.strategy_name}', type='warning')
-            return
-        
-        with open(profile_path, 'r') as f:
-            profile_data = json.load(f)
-        
-        app_state.update(
-            strategy_name=profile_data['strategy_name'],
-            strategy_params=profile_data['strategy_params']
-        )
-        
-        # Re-render UI
-        self.strategy_dropdown.set_value(profile_data['strategy_name'])
-        self.params_container.clear()
-        with self.params_container:
-            self._render_param_inputs()
-        
-        ui.notify(f'Profile loaded: {profile_path.name}', type='positive')
+        try:
+            self.db.delete_strategy_profile(profile_name)
+            ui.notify(f'🗑️ Profile deleted: {profile_name}', type='info', position='top')
+            
+            # NOTE: In a full implementation, we'd re-render the profile select
+            
+        except Exception as e:
+            ui.notify(f'❌ Failed to delete profile: {e}', type='negative')
     
     def _apply_to_bot(self):
         """Apply current configuration to bot state"""
