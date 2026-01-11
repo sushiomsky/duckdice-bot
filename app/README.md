@@ -1,57 +1,36 @@
-# ⚠️ DEPRECATED - Old Web Interface Prototype
+# DuckDice Bot - Web Interface (NiceGUI)
 
-**This directory contains an incomplete prototype and is no longer maintained.**
+## ⚠️ Status: Development
 
-## ✅ Use the New Web Interface Instead
+The NiceGUI web interface is currently under development and not fully functional in this release.
 
-The complete, production-ready NiceGUI web interface is now available in the `gui/` directory!
+## Available Interfaces
 
-### Quick Start
+### ✅ Desktop GUI (Recommended)
+The full-featured desktop GUI is ready to use:
+
 ```bash
-# Run the new web interface
-python3 gui/app.py
+# Run the desktop GUI
+python duckdice_gui_ultimate.py
 
-# Or use the convenience script
-./run_gui_web.sh
-# or
-./run_nicegui.sh
+# Or use the shell script
+./run_gui.sh
 ```
 
-Opens at: **http://localhost:8080**
+### 🚧 Web Interface (In Development)
+The NiceGUI web interface is being refactored. Coming soon in a future release!
 
-## New Web Interface Features (v3.10.0)
+## Features (Desktop GUI)
 
-✅ **5 Complete Screens**:
-- **Dashboard** - Real-time bot control with live stats
-- **Strategies** - Configure 5 betting strategies
-- **Simulator** - Offline testing with analytics
-- **History** - Bet history and CSV export
-- **Settings** - Stop conditions and preferences
-
-✅ **Safety Features**:
-- Simulation mode by default
-- No auto-start
-- Emergency stop always accessible
-- Thread-safe operations
-- Input validation
-
-✅ **Performance**:
-- Real-time updates every 250ms
-- <1 second page load
-- Low memory usage (~50MB)
+The desktop GUI includes all features:
+- 16 enhanced betting strategies
+- Real-time statistics dashboard  
+- Offline simulation mode
+- Custom script editor
+- Faucet grind automation
+- Provably fair verification
+- And much more!
 
 ## Documentation
 
-- **[GUI_README.md](../GUI_README.md)** - Complete user guide
-- **[START_HERE.md](../START_HERE.md)** - Quick reference
-- **[NICEGUI_IMPLEMENTATION.md](../NICEGUI_IMPLEMENTATION.md)** - Technical docs
-
-## Migration Note
-
-This `app/` directory will be removed in a future release. Please use `gui/` instead.
-
----
-
-**Status**: Deprecated  
-**Replacement**: `gui/` directory  
-**Version**: v3.10.0+
+See the main [README.md](../README.md) for complete documentation.

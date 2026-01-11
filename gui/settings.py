@@ -236,17 +236,23 @@ class Settings:
             ui.notify('API key format appears invalid', type='negative')
             return
         
-        # In a real implementation, this would ping the DuckDice API
-        ui.notify('API connection test not yet implemented', type='info')
+        # Import live API manager
+        from gui.live_api import live_api
+        from gui.utils import format_balance
         
-        # TODO: Implement actual API test
-        # try:
-        #     client = DuckDiceClient(app_state.api_key)
-        #     balance = client.get_balance()
-        #     app_state.update(balance=balance)
-        #     ui.notify(f'Connection successful! Balance: {format_balance(balance)}', type='positive')
-        # except APIError as e:
-        #     ui.notify(f'Connection failed: {str(e)}', type='negative')
+        # Test connection
+        ui.notify('Testing connection...', type='info')
+        
+        try:
+            success, message = live_api.connect(app_state.api_key)
+            
+            if success:
+                ui.notify(message, type='positive')
+            else:
+                ui.notify(message, type='negative')
+                
+        except Exception as e:
+            ui.notify(f'Connection failed: {str(e)}', type='negative')
     
     def _toggle_simulation_mode(self, enabled: bool):
         """Toggle simulation mode"""

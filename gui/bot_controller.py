@@ -62,23 +62,10 @@ class BotController:
         """Check if bot is paused"""
         return app_state.get('paused', False)
     
-    def start(self, strategy_name: str = None, strategy_params: Dict[str, Any] = None, 
-              simulation_mode: bool = None, max_bets: int = None, update_callback: Callable = None):
+    def start(self, strategy_name: str, strategy_params: Dict[str, Any]):
         """Start bot with given strategy"""
         if self.is_running():
             raise RuntimeError("Bot is already running")
-        
-        # Use provided values or defaults from app_state
-        if strategy_name is None:
-            strategy_name = app_state.strategy_name or 'martingale'
-        if strategy_params is None:
-            strategy_params = app_state.strategy_params or {}
-        if simulation_mode is not None:
-            app_state.update(simulation_mode=simulation_mode)
-        if max_bets is not None:
-            app_state.update(max_bets=max_bets)
-        if update_callback is not None:
-            self.update_callback = update_callback
         
         # Validate inputs
         if not app_state.api_key and not app_state.simulation_mode:
@@ -163,11 +150,7 @@ class BotController:
         app_state.update(starting_balance=balance, balance=balance)
         
         bet_count = 0
-        max_bets = app_state.max_bets or strategy_params.get('max_bets', 100)
-        
-        # Ensure max_bets is not None
-        if max_bets is None:
-            max_bets = 100
+        max_bets = strategy_params.get('max_bets', 100)
         
         while not self.stop_event.is_set() and bet_count < max_bets:
             # Check pause
@@ -254,27 +237,115 @@ class BotController:
             self.update_callback()
     
     def _run_live(self, strategy_name: str, strategy_params: Dict[str, Any]):
-        """Run with real API (not implemented for safety)"""
-        raise NotImplementedError("Live mode requires full strategy integration")
+        """Run with real API connection"""
+        from gui.live_api import live_api
+        
+        logger.info("Running in LIVE mode with real bets")
+        
+        # Check API connection
+        if not live_api.is_connected():
+            if not app_state.api_key:
+                raise ValueError("API key required for live mode")
+            
+            success, message = live_api.connect(app_state.api_key)
+            if not success:
+                raise ConnectionError(f"Failed to connect to API: {message}")
+        
+        # Get initial balance from API
+        balance = live_api.get_balance()
+        if balance is None:
+            raise ConnectionError("Could not fetch balance from API")
+        
+        app_state.update(starting_balance=balance, balance=balance)
+        
+        bet_count = 0
+        max_bets = app_state.max_bets or strategy_params.get('max_bets', 100)
+        
+        # Ensure max_bets is not None
+        if max_bets is None:
+            max_bets = 100
+        
+        # Get strategy parameters
+        base_bet = strategy_params.get('base_bet', 0.00000001)
+        target_chance = strategy_params.get('target_chance', 49.5)
+        
+        current_bet = base_bet
+        
+        while not self.stop_event.is_set() and bet_count < max_bets:
+            # Check pause
+            while self.pause_event.is_set() and not self.stop_event.is_set():
+                time.sleep(0.1)
+            
+            if self.stop_event.is_set():
+                break
+            
+            # Place real bet via API
+            bet_record = live_api.place_bet(
+                amount=current_bet,
+                target_chance=target_chance,
+                bet_high=True
+            )
+            
+            if bet_record is None:
+                logger.error("Failed to place bet, stopping")
+                break
+            
+            # Update state
+            app_state.add_bet(bet_record)
+            
+            # Update bet amount based on strategy
+            if strategy_name == 'martingale':
+                if bet_record.won:
+                    current_bet = base_bet  # Reset to base on win
+                else:
+                    multiplier = strategy_params.get('multiplier', 2.0)
+                    current_bet *= multiplier
+                    max_bet = strategy_params.get('max_bet', 0.001)
+                    current_bet = min(current_bet, max_bet)
+            
+            elif strategy_name == 'reverse_martingale':
+                if bet_record.won:
+                    multiplier = strategy_params.get('multiplier', 2.0)
+                    current_bet *= multiplier
+                    max_bet = strategy_params.get('max_bet', 0.001)
+                    current_bet = min(current_bet, max_bet)
+                else:
+                    current_bet = base_bet  # Reset to base on loss
+            
+            else:
+                # For other strategies, just use base bet
+                current_bet = base_bet
+            
+            bet_count += 1
+            
+            # Trigger UI update
+            if self.update_callback:
+                self.update_callback()
+            
+            # Check stop conditions
+            if self._should_stop():
+                logger.info("Stop condition met")
+                break
+            
+            # Delay between bets (respect rate limits)
+            delay = app_state.bet_delay or 1.0
+            time.sleep(delay)
+        
+        logger.info(f"Live session ended: {bet_count} bets placed")
+        app_state.update(running=False, paused=False)
     
     def _should_stop(self) -> bool:
         """Check if stop conditions are met"""
-        # Check profit target (percentage)
-        stop_profit = app_state.stop_profit_pct or app_state.stop_profit
-        if stop_profit and stop_profit > 0 and app_state.profit_percent >= stop_profit:
+        # Check profit target
+        if app_state.stop_profit and app_state.profit_percent >= (app_state.stop_profit * 100):
             return True
         
-        # Check loss limit (percentage)  
-        stop_loss = app_state.stop_loss_pct or app_state.stop_loss
-        if stop_loss and stop_loss > 0 and app_state.profit_percent <= -abs(stop_loss):
+        # Check loss limit
+        if app_state.stop_loss and app_state.profit_percent <= (app_state.stop_loss * 100):
             return True
         
         # Check max bets
-        if app_state.max_bets and app_state.max_bets > 0 and app_state.total_bets >= app_state.max_bets:
-            return True
-        
-        # Check min balance
-        if app_state.min_balance and app_state.min_balance > 0 and app_state.balance <= app_state.min_balance:
+        if app_state.max_bets and app_state.total_bets >= app_state.max_bets:
             return True
         
         return False
