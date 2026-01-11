@@ -30,4 +30,4 @@ echo "Press Ctrl+C to stop"
 echo ""
 
 # Run the app
-python3 app/main.py
+python3 gui/app.py
