@@ -237,10 +237,14 @@ class BotController:
             self.update_callback()
     
     def _run_live(self, strategy_name: str, strategy_params: Dict[str, Any]):
-        """Run with real API connection"""
+        """Run with real API connection using actual strategy classes"""
         from gui.live_api import live_api
+        from gui.strategy_integration import (
+            StrategyRunner, bet_spec_to_api_params, 
+            api_response_to_bet_result, bet_result_to_bet_record
+        )
         
-        logger.info("Running in LIVE mode with real bets")
+        logger.info(f"Running in LIVE mode with strategy: {strategy_name}")
         
         # Check API connection
         if not live_api.is_connected():
@@ -258,19 +262,23 @@ class BotController:
         
         app_state.update(starting_balance=balance, balance=balance)
         
+        # Initialize strategy runner
+        try:
+            strategy_runner = StrategyRunner(
+                strategy_name=strategy_name,
+                strategy_params=strategy_params,
+                api=live_api.api  # Pass the DuckDiceAPI instance
+            )
+            strategy_runner.start_session()
+        except Exception as e:
+            logger.error(f"Failed to initialize strategy: {e}")
+            app_state.update(last_error=str(e))
+            raise
+        
         bet_count = 0
-        max_bets = app_state.max_bets or strategy_params.get('max_bets', 100)
+        max_bets = app_state.max_bets or 100
         
-        # Ensure max_bets is not None
-        if max_bets is None:
-            max_bets = 100
-        
-        # Get strategy parameters
-        base_bet = strategy_params.get('base_bet', 0.00000001)
-        target_chance = strategy_params.get('target_chance', 49.5)
-        
-        current_bet = base_bet
-        
+        # Main betting loop
         while not self.stop_event.is_set() and bet_count < max_bets:
             # Check pause
             while self.pause_event.is_set() and not self.stop_event.is_set():
@@ -279,60 +287,98 @@ class BotController:
             if self.stop_event.is_set():
                 break
             
-            # Place real bet via API
-            bet_record = live_api.place_bet(
-                amount=current_bet,
-                target_chance=target_chance,
-                bet_high=True
-            )
-            
-            if bet_record is None:
-                logger.error("Failed to place bet, stopping")
-                break
-            
-            # Update state
-            app_state.add_bet(bet_record)
-            
-            # Update bet amount based on strategy
-            if strategy_name == 'martingale':
-                if bet_record.won:
-                    current_bet = base_bet  # Reset to base on win
-                else:
-                    multiplier = strategy_params.get('multiplier', 2.0)
-                    current_bet *= multiplier
-                    max_bet = strategy_params.get('max_bet', 0.001)
-                    current_bet = min(current_bet, max_bet)
-            
-            elif strategy_name == 'reverse_martingale':
-                if bet_record.won:
-                    multiplier = strategy_params.get('multiplier', 2.0)
-                    current_bet *= multiplier
-                    max_bet = strategy_params.get('max_bet', 0.001)
-                    current_bet = min(current_bet, max_bet)
-                else:
-                    current_bet = base_bet  # Reset to base on loss
-            
-            else:
-                # For other strategies, just use base bet
-                current_bet = base_bet
-            
-            bet_count += 1
-            
-            # Trigger UI update
-            if self.update_callback:
-                self.update_callback()
-            
-            # Check stop conditions
-            if self._should_stop():
-                logger.info("Stop condition met")
-                break
-            
-            # Delay between bets (respect rate limits)
-            delay = app_state.bet_delay or 1.0
-            time.sleep(delay)
+            try:
+                # Get next bet from strategy
+                bet_spec = strategy_runner.get_next_bet()
+                
+                if bet_spec is None:
+                    logger.info("Strategy returned None, ending session")
+                    break
+                
+                # Convert BetSpec to API parameters
+                api_params = bet_spec_to_api_params(bet_spec)
+                
+                # Place bet via API
+                logger.debug(f"Placing bet: {api_params}")
+                api_response = live_api.api.play_dice(
+                    amount=api_params["amount"],
+                    chance=api_params["chance"],
+                    bet_high=api_params["bet_high"],
+                    currency=app_state.currency or "btc"
+                )
+                
+                if not api_response:
+                    logger.error("API returned no response")
+                    break
+                
+                # Get updated balance
+                new_balance = live_api.get_balance()
+                if new_balance is not None:
+                    api_response["balance"] = new_balance
+                    app_state.update(balance=new_balance)
+                
+                # Convert to BetResult for strategy
+                bet_result = api_response_to_bet_result(api_response, bet_spec)
+                
+                # Pass result to strategy
+                strategy_runner.process_result(bet_result)
+                
+                # Convert to BetRecord for GUI
+                bet_record = bet_result_to_bet_record(bet_result, strategy_name)
+                app_state.add_bet(bet_record)
+                
+                # Update statistics
+                self._update_stats_from_bet(bet_record)
+                
+                bet_count += 1
+                
+                # Trigger UI update
+                if self.update_callback:
+                    self.update_callback()
+                
+                # Check stop conditions
+                if self._should_stop():
+                    logger.info("Stop condition met")
+                    break
+                
+                # Delay between bets (respect rate limits)
+                delay = app_state.bet_delay or 1.0
+                time.sleep(delay)
+                
+            except Exception as e:
+                logger.error(f"Error during bet: {e}", exc_info=True)
+                app_state.update(last_error=str(e))
+                # Continue or break depending on error severity
+                time.sleep(2)  # Brief pause before retry
+        
+        # End strategy session
+        strategy_runner.end_session(f"Completed {bet_count} bets")
         
         logger.info(f"Live session ended: {bet_count} bets placed")
         app_state.update(running=False, paused=False)
+    
+    def _update_stats_from_bet(self, bet_record: BetRecord):
+        """Update app_state statistics from a bet record."""
+        # Update stats
+        app_state.update(
+            total_bets=app_state.total_bets + 1,
+            wins=app_state.wins + (1 if bet_record.won else 0),
+            losses=app_state.losses + (0 if bet_record.won else 1),
+            profit=app_state.profit + bet_record.profit,
+            profit_percent=((bet_record.balance - app_state.starting_balance) / app_state.starting_balance * 100) if app_state.starting_balance > 0 else 0
+        )
+        
+        # Update streak
+        if bet_record.won:
+            if app_state.streak_type == "win":
+                app_state.update(current_streak=app_state.current_streak + 1)
+            else:
+                app_state.update(current_streak=1, streak_type="win")
+        else:
+            if app_state.streak_type == "loss":
+                app_state.update(current_streak=app_state.current_streak + 1)
+            else:
+                app_state.update(current_streak=1, streak_type="loss")
     
     def _should_stop(self) -> bool:
         """Check if stop conditions are met"""
