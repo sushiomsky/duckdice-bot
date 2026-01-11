@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 """
 Simple tests for GUI components - runs without pytest
 """
@@ -17,7 +18,7 @@ def test_state_initialization():
     assert state.running == False
     assert state.simulation_mode == True
     assert state.balance == 0.0
-    print("✅ State initialization test passed")
+    print("[PASS] State initialization test passed")
 
 
 def test_state_update():
@@ -26,25 +27,25 @@ def test_state_update():
     state.update(balance=1.5, total_bets=10)
     assert state.balance == 1.5
     assert state.total_bets == 10
-    print("✅ State update test passed")
+    print("[PASS] State update test passed")
 
 
 def test_bet_record():
     """Test BetRecord creation"""
     bet = BetRecord(
-        bet_number=1,
         timestamp=datetime.now(),
-        bet_amount=0.001,
-        target_chance=49.5,
+        amount=0.001,
+        target=49.5,
         roll=45.0,
         won=True,
-        payout=0.002,
         profit=0.001,
-        balance=1.001
+        balance=1.001,
+        strategy="Martingale"
     )
     assert bet.won == True
     assert bet.profit == 0.001
-    print("✅ BetRecord test passed")
+    assert bet.amount == 0.001
+    print("[PASS] BetRecord test passed")
 
 
 def test_thread_safety():
@@ -65,7 +66,7 @@ def test_thread_safety():
     
     # Should be 5.0 with proper locking
     assert abs(state.balance - 5.0) < 0.1
-    print(f"✅ Thread safety test passed (balance={state.balance:.2f})")
+    print(f"[PASS] Thread safety test passed (balance={state.balance:.2f})")
 
 
 def test_bot_controller_import():
@@ -73,7 +74,7 @@ def test_bot_controller_import():
     from gui.bot_controller import bot_controller
     assert bot_controller is not None
     assert not bot_controller.is_running()
-    print("✅ BotController import test passed")
+    print("[PASS] BotController import test passed")
 
 
 def test_utils_validation():
@@ -92,7 +93,7 @@ def test_utils_validation():
     is_valid, msg = validate_target_chance("150.0")
     assert is_valid == False
     
-    print("✅ Validation tests passed")
+    print("[PASS] Validation tests passed")
 
 
 def test_utils_formatting():
@@ -108,12 +109,12 @@ def test_utils_formatting():
     formatted = format_number(1234.56)
     assert "1234" in formatted
     
-    print("✅ Formatting tests passed")
+    print("[PASS] Formatting tests passed")
 
 
 def run_all_tests():
     """Run all tests"""
-    print("\n🧪 Running GUI Component Tests...\n")
+    print("\n[TEST] Running GUI Component Tests...\n")
     
     tests = [
         test_state_initialization,
@@ -133,10 +134,10 @@ def run_all_tests():
             test()
             passed += 1
         except AssertionError as e:
-            print(f"❌ {test.__name__} failed: {e}")
+            print(f"[FAIL] {test.__name__} failed: {e}")
             failed += 1
         except Exception as e:
-            print(f"❌ {test.__name__} error: {e}")
+            print(f"[ERROR] {test.__name__} error: {e}")
             failed += 1
     
     print(f"\n{'='*50}")
