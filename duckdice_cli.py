@@ -819,139 +819,78 @@ def cmd_interactive(args=None):
     
     config_mgr = ConfigManager()
     
-    # Step 1: Simulation or Live?
-    if USE_RICH and display:
-        display.print_step(1, "Select Mode", 6)
-    else:
-        print("Step 1: Select Mode")
-        print("-" * 40)
-    
-    mode_options = {
-        '1': ('simulation', 'Safe testing with virtual balance'),
-        '2': ('live', 'Real betting with DuckDice account')
-    }
-    
-    for key, (name, desc) in mode_options.items():
-        print(f"  {key}. {name:<12} - {desc}")
-    
-    choice = input("\nSelect [1-2] [1]: ").strip() or '1'
-    is_simulation = (choice == '1')
+    # Always use live mode with main balance (skip Step 1)
+    is_simulation = False
+    use_faucet = False
     
     if USE_RICH and display:
-        display.print_success(f"Selected: {'Simulation' if is_simulation else 'Live'}")
+        display.print_info("Mode: Live (Main Balance)")
     else:
-        print(f"✓ Selected: {'Simulation' if is_simulation else 'Live'}\n")
+        print("ℹ️  Mode: Live (Main Balance)\n")
     
-    # Step 2: API Key (for live mode)
-    api_key = None
+    # Step 1: API Key (auto-detect, don't prompt if found)
+    api_key = config_mgr.config.get('api_key')
     api = None
     
-    if not is_simulation:
+    if api_key:
+        # API key found - use it silently
         if USE_RICH and display:
-            display.print_step(2, "API Key", 6)
+            display.print_success(f"API key detected: {api_key[:12]}...")
         else:
-            print("\nStep 2: API Key")
+            print(f"✓ API key detected: {api_key[:12]}...\n")
+    else:
+        # No API key - must prompt
+        if USE_RICH and display:
+            display.print_step(1, "API Key Required", 5)
+        else:
+            print("Step 1: API Key Required")
             print("-" * 40)
         
-        # Check for saved key
-        api_key = config_mgr.config.get('api_key')
-        if api_key:
-            print(f"Found saved API key: {api_key[:12]}...")
-            use_saved = input("Use this key? (y/n) [y]: ").strip().lower()
-            if use_saved == 'n':
-                api_key = None
-        
+        api_key = input("Enter your DuckDice API key: ").strip()
         if not api_key:
-            api_key = input("Enter your DuckDice API key: ").strip()
-            if not api_key:
-                if USE_RICH and display:
-                    display.print_error("API key required for live mode")
-                else:
-                    print("✗ API key required for live mode")
-                return
-            
-            # Save for future use
-            save_key = input("Save this key? (y/n) [y]: ").strip().lower()
-            if save_key != 'n':
-                config_mgr.config['api_key'] = api_key
-                config_mgr.save_config()
-                if USE_RICH and display:
-                    display.print_success("API key saved")
-                else:
-                    print("✓ API key saved")
-        
-        # Connect to API
-        try:
-            from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
-            api = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
             if USE_RICH and display:
-                display.print_success("Connected to DuckDice")
+                display.print_error("API key required for live mode")
             else:
-                print("✓ Connected to DuckDice")
-        except Exception as e:
-            if USE_RICH and display:
-                display.print_error(f"Failed to connect: {e}")
-            else:
-                print(f"✗ Failed to connect: {e}")
+                print("✗ API key required for live mode")
             return
+        
+        # Save for future use
+        save_key = input("Save this key? (y/n) [y]: ").strip().lower()
+        if save_key != 'n':
+            config_mgr.config['api_key'] = api_key
+            config_mgr.save_config()
+            if USE_RICH and display:
+                display.print_success("API key saved")
+            else:
+                print("✓ API key saved")
     
-    # Step 3: Main or Faucet (for live mode)
-    use_faucet = False
-    if not is_simulation:
+    # Connect to API
+    try:
+        from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
+        api = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
         if USE_RICH and display:
-            display.print_step(3, "Balance Type", 6)
+            display.print_success("Connected to DuckDice")
         else:
-            print("\nStep 3: Balance Type")
-            print("-" * 40)
-        
-        print("  1. Main balance - Your deposited funds")
-        print("  2. Faucet balance - Free test balance")
-        
-        balance_choice = input("\nSelect [1-2] [1]: ").strip() or '1'
-        use_faucet = (balance_choice == '2')
-        
+            print("✓ Connected to DuckDice\n")
+    except Exception as e:
         if USE_RICH and display:
-            display.print_success(f"Selected: {'Faucet' if use_faucet else 'Main'} balance")
+            display.print_error(f"Failed to connect: {e}")
         else:
-            print(f"✓ Selected: {'Faucet' if use_faucet else 'Main'} balance\n")
+            print(f"✗ Failed to connect: {e}")
+        return
     
-    # Step 4: Get balances and filter currencies
+    # Step 2: Get balances and filter currencies
     available_currencies = []
     balances_dict = {}
     
-    if is_simulation:
-        # Simulation mode - all currencies available
-        if USE_RICH and display:
-            display.print_step(2, "Select Currency", 6)
-        else:
-            print("\nStep 2: Select Currency")
-            print("-" * 40)
-        
-        currencies = ['btc', 'doge', 'eth', 'ltc', 'bch', 'trx']
-        for i, curr in enumerate(currencies, 1):
-            print(f"  {i}. {curr.upper()}")
-        
-        currency = prompt_choice("", currencies, config_mgr.config.get('default_currency', 'btc'))
-        if USE_RICH and display:
-            display.print_success(f"Selected: {currency.upper()}")
-        else:
-            print(f"✓ Selected: {currency.upper()}\n")
-        
-        # Initial balance for simulation (Note: Mock API uses fixed 100 balance)
-        initial_balance = 100.0  # Fixed for simulation mode
-        if USE_RICH and display:
-            display.print_info(f"Simulation balance: {initial_balance} {currency.upper()}")
-        else:
-            print(f"ℹ Simulation balance: {initial_balance} {currency.upper()}\n")
+    # Live mode - fetch balances and filter
+    if USE_RICH and display:
+        display.print_step(2, "Select Currency", 5)
+        display.print_info("Fetching your balances...")
     else:
-        # Live mode - fetch balances and filter
-        if USE_RICH and display:
-            display.print_step(4, "Select Currency", 6)
-            display.print_info("Fetching your balances...")
-        else:
-            print("\nStep 4: Select Currency")
-            print("-" * 40)
-            print("Fetching your balances...")
+        print("\nStep 2: Select Currency")
+        print("-" * 40)
+        print("Fetching your balances...")
         
         try:
             user_info = api.get_user_info()
@@ -1006,12 +945,11 @@ def cmd_interactive(args=None):
             return
     
     
-    # Step 5: Choose strategy
-    step_num = 4 if is_simulation else 5
+    # Step 3: Choose strategy
     if USE_RICH and display:
-        display.print_step(step_num, "Select Strategy", 6)
+        display.print_step(3, "Select Strategy", 5)
     else:
-        print(f"\nStep {step_num}: Select Strategy")
+        print(f"\nStep 3: Select Strategy")
         print("-" * 40)
     
     available_strategies_raw = list_strategies()
@@ -1059,12 +997,11 @@ def cmd_interactive(args=None):
     else:
         print(f"✓ Selected: {strategy_name}\n")
     
-    # Step 6: Set target balance
-    step_num = 5 if is_simulation else 6
+    # Step 4: Set target balance
     if USE_RICH and display:
-        display.print_step(step_num, "Set Target", 6)
+        display.print_step(4, "Set Target", 5)
     else:
-        print(f"\nStep {step_num}: Set Target")
+        print(f"\nStep 4: Set Target")
         print("-" * 40)
     
     print(f"Current balance: {initial_balance:.8f} {currency.upper()}")
@@ -1092,12 +1029,11 @@ def cmd_interactive(args=None):
         else:
             print("✓ No target set - will run until strategy exits\n")
     
-    # Step 7: Configure strategy parameters
-    step_num = 6 if is_simulation else 7
+    # Step 5: Configure strategy parameters
     if USE_RICH and display:
-        display.print_step(step_num, "Configure Strategy", 6)
+        display.print_step(5, "Configure Strategy", 5)
     else:
-        print(f"\nStep {step_num}: Configure Strategy")
+        print(f"\nStep 5: Configure Strategy")
         print("-" * 40)
     
     params = {}
@@ -1218,6 +1154,33 @@ def cmd_interactive(args=None):
             print(f"Parameters:       {len(params)} configured")
         print("="*60)
     
+    # Display equivalent CLI command
+    print("\n💡 Equivalent CLI command:")
+    print("-" * 60)
+    
+    # Build the command
+    mode = 'live-main' if not is_simulation else ('live-faucet' if use_faucet else 'simulation')
+    cmd_parts = [
+        "duckdice run",
+        f"-m {mode}",
+        f"-c {currency}",
+        f"-s {strategy_name}"
+    ]
+    
+    # Add take profit if set
+    if target_balance > 0:
+        take_profit_pct = ((target_balance - initial_balance) / initial_balance)
+        cmd_parts.append(f"--take-profit {take_profit_pct:.4f}")
+    
+    # Add parameters if configured
+    if params:
+        for key, value in params.items():
+            cmd_parts.append(f"-P {key}={value}")
+    
+    cli_command = " \\\n  ".join(cmd_parts)
+    print(f"\n  {cli_command}\n")
+    print("-" * 60)
+    
     # Confirmation
     confirm = input("\nReady to start? (y/n) [y]: ").strip().lower()
     if confirm == 'n':
@@ -1233,80 +1196,11 @@ def cmd_interactive(args=None):
     else:
         take_profit = None  # No profit target
     
-    # For live mode, offer simulation preview first
-    if not is_simulation:
-        print()
-        if USE_RICH and display:
-            display.print_section("Pre-Live Simulation Preview")
-            display.print_info("Test this strategy in simulation before risking real funds")
-        else:
-            print("="*60)
-            print("🔬 PRE-LIVE SIMULATION PREVIEW")
-            print("="*60)
-            print("Test this strategy in simulation before risking real funds")
-        
-        print("\nThis will run a quick simulation with:")
-        print(f"  • Same balance: {initial_balance:.8f} {currency.upper()}")
-        print(f"  • Same target: {target_balance:.8f} {currency.upper()}" if target_balance > 0 else "  • No target (run until strategy exits)")
-        print(f"  • Same strategy: {strategy_name}")
-        print(f"  • Fast simulation (max 100 bets or target reached)")
-        print()
-        
-        run_sim = input("Run simulation preview? (y/n) [y]: ").strip().lower()
-        
-        if run_sim != 'n':
-            # Run quick simulation
-            if USE_RICH and display:
-                display.print_success("Running simulation preview...")
-            else:
-                print("\n▶️  Running simulation preview...\n")
-            
-            # Create simulation config (fast, limited bets)
-            sim_config = EngineConfig(
-                symbol=currency,
-                dry_run=True,  # Force simulation
-                faucet=False,
-                stop_loss=-0.99,
-                take_profit=take_profit,
-                max_bets=100,  # Limit simulation to 100 bets
-                max_losses=None,
-                delay_ms=10,   # Super fast simulation: 10ms
-                jitter_ms=5    # Minimal jitter: 5ms
-            )
-            
-            # Run simulation
-            print()
-            run_strategy(strategy_name, params, sim_config, None, True)
-            
-            # Ask if user wants to continue with live
-            print()
-            if USE_RICH and display:
-                display.print_section("Simulation Complete")
-            else:
-                print("\n" + "="*60)
-                print("SIMULATION COMPLETE")
-                print("="*60)
-            
-            print("\nBased on the simulation results above,")
-            cont_live = input("Continue with LIVE betting? (y/n) [n]: ").strip().lower()
-            
-            if cont_live != 'y':
-                if USE_RICH and display:
-                    display.print_warning("Live betting cancelled")
-                else:
-                    print("\n⚠️  Live betting cancelled")
-                return
-        
-        if USE_RICH and display:
-            display.print_success("Starting LIVE session...")
-        else:
-            print("\n🚀 Starting LIVE session...\n")
+    # Start live session
+    if USE_RICH and display:
+        display.print_success("Starting LIVE session...")
     else:
-        # Simulation mode - just start
-        if USE_RICH and display:
-            display.print_success("Starting session...")
-        else:
-            print("\n🚀 Starting session...\n")
+        print("\n🚀 Starting LIVE session...\n")
     
     # Create engine config for actual run
     config = EngineConfig(
