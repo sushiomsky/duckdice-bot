@@ -15,6 +15,11 @@ dependencies = [
   "PyYAML>=6.0.2",
   "rich>=13.7.0",
 ]
+
+[project.optional-dependencies]
+tui = ["textual>=0.47.0"]
+gui = []  # Tkinter is stdlib
+all = ["textual>=0.47.0"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.9",
@@ -41,10 +46,11 @@ gui = []
 [project.scripts]
 duckdice = "duckdice_cli:main"
 duckdice-compare = "strategy_comparison:main"
+duckdice-tui = "duckdice_tui:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
-py-modules = ["duckdice_cli", "strategy_comparison"]
+py-modules = ["duckdice_cli", "strategy_comparison", "duckdice_tui"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -53,4 +59,5 @@ include = [
   "betbot_engine*",
   "betbot_strategies*",
   "cli_display*",
+  "interfaces*",
 ]
