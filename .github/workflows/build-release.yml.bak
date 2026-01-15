@@ -46,8 +46,8 @@ jobs:
     
     - name: Syntax check
       run: |
-        python -m py_compile duckdice_gui_ultimate.py
         python -m py_compile duckdice.py
+        python -m py_compile duckdice_cli.py
     
     - name: Run strategy metadata test
       if: matrix.os == 'ubuntu-latest'
