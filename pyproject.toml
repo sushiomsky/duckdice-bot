@@ -4,8 +4,8 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "duckdice-betbot"
-version = "0.2.1"
-description = "DuckDice API Python client, CLI, and auto-betting engine with pluggable strategies"
+version = "4.9.2"
+description = "DuckDice betting bot with 18 strategies, Monte Carlo simulation, and comprehensive CLI"
 readme = "README.md"
 authors = [{ name = "Dennis", email = "schnickfitzel1@gmail.com" }]
 license = { file = "LICENSE" }
@@ -13,6 +13,7 @@ requires-python = ">=3.9"
 dependencies = [
   "requests>=2.31.0",
   "PyYAML>=6.0.2",
+  "rich>=13.7.0",
 ]
 classifiers = [
   "Programming Language :: Python :: 3",
@@ -38,19 +39,18 @@ Repository = "https://github.com/sushiomsky/duckdice"
 gui = []
 
 [project.scripts]
-duckdice = "duckdice_cli.__main__:main"
-duckdice-gui = "duckdice_gui_app.gui:main"
+duckdice = "duckdice_cli:main"
+duckdice-compare = "strategy_comparison:main"
 
 [tool.setuptools]
 package-dir = {"" = "src"}
+py-modules = ["duckdice_cli", "strategy_comparison"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
 include = [
-  "duckdice*",
   "duckdice_api*",
-  "duckdice_cli*",
   "betbot_engine*",
   "betbot_strategies*",
-  "duckdice_gui_app*",
+  "cli_display*",
 ]
