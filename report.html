@@ -1,0 +1,1436 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strategy Comparison Report</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            padding: 20px;
+            color: #333;
+        }
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            overflow: hidden;
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 40px;
+            text-align: center;
+        }
+        .header h1 {
+            font-size: 2.5em;
+            margin-bottom: 10px;
+        }
+        .header p {
+            font-size: 1.1em;
+            opacity: 0.9;
+        }
+        .summary {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+            gap: 20px;
+            padding: 40px;
+            background: #f8f9fa;
+        }
+        .summary-card {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+            text-align: center;
+        }
+        .summary-card h3 {
+            font-size: 0.9em;
+            color: #666;
+            margin-bottom: 10px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+        }
+        .summary-card .value {
+            font-size: 2em;
+            font-weight: bold;
+            color: #667eea;
+        }
+        .charts {
+            padding: 40px;
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(500px, 1fr));
+            gap: 30px;
+        }
+        .chart-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 8px rgba(0,0,0,0.1);
+        }
+        .chart-container h2 {
+            margin-bottom: 20px;
+            color: #333;
+            font-size: 1.3em;
+        }
+        table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 20px 0;
+        }
+        th, td {
+            padding: 12px;
+            text-align: left;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background: #667eea;
+            color: white;
+            font-weight: 600;
+            position: sticky;
+            top: 0;
+        }
+        tr:hover {
+            background: #f5f5f5;
+        }
+        .positive { color: #28a745; font-weight: bold; }
+        .negative { color: #dc3545; font-weight: bold; }
+        .neutral { color: #6c757d; }
+        .rank {
+            display: inline-block;
+            width: 30px;
+            height: 30px;
+            line-height: 30px;
+            text-align: center;
+            border-radius: 50%;
+            font-weight: bold;
+            color: white;
+        }
+        .rank-1 { background: #FFD700; }
+        .rank-2 { background: #C0C0C0; }
+        .rank-3 { background: #CD7F32; }
+        .rank-other { background: #6c757d; }
+        .details-section {
+            padding: 40px;
+        }
+        .details-section h2 {
+            margin-bottom: 20px;
+            color: #333;
+        }
+        .strategy-detail {
+            background: #f8f9fa;
+            padding: 20px;
+            margin-bottom: 20px;
+            border-radius: 8px;
+            border-left: 4px solid #667eea;
+        }
+        .strategy-detail h3 {
+            margin-bottom: 15px;
+            color: #667eea;
+        }
+        .metric-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+            gap: 15px;
+            margin-top: 15px;
+        }
+        .metric {
+            background: white;
+            padding: 10px;
+            border-radius: 4px;
+        }
+        .metric-label {
+            font-size: 0.8em;
+            color: #666;
+            margin-bottom: 5px;
+        }
+        .metric-value {
+            font-size: 1.2em;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🎲 Strategy Comparison Report</h1>
+            <p>Comprehensive Analysis of 16 Betting Strategies</p>
+            <p style="font-size: 0.9em; margin-top: 10px;">
+                Generated: 2026-01-13 19:28:04
+            </p>
+        </div>
+        
+        <div class="summary">
+            <div class="summary-card">
+                <h3>Tested Strategies</h3>
+                <div class="value">16</div>
+            </div>
+            <div class="summary-card">
+                <h3>Skipped</h3>
+                <div class="value">2</div>
+            </div>
+            <div class="summary-card">
+                <h3>Starting Balance</h3>
+                <div class="value">5.0 BTC</div>
+            </div>
+            <div class="summary-card">
+                <h3>Max Bets</h3>
+                <div class="value">2,000</div>
+            </div>
+            <div class="summary-card">
+                <h3>Profitable</h3>
+                <div class="value">0/16</div>
+            </div>
+            <div class="summary-card">
+                <h3>Busted</h3>
+                <div class="value">16</div>
+            </div>
+            <div class="summary-card">
+                <h3>Best Return</h3>
+                <div class="value positive">-100.0%</div>
+            </div>
+            <div class="summary-card">
+                <h3>Worst Return</h3>
+                <div class="value negative">-100.0%</div>
+            </div>
+        </div>
+        
+        <div class="charts">
+            <div class="chart-container">
+                <h2>📊 Profit Comparison</h2>
+                <canvas id="profitChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>📈 Max Balance Reached</h2>
+                <canvas id="maxBalanceChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>🎯 Win Rate Comparison</h2>
+                <canvas id="winRateChart"></canvas>
+            </div>
+            <div class="chart-container">
+                <h2>💰 Total Wagered</h2>
+                <canvas id="wageredChart"></canvas>
+            </div>
+        </div>
+        
+        <div class="details-section">
+            <h2>📋 Detailed Comparison Table</h2>
+            <table>
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Strategy</th>
+                        <th>Bets</th>
+                        <th>Win Rate</th>
+                        <th>Ending Balance</th>
+                        <th>Profit %</th>
+                        <th>Max Balance</th>
+                        <th>Busts</th>
+                        <th>Avg Bet</th>
+                        <th>Stop Reason</th>
+                    </tr>
+                </thead>
+                <tbody>
+
+                    <tr>
+                        <td><span class="rank rank-1">1</span></td>
+                        <td><strong>anti-martingale-streak</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000044</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-2">2</span></td>
+                        <td><strong>classic-martingale</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000574</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-3">3</span></td>
+                        <td><strong>dalembert</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000160</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">4</span></td>
+                        <td><strong>faucet-cashout</strong></td>
+                        <td>2</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>5.000000</td>
+                        <td>2</td>
+                        <td>0.000000</td>
+                        <td>strategy_stopped</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">5</span></td>
+                        <td><strong>fib-loss-cluster</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000001</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">6</span></td>
+                        <td><strong>fibonacci</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000301</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">7</span></td>
+                        <td><strong>kelly-capped</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.001936</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">8</span></td>
+                        <td><strong>labouchere</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.001847</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">9</span></td>
+                        <td><strong>max-wager-flow</strong></td>
+                        <td>231</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>134.300339</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>stop_loss</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">10</span></td>
+                        <td><strong>one-three-two-six</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000035</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">11</span></td>
+                        <td><strong>oscars-grind</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000425</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">12</span></td>
+                        <td><strong>paroli</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000011</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">13</span></td>
+                        <td><strong>range-50-random</strong></td>
+                        <td>767</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>116.120913</td>
+                        <td>384</td>
+                        <td>1.309652</td>
+                        <td>stop_loss</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">14</span></td>
+                        <td><strong>rng-analysis-strategy</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>100.000003</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">15</span></td>
+                        <td><strong>streak-hunter</strong></td>
+                        <td>2,001</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>105.071429</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>max_bets</td>
+                    </tr>
+
+                    <tr>
+                        <td><span class="rank rank-other">16</span></td>
+                        <td><strong>target-aware</strong></td>
+                        <td>1</td>
+                        <td>0.0%</td>
+                        <td>0.000000</td>
+                        <td class="negative">-100.00%</td>
+                        <td>5.000000</td>
+                        <td>1</td>
+                        <td>0.000000</td>
+                        <td>strategy_stopped</td>
+                    </tr>
+
+                </tbody>
+            </table>
+        </div>
+        
+        <div class="details-section">
+            <h2>🔍 Individual Strategy Details</h2>
+
+            <div class="strategy-detail">
+                <h3>#1. anti-martingale-streak</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000044</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.42s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#2. classic-martingale</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000574</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.42s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#3. dalembert</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000160</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.45s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#4. faucet-cashout</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">5.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.00s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">2</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">strategy_stopped</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#5. fib-loss-cluster</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.77s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#6. fibonacci</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000301</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.61s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#7. kelly-capped</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.001936</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.48s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#8. labouchere</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.001847</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.42s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#9. max-wager-flow</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">231</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">134.300339</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.05s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">stop_loss</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#10. one-three-two-six</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000035</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.45s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#11. oscars-grind</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000425</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.43s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#12. paroli</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000011</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.48s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#13. range-50-random</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">767</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">116.120913</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">1.309652</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">21.228966</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">1004.503290</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.15s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">384</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">stop_loss</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#14. rng-analysis-strategy</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">100.000003</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.50s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#15. streak-hunter</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">2,001</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">105.071429</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.60s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">max_bets</div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="strategy-detail">
+                <h3>#16. target-aware</h3>
+                <div class="metric-grid">
+                    <div class="metric">
+                        <div class="metric-label">Bets Placed</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Win Rate</div>
+                        <div class="metric-value">0.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Ending Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Profit</div>
+                        <div class="metric-value negative">-100.00%</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Balance</div>
+                        <div class="metric-value">5.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Min Balance</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Avg Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Max Bet Size</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Total Wagered</div>
+                        <div class="metric-value">0.000000</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Duration</div>
+                        <div class="metric-value">0.00s</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Busts</div>
+                        <div class="metric-value">1</div>
+                    </div>
+                    <div class="metric">
+                        <div class="metric-label">Stop Reason</div>
+                        <div class="metric-value" style="font-size: 0.9em;">strategy_stopped</div>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+    </div>
+    
+    <script>
+        // Profit Chart
+        new Chart(document.getElementById('profitChart'), {
+            type: 'bar',
+            data: {
+                labels: ["anti-martingale-streak", "classic-martingale", "dalembert", "faucet-cashout", "fib-loss-cluster", "fibonacci", "kelly-capped", "labouchere", "max-wager-flow", "one-three-two-six", "oscars-grind", "paroli", "range-50-random", "rng-analysis-strategy", "streak-hunter", "target-aware"],
+                datasets: [{
+                    label: 'Profit %',
+                    data: [-100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0, -100.0],
+                    backgroundColor: ["rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)", "rgba(220, 53, 69, 0.7)"],
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false },
+                    tooltip: {
+                        callbacks: {
+                            label: (context) => context.parsed.y.toFixed(2) + '%'
+                        }
+                    }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: {
+                            callback: (value) => value + '%'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Max Balance Chart
+        new Chart(document.getElementById('maxBalanceChart'), {
+            type: 'bar',
+            data: {
+                labels: ["anti-martingale-streak", "classic-martingale", "dalembert", "faucet-cashout", "fib-loss-cluster", "fibonacci", "kelly-capped", "labouchere", "max-wager-flow", "one-three-two-six", "oscars-grind", "paroli", "range-50-random", "rng-analysis-strategy", "streak-hunter", "target-aware"],
+                datasets: [{
+                    label: 'Max Balance',
+                    data: [100.00004408, 100.000574, 100.00016, 5.0, 100.00000094, 100.000301, 100.00193576, 100.001847, 134.30033864357412, 100.000035, 100.000425, 100.000011, 116.12091330970347, 100.00000338, 105.07142857142857, 5.0],
+                    backgroundColor: 'rgba(102, 126, 234, 0.7)',
+                    borderColor: 'rgba(102, 126, 234, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+        
+        // Win Rate Chart
+        new Chart(document.getElementById('winRateChart'), {
+            type: 'bar',
+            data: {
+                labels: ["anti-martingale-streak", "classic-martingale", "dalembert", "faucet-cashout", "fib-loss-cluster", "fibonacci", "kelly-capped", "labouchere", "max-wager-flow", "one-three-two-six", "oscars-grind", "paroli", "range-50-random", "rng-analysis-strategy", "streak-hunter", "target-aware"],
+                datasets: [{
+                    label: 'Win Rate %',
+                    data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0],
+                    backgroundColor: 'rgba(40, 167, 69, 0.7)',
+                    borderColor: 'rgba(40, 167, 69, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        max: 100,
+                        ticks: {
+                            callback: (value) => value + '%'
+                        }
+                    }
+                }
+            }
+        });
+        
+        // Total Wagered Chart
+        new Chart(document.getElementById('wageredChart'), {
+            type: 'bar',
+            data: {
+                labels: ["anti-martingale-streak", "classic-martingale", "dalembert", "faucet-cashout", "fib-loss-cluster", "fibonacci", "kelly-capped", "labouchere", "max-wager-flow", "one-three-two-six", "oscars-grind", "paroli", "range-50-random", "rng-analysis-strategy", "streak-hunter", "target-aware"],
+                datasets: [{
+                    label: 'Total Wagered',
+                    data: [0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1004.5032899915836, 0.0, 0.0, 0.0],
+                    backgroundColor: 'rgba(255, 193, 7, 0.7)',
+                    borderColor: 'rgba(255, 193, 7, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { display: false }
+                },
+                scales: {
+                    y: { beginAtZero: true }
+                }
+            }
+        });
+    </script>
+</body>
+</html>

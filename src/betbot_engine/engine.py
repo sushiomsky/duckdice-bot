@@ -50,8 +50,8 @@ except Exception:
 @dataclass
 class EngineConfig:
     symbol: str
-    delay_ms: int = 750
-    jitter_ms: int = 500
+    delay_ms: int = 50  # Default: fast (50ms)
+    jitter_ms: int = 25  # Default: minimal jitter
     dry_run: bool = False
     faucet: bool = False
     stop_loss: float = -0.02  # -2%
@@ -62,6 +62,27 @@ class EngineConfig:
     max_duration_sec: Optional[int] = None
     seed: Optional[int] = None
     log_dir: str = os.path.join("bet_history", "auto")
+    
+    @staticmethod
+    def get_speed_preset(preset: str = "fast"):
+        """
+        Get delay/jitter values for speed presets.
+        
+        Presets:
+        - ultra: 10ms delay, 5ms jitter (~80 bets/sec) - RISKY, may hit rate limits
+        - turbo: 25ms delay, 10ms jitter (~30 bets/sec) - Aggressive but safer
+        - fast: 50ms delay, 25ms jitter (~16 bets/sec) - RECOMMENDED, balanced
+        - normal: 150ms delay, 50ms jitter (~5 bets/sec) - Conservative, very safe
+        - slow: 500ms delay, 250ms jitter (~1.5 bets/sec) - Maximum observability
+        """
+        presets = {
+            "ultra": (10, 5),
+            "turbo": (25, 10),
+            "fast": (50, 25),
+            "normal": (150, 50),
+            "slow": (500, 250),
+        }
+        return presets.get(preset, (50, 25))  # Default to fast
 
 
 class AutoBetEngine:
@@ -129,8 +150,11 @@ def _decimal(s: str) -> Decimal:
 
 def _parse_user_symbol_balance(user_info: Dict[str, Any], symbol: str) -> Decimal:
     balances = user_info.get("balances") or []
+    # Case-insensitive comparison since API returns uppercase currency codes
+    symbol_upper = symbol.upper()
     for b in balances:
-        if (b or {}).get("currency") == symbol:
+        currency = (b or {}).get("currency")
+        if currency and currency.upper() == symbol_upper:
             main = (b or {}).get("main")
             if main is None:
                 return Decimal(0)
@@ -160,7 +184,9 @@ def run_auto_bet(
     try:
         user_info = api.get_user_info()
         starting_balance = _parse_user_symbol_balance(user_info, config.symbol)
-    except Exception:
+    except Exception as e:
+        if printer:
+            printer(f"⚠️  Warning: Failed to fetch balance: {e}")
         starting_balance = Decimal(0)
 
     # Limits
@@ -249,6 +275,18 @@ def run_auto_bet(
             if limits.max_bet is not None and amount_dec > limits.max_bet:
                 amount_dec = limits.max_bet
                 bet["amount"] = format(amount_dec, 'f')
+            
+            # Balance validation - prevent betting more than available
+            if amount_dec > current_balance:
+                print_line(f"⚠️  Warning: Strategy requested {amount_dec} but only {current_balance} available")
+                # Stop if can't afford minimum bet
+                if current_balance <= Decimal("0.00000001"):
+                    stopped_reason = "insufficient_balance"
+                    break
+                # Otherwise cap to current balance
+                amount_dec = current_balance
+                bet["amount"] = format(amount_dec, 'f')
+                print_line(f"   Adjusted bet to {amount_dec} (all available balance)")
 
             # Execute bet
             ts = time.time()
@@ -294,23 +332,35 @@ def run_auto_bet(
                 current_balance += profit
                 api_raw = {"simulated": True}
             else:
-                if bet.get("game") == "dice":
-                    api_raw = api.play_dice(
-                        symbol=config.symbol,
-                        amount=bet["amount"],
-                        chance=bet["chance"],
-                        is_high=bool(bet.get("is_high")),
-                        faucet=bool(bet.get("faucet")),
-                    )
-                else:
-                    r = bet.get("range") or (0, 0)
-                    api_raw = api.play_range_dice(
-                        symbol=config.symbol,
-                        amount=bet["amount"],
-                        range_values=[int(r[0]), int(r[1])],
-                        is_in=bool(bet.get("is_in")),
-                        faucet=bool(bet.get("faucet")),
-                    )
+                try:
+                    if bet.get("game") == "dice":
+                        api_raw = api.play_dice(
+                            symbol=config.symbol,
+                            amount=bet["amount"],
+                            chance=bet["chance"],
+                            is_high=bool(bet.get("is_high")),
+                            faucet=bool(bet.get("faucet")),
+                        )
+                    else:
+                        r = bet.get("range") or (0, 0)
+                        api_raw = api.play_range_dice(
+                            symbol=config.symbol,
+                            amount=bet["amount"],
+                            range_values=[int(r[0]), int(r[1])],
+                            is_in=bool(bet.get("is_in")),
+                            faucet=bool(bet.get("faucet")),
+                        )
+                except Exception as e:
+                    # Handle API errors gracefully
+                    error_msg = str(e)
+                    if "insufficient balance" in error_msg.lower() or "422" in error_msg:
+                        print_line(f"⚠️  API Error: Insufficient balance to place bet of {amount_dec}")
+                        stopped_reason = "insufficient_balance"
+                        break
+                    else:
+                        # Re-raise other errors
+                        raise
+                
                 # Parse
                 b = (api_raw or {}).get("bet", {})
                 u = (api_raw or {}).get("user", {})
@@ -368,7 +418,8 @@ def run_auto_bet(
                 if change_ratio <= Decimal(str(limits.stop_loss)):
                     stopped_reason = "stop_loss"
                     break
-                if change_ratio >= Decimal(str(limits.take_profit)):
+                # Only check take_profit if it's set (not None)
+                if limits.take_profit is not None and change_ratio >= Decimal(str(limits.take_profit)):
                     stopped_reason = "take_profit"
                     break
 

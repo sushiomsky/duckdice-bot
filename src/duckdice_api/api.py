@@ -17,7 +17,7 @@ import requests
 class DuckDiceConfig:
     api_key: str
     base_url: str = "https://duckdice.io/api"
-    timeout: int = 30
+    timeout: int = 10  # Reduced from 30 to 10 seconds for faster betting
     pool_connections: int = 10  # Connection pool size
     pool_maxsize: int = 20  # Max connections in pool
     max_retries: int = 3  # Retry failed requests

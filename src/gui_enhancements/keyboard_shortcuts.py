@@ -165,3 +165,95 @@ class ShortcutsDialog:
     def show(self):
         """Show the dialog."""
         self.dialog.wait_window()
+
+
+def setup_default_shortcuts(app, shortcut_manager: KeyboardShortcutManager):
+    """
+    Setup default keyboard shortcuts for the application.
+    
+    Args:
+        app: Main application instance
+        shortcut_manager: KeyboardShortcutManager instance
+    """
+    # Betting controls
+    if hasattr(app, '_toggle_betting'):
+        shortcut_manager.register(
+            '<Control-b>',
+            app._toggle_betting,
+            'Start/Stop betting'
+        )
+    
+    if hasattr(app, '_emergency_stop'):
+        shortcut_manager.register(
+            '<F12>',
+            app._emergency_stop,
+            'Emergency stop (immediately halt betting)'
+        )
+    
+    # Navigation
+    shortcut_manager.register(
+        '<Control-1>',
+        lambda: app._switch_view('dashboard') if hasattr(app, '_switch_view') else None,
+        'Switch to Dashboard'
+    )
+    
+    shortcut_manager.register(
+        '<Control-2>',
+        lambda: app._switch_view('betting') if hasattr(app, '_switch_view') else None,
+        'Switch to Betting'
+    )
+    
+    shortcut_manager.register(
+        '<Control-3>',
+        lambda: app._switch_view('history') if hasattr(app, '_switch_view') else None,
+        'Switch to History'
+    )
+    
+    shortcut_manager.register(
+        '<Control-4>',
+        lambda: app._switch_view('statistics') if hasattr(app, '_switch_view') else None,
+        'Switch to Statistics'
+    )
+    
+    # Data management
+    if hasattr(app, '_show_export_dialog'):
+        shortcut_manager.register(
+            '<Control-e>',
+            app._show_export_dialog,
+            'Export data'
+        )
+    
+    if hasattr(app, '_refresh_data'):
+        shortcut_manager.register(
+            '<F5>',
+            app._refresh_data,
+            'Refresh data'
+        )
+    
+    # Settings
+    if hasattr(app, '_show_settings'):
+        shortcut_manager.register(
+            '<Control-comma>',
+            app._show_settings,
+            'Open settings'
+        )
+    
+    # Help
+    shortcut_manager.register(
+        '<F1>',
+        lambda: ShortcutsDialog(app, shortcut_manager).show(),
+        'Show keyboard shortcuts'
+    )
+    
+    # Window controls
+    shortcut_manager.register(
+        '<Control-q>',
+        app._on_closing if hasattr(app, '_on_closing') else app.quit,
+        'Quit application'
+    )
+    
+    shortcut_manager.register(
+        '<Control-w>',
+        app._on_closing if hasattr(app, '_on_closing') else app.quit,
+        'Close window'
+    )

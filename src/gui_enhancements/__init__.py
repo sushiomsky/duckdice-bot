@@ -18,6 +18,13 @@ from .ux_improvements import (
     LoadingOverlay,
     ConfirmDialog
 )
+from .session_recovery_dialog import (
+    SessionRecoveryDialog,
+    ConfirmationDialog,
+    TooltipManager
+)
+from .settings_panel import SettingsPanel
+from .export_dialog import ExportDialog, QuickExportMenu
 
 __all__ = [
     'EmergencyStopManager',
@@ -32,5 +39,11 @@ __all__ = [
     'Toast',
     'OnboardingWizard',
     'LoadingOverlay',
-    'ConfirmDialog'
+    'ConfirmDialog',
+    'SessionRecoveryDialog',
+    'ConfirmationDialog',
+    'TooltipManager',
+    'SettingsPanel',
+    'ExportDialog',
+    'QuickExportMenu'
 ]

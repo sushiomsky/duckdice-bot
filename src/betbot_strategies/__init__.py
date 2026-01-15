@@ -69,10 +69,11 @@ from . import (
     rng_analysis_strategy,
     target_aware,
     faucet_cashout,
-    faucet_grind,  # NEW STRATEGY!
+    faucet_grind,
     kelly_capped,
     max_wager_flow,
     range50_random,
     fib_loss_cluster,
-    custom_script
+    custom_script,
+    streak_hunter  # NEW: Streak Hunter strategy
 )
