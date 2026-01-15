@@ -75,5 +75,7 @@ from . import (
     range50_random,
     fib_loss_cluster,
     custom_script,
-    streak_hunter  # NEW: Streak Hunter strategy
+    streak_hunter,
+    micro_exponential,
+    micro_exponential_safe  # NEW: Safer micro exponential variant
 )

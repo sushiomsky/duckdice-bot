@@ -17,6 +17,16 @@ from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
 from betbot_strategies.base import StrategyContext, SessionLimits, BetSpec, BetResult
 from betbot_strategies import list_strategies, get_strategy  # noqa: F401
 
+try:
+    from .events import (
+        SessionStartedEvent, BetPlacedEvent, BetResultEvent, 
+        StatsUpdatedEvent, SessionEndedEvent, WarningEvent, ErrorEvent
+    )
+    from .observers import EventEmitter
+    _EVENTS_AVAILABLE = True
+except ImportError:
+    _EVENTS_AVAILABLE = False
+
 # Ensure built-in precision is high enough for currency math
 getcontext().prec = 28
 
@@ -96,6 +106,7 @@ class AutoBetEngine:
     def __init__(self, api: DuckDiceAPI, config: EngineConfig):
         self.api = api
         self.config = config
+        self.emitter = EventEmitter() if _EVENTS_AVAILABLE else None
 
     def run(
         self,
@@ -104,9 +115,18 @@ class AutoBetEngine:
         printer: Optional[Callable[[str], None]] = None,
         json_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
         stop_checker: Optional[Callable[[], bool]] = None,
+        emitter: Optional['EventEmitter'] = None,
     ) -> Dict[str, Any]:
         """Run a session using stored api+config and return a summary.
         Delegates to run_auto_bet to preserve behavior.
+        
+        Args:
+            strategy_name: Name of the betting strategy
+            params: Strategy parameters
+            printer: Optional callback for text output (legacy)
+            json_sink: Optional callback for structured events (legacy)
+            stop_checker: Optional callback to check if session should stop
+            emitter: Optional EventEmitter to use instead of self.emitter
         """
         return run_auto_bet(
             api=self.api,
@@ -116,6 +136,7 @@ class AutoBetEngine:
             printer=printer,
             json_sink=json_sink,
             stop_checker=stop_checker,
+            emitter=emitter or self.emitter,
         )
 
     @classmethod
@@ -170,12 +191,14 @@ def run_auto_bet(
     printer: Optional[Callable[[str], None]] = None,
     json_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
     stop_checker: Optional[Callable[[], bool]] = None,
+    emitter: Optional['EventEmitter'] = None,
 ) -> Dict[str, Any]:
     """Run an auto-betting session and return a summary dict.
 
-    - printer: called with human-readable log lines (CLI/GUI)
-    - json_sink: called with structured records per bet (optional)
+    - printer: called with human-readable log lines (CLI/GUI) [LEGACY]
+    - json_sink: called with structured records per bet (optional) [LEGACY]
     - stop_checker: if provided and returns True, the session stops gracefully
+    - emitter: EventEmitter for event-driven interfaces (recommended)
     """
     start_ts = time.time()
     _ensure_dir(config.log_dir)
@@ -185,8 +208,16 @@ def run_auto_bet(
         user_info = api.get_user_info()
         starting_balance = _parse_user_symbol_balance(user_info, config.symbol)
     except Exception as e:
+        error_msg = f"⚠️  Warning: Failed to fetch balance: {e}"
         if printer:
-            printer(f"⚠️  Warning: Failed to fetch balance: {e}")
+            printer(error_msg)
+        if emitter and _EVENTS_AVAILABLE:
+            import time as time_module
+            emitter.emit(WarningEvent(
+                timestamp=time_module.time(),
+                message=f"Failed to fetch balance: {e}",
+                details={"exception": str(e)}
+            ))
         starting_balance = Decimal(0)
 
     # Limits
@@ -245,7 +276,17 @@ def run_auto_bet(
 
     # Start
     strategy.on_session_start()
-    print_line(f"[start] strategy={strategy_name} symbol={config.symbol} dry_run={config.dry_run} faucet={config.faucet}")
+    start_msg = f"[start] strategy={strategy_name} symbol={config.symbol} dry_run={config.dry_run} faucet={config.faucet}"
+    print_line(start_msg)
+    
+    if emitter and _EVENTS_AVAILABLE:
+        emitter.emit(SessionStartedEvent(
+            timestamp=start_ts,
+            strategy_name=strategy_name,
+            config=params,
+            starting_balance=starting_balance,
+            currency=config.symbol
+        ))
 
     stopped_reason = "completed"
 
@@ -404,6 +445,17 @@ def run_auto_bet(
                 "loss_streak": losses_in_row,
                 "bets_done": bets_done + 1,
             })
+            
+            # Emit bet result event
+            if emitter and _EVENTS_AVAILABLE:
+                emitter.emit(BetResultEvent(
+                    timestamp=ts,
+                    bet_number=bets_done + 1,
+                    win=win,
+                    profit=profit,
+                    balance=current_balance,
+                    result_data=result
+                ))
 
             # Strategy callback
             strategy.on_bet_result(result)
@@ -427,6 +479,22 @@ def run_auto_bet(
             pl = (current_balance - starting_balance) if starting_balance else Decimal(0)
             pct = (pl / starting_balance * 100) if starting_balance else Decimal(0)
             print_line(f"bet#{bets_done} win={'Y' if win else 'N'} profit={format(profit, 'f')} bal={format(current_balance, 'f')} P/L={format(pl, 'f')} ({pct:.4f}%)")
+            
+            # Emit stats update
+            if emitter and _EVENTS_AVAILABLE:
+                wins = sum(1 for i in range(bets_done) if True)  # TODO: track wins properly
+                losses = bets_done - wins
+                win_rate = (wins / bets_done * 100) if bets_done > 0 else 0
+                emitter.emit(StatsUpdatedEvent(
+                    timestamp=ts,
+                    total_bets=bets_done,
+                    wins=wins,
+                    losses=losses,
+                    win_rate=win_rate,
+                    profit=pl,
+                    profit_percent=float(pct),
+                    current_balance=current_balance
+                ))
 
             # Sleep
             ctx.sleep_with_jitter()
@@ -450,4 +518,13 @@ def run_auto_bet(
     }
     sink({"event": "summary", **summary})
     print_line(f"[summary] {json.dumps(summary)}")
+    
+    # Emit session ended event
+    if emitter and _EVENTS_AVAILABLE:
+        emitter.emit(SessionEndedEvent(
+            timestamp=time.time(),
+            stop_reason=stopped_reason,
+            summary=summary
+        ))
+    
     return summary

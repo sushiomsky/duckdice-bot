@@ -49,9 +49,17 @@ logs/
 bet_history/
 rng_analysis/
 
+# Reports
+*.html
+!docs/**/*.html
+
 # Balance history files
 balance_history.json
 balance_*.json
+
+# Session data
+data/*.db
+data/*.json
 
 # Custom scripts saved by users
 templates/custom_scripts/

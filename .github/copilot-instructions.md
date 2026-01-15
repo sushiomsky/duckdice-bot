@@ -5,129 +5,100 @@ This file provides additional context for GitHub Copilot when working with this 
 ## Quick Context
 
 **Project**: DuckDice Bot - Automated betting toolkit for DuckDice.io  
-**Primary Interface**: NiceGUI web application (gui/app.py)  
-**Version**: 4.0.0  
+**Primary Interface**: CLI (duckdice_cli.py) with optional GUI  
+**Version**: 4.9.2  
 **Status**: Production Ready ✅
 
 ## File Organization
 
 ```
 duckdice-bot/
-├── gui/                    # NiceGUI web interface (PRIMARY)
-│   ├── app.py             # Main entry point
-│   ├── dashboard.py       # Main dashboard
-│   ├── strategies_ui.py   # Strategy configuration
-│   ├── analytics_ui.py    # Analytics dashboard
-│   ├── bot_controller.py  # Bot execution
-│   ├── database.py        # SQLite persistence
-│   ├── charts.py          # Matplotlib charts
-│   └── ...
-├── src/                   # Core bot logic
-│   └── betbot_strategies/ # 17 betting strategies
-├── tests/                 # Test suite
-│   └── gui/              # GUI tests (7 passing)
-├── data/                  # Database storage
-│   └── duckdice_bot.db   # SQLite database
-└── docs/                  # Documentation
+├── src/
+│   ├── betbot_engine/      # Core betting engine
+│   ├── betbot_strategies/  # 18 betting strategies
+│   ├── duckdice_api/       # API client
+│   └── cli_display/        # CLI interface components
+├── gui/                    # Optional NiceGUI web interface
+├── tests/                  # Test suite
+├── docs/                   # Documentation
+│   └── archive/           # Historical docs
+├── scripts/               # Utility scripts
+└── .github/               # GitHub Actions workflows
 ```
 
 ## Common Tasks
 
 ### Adding a New Feature
-1. Determine which module it belongs to (ui/, bot_controller.py, database.py, etc.)
+1. Determine which module it belongs to
 2. Follow existing patterns (see similar features)
-3. Update tests if needed
-4. Test in simulation mode first
-5. Update documentation
+3. Add tests in tests/ directory
+4. Update documentation
+5. Run test suite before committing
 
 ### Debugging Issues
-1. Check `gui/app.py` for startup issues
-2. Check `gui/bot_controller.py` for bot execution issues
-3. Check `gui/database.py` for data persistence issues
-4. Run tests: `cd tests/gui && python3 test_gui_components.py`
+1. Check logs and error messages
+2. Run relevant tests: `pytest tests/ -v`
+3. Use simulation mode for betting logic
+4. Check API connectivity for live issues
 
 ### Working with Strategies
 - Strategies located in: `src/betbot_strategies/`
-- Strategy loader: `gui/strategy_loader.py`
-- Strategy integration: `gui/strategy_integration.py`
-- All 17 strategies should work in both simulation and live modes
+- Each strategy implements `calculate_next_bet()` interface
+- All 18 strategies work in both simulation and live modes
+- Add new strategies by following existing patterns
 
-### Database Changes
-- Schema in: `gui/database.py` (lines 28-95)
-- 3 tables: bet_history, strategy_profiles, sessions
-- Always test migrations carefully
-- Backup database before schema changes
+### Running Tests
+```bash
+# Run all tests
+pytest tests/ -v
 
-## Important Patterns
+# Run specific test file
+pytest tests/test_strategy_integration.py -v
 
-### State Management
-- Global state in `gui/state.py`
-- Thread-safe with locks
-- BetRecord dataclass for bet data
-- AppState dataclass for application state
-
-### Threading
-- Bot runs in background thread
-- UI updates via callbacks
-- Use `app_state.lock` for thread safety
-- Stop flag checked before each bet
-
-### Error Handling
-- Always catch exceptions
-- Log errors with context
-- Show user-friendly notifications
-- Never crash silently
-
-### API Integration
-- API wrapper in `gui/live_api.py`
-- Test connection before betting
-- Handle rate limiting
-- Retry with exponential backoff
+# Run with coverage
+pytest tests/ --cov=src --cov-report=html
+```
 
 ## Code Quality Standards
 
-- Python 3.8+ required
+- Python 3.9+ required
 - Type hints preferred
 - Docstrings for public APIs
-- Comments for complex logic only
-- Follow existing code style
+- Follow PEP 8 style guide
 - Keep functions small and focused
+- Comprehensive error handling
 
 ## Testing Requirements
 
-- All GUI tests must pass (7/7)
-- Test in simulation mode
-- Test with real API (optional)
-- Verify database operations
-- Check chart generation
+- Unit tests for new functionality
+- Integration tests for API interactions
+- Simulation mode tests for strategies
+- All tests must pass before merge
 
-## Safety Checklist
+## Safety Principles
 
-Before submitting changes:
-- [ ] Simulation mode works correctly
-- [ ] Stop button functional
-- [ ] No auto-start behavior
-- [ ] All inputs validated
-- [ ] Error messages clear
-- [ ] Database operations safe
-- [ ] No memory leaks
-- [ ] Thread cleanup proper
+- User must always be in control
+- No auto-start behavior
+- Clear error messages
+- Input validation on all user input
+- Stop conditions always enforced
+- Fail-safe defaults
 
 ## Documentation
 
 When adding features, update:
-- User-facing: `USER_GUIDE.md`
-- Technical: `IMPLEMENTATION_COMPLETE.md`
-- Deployment: `DEPLOYMENT_GUIDE.md` (if relevant)
-- Code comments (for complex logic)
+- Code docstrings
+- README.md (if user-facing)
+- CHANGELOG.md (version changes)
+- USER_GUIDE.md (new features)
 
 ## Resources
 
-- Main instructions: `.copilot-instructions.md`
+- Main README: `README.md`
 - User guide: `USER_GUIDE.md`
-- Technical docs: `IMPLEMENTATION_COMPLETE.md`
 - Deployment: `DEPLOYMENT_GUIDE.md`
-- Feature status: `TODO_FEATURES.md`
+- Contributing: `CONTRIBUTING.md`
+- Strategies: `RNG_STRATEGY_GUIDE.md`
 
 ---
 
