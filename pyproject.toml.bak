@@ -15,6 +15,11 @@ dependencies = [
   "PyYAML>=6.0.2",
   "rich>=13.7.0",
 ]
+
+[project.optional-dependencies]
+tui = ["textual>=0.47.0"]
+gui = []  # Tkinter is stdlib
+all = ["textual>=0.47.0"]
 classifiers = [
   "Programming Language :: Python :: 3",
   "Programming Language :: Python :: 3.9",
@@ -26,16 +31,17 @@ classifiers = [
   "Environment :: Console",
   "Topic :: Utilities",
 ]
-keywords = ["duckdice", "dice", "betting", "cli", "api", "tui", "strategy"]
+keywords = ["duckdice", "dice", "betting", "cli", "api", "tkinter", "strategy" ]
 
 [project.urls]
 Homepage = "https://github.com/sushiomsky/duckdice"
 Repository = "https://github.com/sushiomsky/duckdice"
 
 [project.optional-dependencies]
-tui = ["textual>=0.47.0"]
+# GUI has no extra pip requirements (tkinter is part of stdlib on many platforms)
+# This extra simply enables documenting/advertising the GUI entry point.
+# Install: pip install .[gui]
 gui = []
-all = ["textual>=0.47.0"]
 
 [project.scripts]
 duckdice = "duckdice_cli:main"
@@ -43,8 +49,14 @@ duckdice-compare = "strategy_comparison:main"
 duckdice-tui = "duckdice_tui:main"
 
 [tool.setuptools]
-# Include both root .py modules AND src packages
 py-modules = ["duckdice_cli", "strategy_comparison", "duckdice_tui", "duckdice"]
 
 [tool.setuptools.packages.find]
 where = ["src"]
+include = [
+  "duckdice_api*",
+  "betbot_engine*",
+  "betbot_strategies*",
+  "cli_display*",
+  "interfaces*",
+]

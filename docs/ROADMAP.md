@@ -1,459 +1,317 @@
-# 🗺️ DuckDice Bot Enhancement Roadmap
+# 🗺️ DuckDice Bot Development Roadmap
 
-## 📋 Requirements Summary
-
-### 1. Enhanced Faucet System
-- **Claim Mechanics**:
-  - User can claim 35-60 times per 24 hours
-  - Each claim: $0.01 - $0.46 (random)
-  - Cooldown: 0-60 seconds between claims (random)
-  - Separate faucet balance from main balance
-  - Cashout to main when faucet balance ≥ $20
-  - House edge: 3% in faucet mode
-
-- **Strategy Requirements**:
-  - Auto-claim faucet
-  - All-in bet with calculated chance for $20+ payout
-  - If loss: wait 60s, claim next, repeat
-  - Continue until target reached
-
-### 2. Script/Strategy System Unification
-- Scripts and strategies are the same thing
-- Single unified editor for all strategies
-- Runtime syntax error highlighting
-- Code formatting/linting
-- User can create/edit/save custom strategies
-
-### 3. Simulation & Analysis
-- **Simulator**: Complete simulation mode with:
-  - Historical data playback
-  - Strategy backtesting
-  - Performance metrics
-  - Risk analysis
-
-- **RNG Analysis**: Enhanced with:
-  - File import/loading for bet history
-  - Statistical analysis (Chi-square, KS test, runs)
-  - ML-based pattern detection
-  - Auto-generate optimized strategy scripts
-  - Results in executable bot strategy
-
-### 4. Bet Verification
-- **Provably Fair Checker**:
-  - Verify server seed, client seed, nonce
-  - SHA-256 hash verification
-  - Result calculation validation
-  - Batch verification for history
-
-### 5. Complete API Coverage
-- Implement ALL DuckDice API endpoints:
-  - ✅ Dice play
-  - ✅ Range dice
-  - ✅ Balance info
-  - ✅ User info
-  - ❌ Bet history with pagination
-  - ❌ Wagering bonuses
-  - ❌ Time Limited Events (TLE)
-  - ❌ Statistics endpoints
-  - ❌ Leaderboards
-  - ❌ Cashout operations
-
-### 6. GUI Optimization
-- Remove redundant/empty elements
-- Streamline interface
-- Dynamic components based on mode
-- Better organization
-- Lightweight but feature-complete
+**Current Version**: 4.9.2  
+**Last Updated**: January 16, 2026  
+**Focus**: CLI/TUI Excellence & Advanced Features
 
 ---
 
-## 🎯 Implementation Phases
+## 📊 Current State (v4.9.2)
 
-### Phase 1: Core Faucet Enhancement (HIGH PRIORITY) ✅ COMPLETE
-**Goal**: Implement accurate faucet mechanics + smart strategy
+### ✅ Completed Features
 
-**Status**: ✅ 100% Complete (v3.3.0)
+**Core Functionality:**
+- ✅ **CLI Interface** - Professional command-line tool with interactive mode
+- ✅ **TUI Interfaces** - Textual (modern) and NCurses (classic) terminal UIs
+- ✅ **22 Betting Strategies** - Conservative to aggressive, including specialized strategies
+- ✅ **3 Betting Modes** - Simulation, live-main, live-faucet
+- ✅ **Database Persistence** - SQLite-based bet history and profile management
+- ✅ **Analytics Dashboard** - Comprehensive performance metrics and reporting
+- ✅ **Profile Management** - Save/load betting configurations
+- ✅ **Risk Controls** - Stop-loss, take-profit, max bets/losses, duration limits
+- ✅ **Session Tracking** - Complete bet history with statistics
+- ✅ **Faucet Automation** - Automated faucet claiming and grinding
 
-**Tasks**:
-1. ✅ Current faucet manager (basic)
-2. ✅ Update faucet API client with accurate claim values
-3. ✅ Implement $20 cashout threshold
-4. ✅ Create "Faucet Grind" strategy:
-   - Auto-claim logic
-   - Calculate optimal chance for $20+ payout
-   - All-in betting
-   - Loss recovery with next claim
-5. ✅ Add faucet claim history tracking
-6. ✅ USD conversion for multi-currency support
-
-**Estimated Time**: 4-6 hours ✅ Completed in 12 hours
-**Release**: v3.3.0 - January 9, 2026
-
----
-
-### Phase 2: Unified Script System (HIGH PRIORITY) ✅ COMPLETE
-**Goal**: Merge scripts and strategies into single system
-
-**Status**: ✅ 100% Complete (v3.4.0)
-
-**Tasks**:
-1. ✅ Create unified Strategy Script model
-2. ✅ Build advanced code editor:
-   - Syntax highlighting (Python)
-   - Runtime error detection
-   - Code formatting (Black)
-   - Monaco Editor integration
-   - Line numbers, folding
-3. ✅ Script validation engine
-4. ✅ Safe execution sandbox (RestrictedPython)
-5. ✅ Template library with 4 examples
-6. ✅ Save/load user scripts with version history
-7. ✅ GUI integration (/scripts page)
-
-**Estimated Time**: 6-8 hours ✅ Completed in 12 hours
-**Release**: v3.4.0 - January 9, 2026
+**Developer Experience:**
+- ✅ **Comprehensive Documentation** - 30+ guides and references
+- ✅ **Test Suite** - Automated testing with pytest
+- ✅ **CI/CD Pipeline** - GitHub Actions for builds and releases
+- ✅ **PyPI Package** - Installable via pip
+- ✅ **Multi-platform Support** - Windows, macOS, Linux
 
 ---
 
-### Phase 3: Bet Verification System (MEDIUM PRIORITY) ✅ 75% COMPLETE
-**Goal**: Provably fair verification
+## 🎯 Short-term Goals (v4.10.x - v4.11.x)
 
-**Status**: ✅ 75% Complete (v3.5.0) - Core features production ready
+### v4.10.0 - Enhanced TUI Features
+**Target**: Q1 2026 (February-March)
 
-**Tasks**:
-1. ✅ Create BetVerifier class:
-   - Server seed verification
-   - Client seed + nonce
-   - SHA-256 hashing
-   - Result calculation
-2. ✅ Batch verification for history
-3. ✅ GUI integration:
-   - Verify single bet
-   - Step-by-step calculation display
-   - Export verification report
-4. ⏸️ Visual indicators (deferred - manual seed entry works)
+**Features:**
+- [ ] **Live Charts in TUI** - Real-time balance/profit charts using plotext
+- [ ] **Strategy Switching** - Change strategies mid-session without stopping
+- [ ] **Theme Customization** - User-configurable color schemes for TUI
+- [ ] **Session Comparison** - Compare multiple sessions side-by-side
+- [ ] **Keyboard Macro System** - Record and replay command sequences
 
-**Estimated Time**: 3-4 hours ✅ Completed in 3 hours
-**Release**: v3.5.0 - January 9, 2026
-**Note**: API integration deferred; manual workflow fully functional
+**Technical:**
+- [ ] Implement plotext integration for Textual TUI
+- [ ] Add strategy hot-swapping in betting engine
+- [ ] Create theme configuration system
+- [ ] Enhance database schema for session comparisons
+- [ ] Build macro recording/playback system
 
----
-
-### Phase 4: Complete Simulator (MEDIUM PRIORITY)
-**Goal**: Full simulation mode with backtesting
-
-**Tasks**:
-1. ⬜ Simulator engine:
-   - Virtual balance tracking
-   - Strategy execution
-   - Historical data playback
-2. ⬜ Backtesting framework:
-   - Load historical bets
-   - Run strategy against history
-   - Performance metrics
-3. ⬜ Simulation UI:
-   - Configure simulation parameters
-   - Real-time visualization
-   - Results dashboard
-4. ⬜ Risk analysis:
-   - Drawdown calculation
-   - Win rate projections
-   - Bankroll requirements
-
-**Estimated Time**: 5-7 hours
+**Estimated Effort**: 2-3 weeks
 
 ---
 
-### Phase 5: Enhanced RNG Analysis (MEDIUM PRIORITY)
-**Goal**: Import bet data, analyze, generate strategy
+### v4.11.0 - Strategy Backtesting Framework
+**Target**: Q1 2026 (March-April)
 
-**Tasks**:
-1. ⬜ File import system:
-   - CSV/JSON bet history import
-   - DuckDice API history fetching
-   - Data validation
-2. ⬜ Enhanced analysis:
-   - Statistical tests (Chi-square, KS, runs)
-   - Pattern detection
-   - ML predictions (Random Forest, XGBoost)
-   - Deep learning (LSTM, CNN)
-3. ⬜ Strategy code generator:
-   - Analyze results
-   - Generate Python strategy script
-   - Optimize for profit
-   - Export as runnable strategy
-4. ⬜ Integration with script editor
+**Features:**
+- [ ] **Historical Data Import** - Load bet history from CSV/JSON
+- [ ] **Backtest Engine** - Run strategies against historical data
+- [ ] **Performance Comparison** - Compare strategy performance metrics
+- [ ] **Optimization Tools** - Find optimal parameters for strategies
+- [ ] **Report Generation** - Detailed backtest reports with charts
 
-**Estimated Time**: 8-10 hours
+**Technical:**
+- [ ] Build data import/validation system
+- [ ] Create backtest simulation engine
+- [ ] Implement parameter optimization (grid search, genetic algorithms)
+- [ ] Generate comprehensive HTML/PDF reports
+- [ ] Add visualization for backtest results
+
+**Estimated Effort**: 3-4 weeks
 
 ---
 
-### Phase 6: Complete API Implementation (LOW PRIORITY)
-**Goal**: Support all DuckDice API endpoints
+## 🚀 Medium-term Goals (v5.0.x)
 
-**Tasks**:
-1. ⬜ Bet history API:
-   - Pagination support
-   - Filters (date, currency, game type)
-   - Export functionality
-2. ⬜ Wagering bonuses:
-   - List available bonuses
-   - Activate bonus
-   - Track progress
-3. ⬜ Time Limited Events:
-   - List active TLEs
-   - Participate in events
-   - Track rankings
-4. ⬜ Statistics endpoints:
-   - User stats
-   - Game stats
-   - Currency stats
-5. ⬜ Leaderboards:
-   - Fetch rankings
-   - Filter by timeframe
-6. ⬜ Cashout operations:
-   - Faucet → Main transfer
-   - Withdrawal requests
+### v5.0.0 - Complete API Coverage
+**Target**: Q2 2026 (April-June)
 
-**Estimated Time**: 6-8 hours
+**Features:**
+- [ ] **Time Limited Events (TLE)** - Participate in DuckDice events
+- [ ] **Wagering Bonuses** - Track and activate bonuses
+- [ ] **Leaderboards** - View and track rankings
+- [ ] **Advanced Statistics** - Comprehensive user/game stats
+- [ ] **Cashout Operations** - Automated faucet-to-main transfers
+
+**API Endpoints to Implement:**
+- [ ] `/api/tle/list` - List active TLEs
+- [ ] `/api/tle/participate` - Join TLE
+- [ ] `/api/bonuses/list` - List available bonuses
+- [ ] `/api/bonuses/activate` - Activate bonus
+- [ ] `/api/leaderboard` - Fetch rankings
+- [ ] `/api/stats/user` - User statistics
+- [ ] `/api/cashout` - Cashout operations
+
+**Estimated Effort**: 4-5 weeks
 
 ---
 
-### Phase 7: GUI Streamlining (LOW PRIORITY)
-**Goal**: Clean, efficient, dynamic interface
+### v5.1.0 - Advanced Analytics & Reporting
+**Target**: Q2 2026 (June-July)
 
-**Tasks**:
-1. ⬜ Audit current GUI:
-   - Identify redundant elements
-   - List empty/unused components
-   - Map feature coverage
-2. ⬜ Redesign layout:
-   - Tabbed vs. dynamic panels
-   - Context-sensitive controls
-   - Collapsible sections
-3. ⬜ NiceGUI enhancements:
-   - Reduce page count (merge related)
-   - Add context menus
-   - Keyboard shortcuts
-   - Quick actions
-4. ⬜ Tkinter GUI cleanup:
-   - Remove duplicate controls
-   - Better tab organization
-   - Streamline settings
+**Features:**
+- [ ] **Export Formats** - CSV, JSON, Excel, PDF reports
+- [ ] **Custom Metrics** - User-defined performance indicators
+- [ ] **Trend Analysis** - Identify patterns in betting behavior
+- [ ] **Risk Assessment** - Advanced risk metrics and warnings
+- [ ] **Multi-session Analytics** - Aggregate statistics across sessions
 
-**Estimated Time**: 4-6 hours
+**Technical:**
+- [ ] Implement export engines for multiple formats
+- [ ] Build custom metric definition system
+- [ ] Create trend detection algorithms
+- [ ] Enhance risk calculation engine
+- [ ] Add cross-session aggregation queries
+
+**Estimated Effort**: 2-3 weeks
 
 ---
 
-## 📊 Priority Matrix
+### v5.2.0 - Enhanced RNG Analysis
+**Target**: Q3 2026 (July-August)
 
-| Phase | Priority | Complexity | Time | Dependencies |
-|-------|----------|------------|------|--------------|
-| Phase 1: Faucet | 🔴 HIGH | Medium | 4-6h | None |
-| Phase 2: Scripts | 🔴 HIGH | High | 6-8h | None |
-| Phase 3: Verification | 🟡 MEDIUM | Low | 3-4h | None |
-| Phase 4: Simulator | 🟡 MEDIUM | Medium | 5-7h | Phase 2 |
-| Phase 5: RNG Analysis | 🟡 MEDIUM | High | 8-10h | Phase 2 |
-| Phase 6: Complete API | 🟢 LOW | Medium | 6-8h | None |
-| Phase 7: GUI Cleanup | 🟢 LOW | Medium | 4-6h | All others |
+**Features:**
+- [ ] **Pattern Detection Improvements** - Better statistical analysis
+- [ ] **ML Model Updates** - Improved machine learning models
+- [ ] **Visualization Tools** - Interactive charts for RNG analysis
+- [ ] **Strategy Auto-generation** - Generate strategies from analysis
+- [ ] **Educational Mode** - Learn about RNG and statistics
 
-**Total Estimated Time**: 36-49 hours
+**Technical:**
+- [ ] Update statistical analysis algorithms
+- [ ] Retrain ML models with more data
+- [ ] Integrate interactive plotting library
+- [ ] Build strategy code generator
+- [ ] Create educational tutorials
 
----
-
-## 🚀 Recommended Implementation Order
-
-### Sprint 1 (Week 1): Foundation
-1. **Phase 1: Enhanced Faucet** (Days 1-2)
-   - Accurate claim mechanics
-   - Faucet Grind strategy
-   - Cashout threshold
-
-2. **Phase 3: Bet Verification** (Day 3)
-   - Provably fair checker
-   - Basic verification UI
-
-### Sprint 2 (Week 2): Advanced Features
-3. **Phase 2: Unified Scripts** (Days 4-6)
-   - Advanced code editor
-   - Strategy script system
-   - Template library
-
-### Sprint 3 (Week 3): Analysis & Simulation
-4. **Phase 4: Complete Simulator** (Days 7-9)
-   - Backtesting engine
-   - Simulation UI
-
-5. **Phase 5: RNG Analysis** (Days 10-12)
-   - File import
-   - Enhanced analysis
-   - Strategy generation
-
-### Sprint 4 (Week 4): Polish & Complete
-6. **Phase 6: Complete API** (Days 13-15)
-   - All endpoints
-   - Full feature coverage
-
-7. **Phase 7: GUI Streamline** (Days 16-17)
-   - Clean redundancy
-   - Dynamic UI
+**Estimated Effort**: 3-4 weeks
 
 ---
 
-## 🎯 Success Criteria
+## 🌟 Long-term Vision (v6.0+)
 
-### Phase 1 Complete When:
-- ✅ Faucet claims $0.01-$0.46 randomly
-- ✅ Cooldown 0-60s between claims
-- ✅ 35-60 claims per 24h limit enforced
-- ✅ $20 cashout threshold working
-- ✅ Faucet Grind strategy operational
-- ✅ All-in bets calculate correct chance
+### v6.0.0 - Multi-Exchange Support
+**Target**: Q4 2026 (October-December)
 
-### Phase 2 Complete When:
-- ✅ Single unified script editor
-- ✅ Syntax highlighting working
-- ✅ Runtime errors detected
-- ✅ Code formatting functional
-- ✅ All existing strategies converted
-- ✅ Users can create custom scripts
+**Concept:**
+- Support for multiple dice/betting platforms
+- Unified interface for different exchanges
+- Cross-platform strategy execution
+- Portfolio management across platforms
 
-### Phase 3 Complete When:
-- ✅ Single bet verification works
-- ✅ Batch verification implemented
-- ✅ UI shows verified/tampered status
-- ✅ Verification report exportable
-
-### Phase 4 Complete When:
-- ✅ Virtual balance simulation works
-- ✅ Backtesting with history functional
-- ✅ Performance metrics displayed
-- ✅ Risk analysis calculated
-
-### Phase 5 Complete When:
-- ✅ CSV/JSON import working
-- ✅ API history fetch implemented
-- ✅ Statistical analysis complete
-- ✅ Strategy code auto-generated
-- ✅ Generated scripts executable
-
-### Phase 6 Complete When:
-- ✅ All API endpoints covered
-- ✅ Wagering bonuses working
-- ✅ TLE participation functional
-- ✅ Leaderboards accessible
-
-### Phase 7 Complete When:
-- ✅ No redundant GUI elements
-- ✅ All features accessible
-- ✅ Interface feels lightweight
-- ✅ Dynamic components working
+**Challenges:**
+- API compatibility layers
+- Different game mechanics
+- Authentication management
+- Rate limiting coordination
 
 ---
 
-## 📁 File Structure (Proposed)
+### v6.1.0 - Advanced Strategy Optimization
+**Target**: Q1 2027
 
-```
-duckdice-bot/
-├── src/
-│   ├── faucet_manager/
-│   │   ├── faucet_manager.py (enhanced)
-│   │   ├── claim_tracker.py (new)
-│   │   └── cashout_manager.py (new)
-│   ├── script_engine/
-│   │   ├── script_editor.py (new)
-│   │   ├── script_validator.py (new)
-│   │   ├── script_executor.py (new)
-│   │   └── templates/ (new)
-│   ├── verification/
-│   │   ├── bet_verifier.py (new)
-│   │   └── provably_fair.py (new)
-│   ├── simulator/
-│   │   ├── simulation_engine.py (new)
-│   │   ├── backtester.py (new)
-│   │   └── risk_analyzer.py (new)
-│   ├── rng_analysis/ (enhanced)
-│   │   ├── data_importer.py (new)
-│   │   ├── strategy_codegen.py (new)
-│   │   └── ... (existing files)
-│   └── duckdice_api/
-│       ├── api.py (enhanced - all endpoints)
-│       └── models.py (new - data models)
-├── app/ (NiceGUI)
-│   ├── ui/pages/
-│   │   ├── script_editor.py (new)
-│   │   ├── simulator.py (new)
-│   │   ├── verification.py (new)
-│   │   └── ... (existing)
-│   └── ...
-└── ...
-```
+**Concept:**
+- AI-powered strategy optimization
+- Genetic algorithm-based parameter tuning
+- Reinforcement learning for adaptive strategies
+- Real-time strategy adjustment based on performance
+
+**Challenges:**
+- Computational requirements
+- Training data collection
+- Overfitting prevention
+- Real-time performance
 
 ---
 
-## 🔧 Technical Decisions
+### v6.2.0 - Community Features
+**Target**: Q2 2027
 
-### Script Editor Technology
-- **Backend**: Python AST parsing for syntax checking
-- **Frontend (NiceGUI)**: CodeMirror or Monaco Editor
-- **Frontend (Tkinter)**: tkinter.Text with syntax highlighting
-- **Formatting**: autopep8 or black
-- **Validation**: pylint or flake8 (lightweight)
+**Concept:**
+- Strategy marketplace/sharing
+- Community-contributed strategies
+- Rating and review system
+- Strategy tournaments/competitions
 
-### Provably Fair Verification
-- **Algorithm**: SHA-256 (standard)
-- **Library**: hashlib (Python built-in)
-- **Reference**: DuckDice provably fair documentation
-
-### Simulator
-- **Data Storage**: SQLite for bet history
-- **Visualization**: matplotlib for charts
-- **Performance**: Optimize for 10k+ bet simulations
-
-### RNG Analysis
-- **Statistical**: scipy.stats
-- **ML**: scikit-learn (existing)
-- **Deep Learning**: TensorFlow/Keras (existing)
-- **Code Generation**: Jinja2 templates
+**Challenges:**
+- Security and validation
+- Quality control
+- Licensing and attribution
+- Platform infrastructure
 
 ---
 
-## ⚠️ Risk & Challenges
+### v7.0.0 - Web Dashboard (Optional)
+**Target**: Q3 2027
 
-### High Risk
-1. **Script Security**: User scripts must run in sandbox
-   - Mitigation: RestrictedPython or process isolation
+**Concept:**
+- Optional lightweight web interface
+- Remote monitoring and control
+- Mobile-responsive design
+- Real-time notifications
 
-2. **Faucet API Accuracy**: Need exact claim value ranges
-   - Mitigation: Test with real API, adjust based on actual behavior
-
-3. **Performance**: RNG analysis can be CPU-intensive
-   - Mitigation: Threading, progress bars, optional GPU
-
-### Medium Risk
-1. **GUI Complexity**: Too many features can overwhelm
-   - Mitigation: Phased rollout, user feedback
-
-2. **API Changes**: DuckDice may update API
-   - Mitigation: Version checking, graceful degradation
-
-### Low Risk
-1. **Code Quality**: Maintaining large codebase
-   - Mitigation: Good documentation, modular design
+**Approach:**
+- Keep CLI/TUI as primary interfaces
+- Web dashboard as optional add-on
+- Use existing backend infrastructure
+- Minimal dependencies
 
 ---
 
-## 📝 Next Steps
+## 📋 Feature Requests & Ideas
 
-1. **Approve roadmap** and prioritization
-2. **Start Phase 1**: Enhanced Faucet System
-3. **Create detailed task breakdown** for approved phase
-4. **Begin implementation** with TDD approach
-5. **Iterate** based on testing and feedback
+### Community Requests
+- [ ] Discord bot integration for notifications
+- [ ] Telegram bot for remote control
+- [ ] Docker containerization
+- [ ] Cloud deployment guides (AWS, GCP, Azure)
+- [ ] Strategy performance leaderboard
+- [ ] Paper trading mode (extended simulation)
+- [ ] Multi-currency portfolio management
+- [ ] Automated tax reporting
+
+### Technical Improvements
+- [ ] WebSocket support for real-time updates
+- [ ] GraphQL API wrapper
+- [ ] Plugin system for extensibility
+- [ ] Custom strategy DSL (Domain Specific Language)
+- [ ] Distributed betting across multiple accounts
+- [ ] Advanced logging and debugging tools
 
 ---
 
-**Document Version**: 1.0  
-**Created**: 2026-01-08  
-**Status**: Pending Approval  
-**Estimated Completion**: 4-6 weeks (part-time)
+## 🔧 Maintenance & Quality
+
+### Ongoing Tasks
+- **Documentation** - Keep all docs up-to-date
+- **Testing** - Maintain >90% test coverage
+- **Performance** - Optimize critical paths
+- **Security** - Regular dependency updates
+- **Bug Fixes** - Address issues promptly
+
+### Code Quality Goals
+- [ ] Achieve 95%+ test coverage
+- [ ] Add type hints to all functions
+- [ ] Implement comprehensive error handling
+- [ ] Create developer documentation
+- [ ] Set up automated code quality checks
+
+---
+
+## 📈 Success Metrics
+
+### User Adoption
+- **Target**: 1,000+ PyPI downloads/month by Q2 2026
+- **Target**: 100+ GitHub stars by Q3 2026
+- **Target**: Active community contributions
+
+### Code Quality
+- **Target**: <5 open critical bugs at any time
+- **Target**: 95%+ test coverage
+- **Target**: A+ code quality rating
+
+### Performance
+- **Target**: <100ms average bet execution time
+- **Target**: <1s TUI refresh rate
+- **Target**: <50MB memory footprint
+
+---
+
+## 🤝 Contributing
+
+We welcome contributions! Priority areas:
+1. **Strategy Development** - New betting strategies
+2. **Testing** - Improve test coverage
+3. **Documentation** - Guides and tutorials
+4. **Bug Fixes** - Address open issues
+5. **Feature Implementation** - Pick from roadmap
+
+See [CONTRIBUTING.md](../CONTRIBUTING.md) for guidelines.
+
+---
+
+## 📝 Notes
+
+### Philosophy
+- **CLI/TUI First** - Terminal interfaces are primary
+- **Performance** - Fast and lightweight
+- **Reliability** - Stable and well-tested
+- **Simplicity** - Easy to use and understand
+- **Extensibility** - Plugin-friendly architecture
+
+### Non-Goals
+- Heavy GUI frameworks (Electron, Qt)
+- Mobile apps (focus on terminal)
+- Blockchain integration
+- Cryptocurrency trading (dice only)
+- Social media features
+
+---
+
+## 📞 Feedback
+
+Have ideas or suggestions? We'd love to hear from you!
+
+- **GitHub Issues**: [Report bugs or request features](https://github.com/sushiomsky/duckdice-bot/issues)
+- **Discussions**: [Join the conversation](https://github.com/sushiomsky/duckdice-bot/discussions)
+- **Email**: schnickfitzel1@gmail.com
+
+---
+
+**Last Updated**: January 16, 2026  
+**Version**: 4.9.2  
+**Maintainer**: DuckDice Bot Team

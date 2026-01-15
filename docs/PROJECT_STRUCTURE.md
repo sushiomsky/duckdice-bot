@@ -12,25 +12,17 @@ duckdice-bot/
 │       ├── ci.yml            # Continuous integration
 │       └── release.yml       # PyPI release workflow
 │
-├── app/                       # NiceGUI web interface (🚧 under development)
-│   ├── ui/                   # User interface components
-│   │   ├── components/       # Reusable UI components
-│   │   ├── pages/           # Page layouts
-│   │   ├── layout.py        # Main layout
-│   │   └── theme.py         # Theming and styling
-│   ├── services/            # Business logic services
-│   ├── state/               # Application state management
-│   ├── utils/               # Utility functions
-│   ├── config.py            # Configuration
-│   └── main.py              # Entry point for web app
-│
 ├── assets/                    # Static assets
 │   └── sounds/               # Sound files for notifications
 │
 ├── docs/                      # Documentation
 │   ├── API_REFERENCE.md      # API documentation
 │   ├── CUSTOM_SCRIPTS.md     # Custom script guide
-│   └── ENHANCED_STRATEGY_INFO.md  # Strategy documentation
+│   ├── ENHANCED_STRATEGY_INFO.md  # Strategy documentation
+│   ├── PROJECT_STRUCTURE.md  # This file
+│   ├── ROADMAP.md            # Development roadmap
+│   ├── ARCHITECTURE.md       # Technical architecture
+│   └── archive/              # Archived documentation
 │
 ├── scripts/                   # Build and utility scripts
 │   ├── build_macos.sh        # macOS build script
@@ -38,38 +30,62 @@ duckdice-bot/
 │   └── test_build.sh         # Build testing script
 │
 ├── src/                       # Core library code
-│   ├── strategies/           # Betting strategy implementations
+│   ├── betbot_strategies/    # Betting strategy implementations (22 total)
 │   │   ├── __init__.py
 │   │   ├── base.py          # Base strategy class
-│   │   ├── martingale.py    # Martingale strategy
-│   │   ├── fibonacci.py     # Fibonacci strategy
-│   │   ├── dalembert.py     # D'Alembert strategy
-│   │   ├── labouchere.py    # Labouchere strategy
-│   │   ├── paroli.py        # Paroli strategy
-│   │   └── ...              # More strategies
+│   │   ├── classic_martingale.py
+│   │   ├── anti_martingale_streak.py
+│   │   ├── fibonacci.py
+│   │   ├── dalembert.py
+│   │   ├── labouchere.py
+│   │   ├── paroli.py
+│   │   ├── oscars_grind.py
+│   │   ├── one_three_two_six.py
+│   │   ├── kelly_capped.py
+│   │   ├── faucet_grind.py
+│   │   ├── faucet_cashout.py
+│   │   ├── target_aware.py
+│   │   ├── streak_hunter.py
+│   │   ├── micro_exponential.py
+│   │   ├── micro_exponential_safe.py
+│   │   ├── fib_loss_cluster.py
+│   │   ├── rng_analysis_strategy.py
+│   │   ├── range50_random.py
+│   │   ├── max_wager_flow.py
+│   │   └── custom_script.py
 │   │
-│   ├── utils/                # Utility modules
-│   │   ├── bet_logger.py    # Bet history logging
-│   │   ├── config.py        # Configuration management
-│   │   ├── simulator.py     # Offline simulation
-│   │   └── stats.py         # Statistics calculation
+│   ├── betbot_engine/        # Core betting engine
+│   │   ├── __init__.py
+│   │   ├── engine.py        # Main betting logic
+│   │   ├── session.py       # Session management
+│   │   └── analytics.py     # Analytics engine
 │   │
-│   ├── api.py               # DuckDice API client
-│   ├── bet_verifier.py      # Provably fair verification
-│   └── constants.py         # Global constants
-│
-├── templates/                 # Template files
-│   └── custom_scripts/       # Custom script templates
+│   ├── duckdice_api/         # DuckDice API client
+│   │   ├── __init__.py
+│   │   ├── api.py           # API client implementation
+│   │   ├── models.py        # Data models
+│   │   └── exceptions.py    # Custom exceptions
+│   │
+│   ├── interfaces/           # User interfaces
+│   │   └── tui/             # Terminal User Interfaces
+│   │       ├── textual_interface.py  # Modern Textual TUI
+│   │       └── ncurses_interface.py  # Classic NCurses TUI
+│   │
+│   ├── faucet_manager/       # Faucet automation
+│   ├── simulation_engine.py  # Offline simulation
+│   ├── cli_display.py        # CLI display utilities
+│   └── utils/                # Utility modules
 │
 ├── tests/                     # Test suite
 │   ├── test_strategies.py   # Strategy tests
 │   ├── test_api.py          # API tests
-│   ├── test_verifier.py     # Verification tests
+│   ├── test_cli.py          # CLI tests
 │   └── ...                  # More tests
 │
-├── duckdice_gui_ultimate.py  # 🎮 Main desktop GUI (Tkinter)
-├── duckdice.py               # Command-line interface
-├── duckdice_gui_ultimate.spec # PyInstaller spec for GUI
+├── duckdice_cli.py           # � Main CLI interface (920+ lines)
+├── duckdice_tui.py           # 🎮 TUI launcher (Textual/NCurses)
+├── duckdice.py               # Legacy command-line interface
+├── strategy_comparison.py    # Strategy comparison tool
 │
 ├── requirements.txt          # Python dependencies
 ├── requirements-build.txt    # Build dependencies
@@ -77,8 +93,6 @@ duckdice-bot/
 │
 ├── build_release.sh         # Multi-platform build script
 ├── build_windows.bat        # Windows build script
-├── run_gui.sh              # Launch desktop GUI (Linux/macOS)
-├── run_nicegui.sh          # Launch web interface (Linux/macOS)
 │
 ├── .env.example            # Environment variables template
 ├── .gitignore             # Git ignore rules
@@ -88,67 +102,77 @@ duckdice-bot/
     ├── README.md                   # Main documentation
     ├── CHANGELOG.md               # Version history
     ├── CONTRIBUTING.md            # Contribution guide
-    ├── INSTALL.md                 # Installation guide
-    ├── QUICK_START_GUIDE.md       # Quick start
-    ├── COMPLETE_FEATURES.md       # Feature list
-    ├── WINDOWS_BUILD.md           # Windows build guide
-    ├── RELEASE_CHECKLIST.md       # Release process
-    ├── RELEASE_NOTES_v3.9.0.md   # Release notes
-    ├── ROADMAP.md                 # Future plans
-    ├── CLEANUP_SUMMARY.md         # Cleanup documentation
-    └── PROJECT_STRUCTURE.md       # This file
+    ├── GETTING_STARTED.md         # Quick start
+    ├── CLI_GUIDE.md               # CLI reference
+    ├── TUI_GUIDE.md               # TUI reference
+    ├── USER_GUIDE.md              # Complete user guide
+    ├── DEPLOYMENT_GUIDE.md        # Deployment instructions
+    ├── STATUS.md                  # Current project status
+    └── docs/PROJECT_STRUCTURE.md  # This file
 ```
 
 ## 🎯 Key Components
 
-### Desktop GUI (`duckdice_gui_ultimate.py`)
-The main Tkinter-based desktop application. This is the **recommended interface** for users.
+### CLI Interface (`duckdice_cli.py`)
+The main command-line interface. This is the **primary interface** for users.
 
 **Features:**
-- Complete betting interface
-- 16 strategy implementations
-- Real-time statistics dashboard
+- Complete betting interface with interactive mode
+- 22 strategy implementations
+- Real-time statistics display with Rich library
 - Offline simulator
-- Custom script editor
+- Profile management with database persistence
 - Faucet automation
-- Bet verification
+- Risk controls (stop-loss, take-profit, max bets)
+- Session history and analytics
 
-**Key Classes:**
-- `DuckDiceGUIApp`: Main application class
-- `BetLogger`: Logs bets to JSONL format
-- `StatisticsWindow`: Statistics dashboard
-- `StrategyManager`: Manages betting strategies
-- `CustomScriptEditor`: Monaco-based script editor
+**Key Functions:**
+- `main()`: Entry point and argument parsing
+- `interactive_mode()`: Guided configuration workflow
+- `run_betting_session()`: Execute betting with selected strategy
+- `display_statistics()`: Real-time stats display
+- Profile save/load functionality
 
-### Web Interface (`app/`)
-NiceGUI-based web interface (🚧 **under development**).
+### TUI Interfaces (`duckdice_tui.py`, `src/interfaces/tui/`)
+Terminal User Interfaces for visual terminal interaction.
 
-**Structure:**
-```
-app/
-├── main.py              # Entry point, routing
-├── config.py            # Configuration
-├── ui/
-│   ├── layout.py        # App layout
-│   ├── theme.py         # Theming
-│   ├── components/      # Reusable components
-│   └── pages/           # Page implementations
-├── services/
-│   └── betting.py       # Betting logic
-└── state/
-    └── store.py         # State management
-```
+**Two Implementations:**
+1. **Textual Interface** (Modern):
+   - Beautiful, modern terminal UI
+   - Real-time statistics dashboard
+   - Interactive bet history table
+   - Progress indicators and rich colors
+   - Mouse support
+   - Requires: `textual` package
+
+2. **NCurses Interface** (Classic):
+   - Lightweight and fast
+   - No external dependencies
+   - Works on any Unix-like system
+   - Classic terminal aesthetics
+   - Minimal resource usage
+
+**Features:**
+- Real-time bet tracking
+- Live statistics display
+- Interactive controls (Start/Pause/Stop)
+- Keyboard shortcuts
+- Session management
 
 ### Core Library (`src/`)
-Reusable components used by both interfaces.
+Reusable components used by all interfaces.
 
 **Modules:**
-- `api.py`: DuckDice API client with connection pooling
-- `strategies/`: All betting strategy implementations
-- `utils/`: Utilities (logging, config, stats, simulation)
-- `bet_verifier.py`: Provably fair verification
+- `duckdice_api/`: DuckDice API client with connection pooling
+- `betbot_strategies/`: All 22 betting strategy implementations
+- `betbot_engine/`: Core betting logic and session management
+- `interfaces/tui/`: Terminal user interface implementations
+- `faucet_manager/`: Faucet automation system
+- `simulation_engine.py`: Offline simulation
+- `cli_display.py`: CLI display utilities
+- `utils/`: Helper functions and utilities
 
-### Strategies (`src/strategies/`)
+### Strategies (`src/betbot_strategies/`)
 All betting strategies inherit from `BaseStrategy`:
 
 ```python
@@ -158,15 +182,11 @@ class BaseStrategy:
         raise NotImplementedError
 ```
 
-**Available Strategies:**
-- Martingale, Anti-Martingale
-- Fibonacci, Reverse Fibonacci
-- D'Alembert, Reverse D'Alembert
-- Labouchere, Reverse Labouchere
-- Paroli, Oscar's Grind
-- Kelly Criterion, Flat Betting
-- 1-3-2-6, Fixed Percentage
-- Loss Recovery, Profit Target
+**Available Strategies (22 total):**
+- **Conservative**: D'Alembert, Oscar's Grind, 1-3-2-6
+- **Moderate**: Fibonacci, Labouchere, Paroli, Fib Loss Cluster
+- **Aggressive**: Classic Martingale, Anti-Martingale Streak, Streak Hunter
+- **Specialized**: Faucet Grind, Faucet Cashout, Kelly Capped, Target Aware, RNG Analysis, Range50 Random, Max Wager Flow, Micro Exponential, Micro Exponential Safe, Custom Script
 
 ### Tests (`tests/`)
 Pytest-based test suite.
@@ -240,34 +260,41 @@ LOG_LEVEL=INFO
 
 ### Module Dependencies
 ```
-duckdice_gui_ultimate.py
+duckdice_cli.py / duckdice_tui.py
     ↓
-src/strategies/
+src/betbot_engine/
     ↓
-src/api.py
+src/betbot_strategies/
+    ↓
+src/duckdice_api/
     ↓
 DuckDice API
 ```
 
 ### Reusability
 Core `src/` modules are interface-agnostic and can be:
-- Used by desktop GUI
-- Used by web interface
+- Used by CLI interface
+- Used by TUI interfaces (Textual/NCurses)
 - Imported as a library
-- Used from command line
+- Used in custom scripts
 
 ## 🚀 Entry Points
 
 **For Users:**
 ```bash
-# Desktop GUI (recommended)
-python duckdice_gui_ultimate.py
+# CLI (recommended for automation)
+python duckdice_cli.py
 
-# Web interface
-python app/main.py
+# TUI - Modern Textual interface
+python duckdice_tui.py
 
-# Command line
-python duckdice.py
+# TUI - Classic NCurses interface
+python duckdice_tui.py --ncurses
+
+# Installed commands (after pip install)
+duckdice              # CLI
+duckdice-tui          # TUI
+duckdice-compare      # Strategy comparison
 ```
 
 **For Developers:**
@@ -275,8 +302,8 @@ python duckdice.py
 # Run tests
 python -m pytest
 
-# Build executable
-./build_release.sh
+# Run specific test
+python -m pytest tests/test_cli.py
 
 # Format code
 black .
@@ -356,4 +383,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md) for details.
 
 ---
 
-Last updated: January 9, 2026
+Last updated: January 16, 2026

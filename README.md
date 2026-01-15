@@ -60,8 +60,8 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 
 ### 🎯 Core Capabilities
 
-- **18 Built-in Strategies** - From conservative to aggressive
-- **Beautiful Terminal UI** - Colors, progress bars, live stats ⭐ NEW
+- **22 Built-in Strategies** - From conservative to aggressive
+- **Beautiful Terminal UI** - CLI with colors, TUI with Textual/NCurses ⭐
 - **Simulation Mode** - Test risk-free with virtual balance
 - **Live Betting** - Real betting with main or faucet balance
 - **Interactive Mode** - Guided setup, zero configuration needed
@@ -69,14 +69,21 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **Risk Controls** - Stop-loss, take-profit, max bets/losses
 - **Session History** - SQLite database tracks all bets
 - **Real-time Stats** - Live progress tracking and statistics
+- **Analytics Dashboard** - Comprehensive performance metrics
 
-### 🎮 Three Betting Modes
+### 🎮 Three User Interfaces
+
+1. **CLI** - Command-line interface for automation and scripting
+2. **TUI (Textual)** - Modern terminal UI with rich visuals
+3. **TUI (NCurses)** - Classic terminal UI, lightweight
+
+### 🎲 Three Betting Modes
 
 1. **Simulation** - Test strategies with virtual balance (default)
 2. **Live Main** - Bet with your main balance
 3. **Live Faucet** - Bet with faucet balance (perfect for testing)
 
-### 🎲 Available Strategies
+### 🎲 Available Strategies (22 Total)
 
 #### Conservative (Low Risk)
 - **dalembert** - Increase/decrease bets gradually
@@ -87,12 +94,12 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **fibonacci** - Follow Fibonacci sequence
 - **labouchere** - Cancellation system
 - **paroli** - Reverse martingale with limits
+- **fib-loss-cluster** - Fibonacci on loss streaks
 
 #### Aggressive (High Risk)
 - **classic-martingale** - Double on loss (⚠️ requires large bankroll)
 - **anti-martingale-streak** - Multiply on wins
-- **streak-hunter** - Win streak amplifier (NEW)
-- **fib-loss-cluster** - Fibonacci on loss streaks
+- **streak-hunter** - Win streak amplifier
 
 #### Specialized
 - **faucet-grind** - Optimized for faucet betting
@@ -101,14 +108,19 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **target-aware** - State machine with profit targets
 - **range50-random** - Range dice at 50% chance
 - **max-wager-flow** - Maximize wagering throughput
+- **micro-exponential** - Exponential growth with micro bets ⭐ NEW
+- **micro-exponential-safe** - Safe variant with caps ⭐ NEW
 - **rng-analysis-strategy** - RNG pattern analysis (educational)
 - **custom-script** - Load your own Python strategy
 
 ## 📖 Documentation
 
 - **[CLI Guide](CLI_GUIDE.md)** - Complete command reference and examples
+- **[TUI Guide](TUI_GUIDE.md)** - Terminal UI interfaces (Textual/NCurses)
 - **[User Guide](USER_GUIDE.md)** - Strategy details and best practices
 - **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Production deployment tips
+- **[Architecture](docs/ARCHITECTURE.md)** - Technical architecture overview
+- **[Roadmap](docs/ROADMAP.md)** - Future development plans
 
 ## 🎯 Command Overview
 
