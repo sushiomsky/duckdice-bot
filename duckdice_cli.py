@@ -891,58 +891,58 @@ def cmd_interactive(args=None):
         print("\nStep 2: Select Currency")
         print("-" * 40)
         print("Fetching your balances...")
+    
+    try:
+        user_info = api.get_user_info()
+        balances = user_info.get('balances', [])
         
-        try:
-            user_info = api.get_user_info()
-            balances = user_info.get('balances', [])
+        # Minimum bet amounts (approximate)
+        min_bets = {
+            'btc': 0.00000001,
+            'eth': 0.000001,
+            'ltc': 0.0001,
+            'doge': 0.1,
+            'bch': 0.00001,
+            'trx': 1.0
+        }
+        
+        # Filter currencies with sufficient balance
+        balance_type = 'faucet' if use_faucet else 'main'
+        for bal in balances:
+            curr = bal['currency'].lower()
+            amount = float(bal.get(balance_type, 0))
+            min_bet = min_bets.get(curr, 0)
             
-            # Minimum bet amounts (approximate)
-            min_bets = {
-                'btc': 0.00000001,
-                'eth': 0.000001,
-                'ltc': 0.0001,
-                'doge': 0.1,
-                'bch': 0.00001,
-                'trx': 1.0
-            }
-            
-            # Filter currencies with sufficient balance
-            balance_type = 'faucet' if use_faucet else 'main'
-            for bal in balances:
-                curr = bal['currency'].lower()
-                amount = float(bal.get(balance_type, 0))
-                min_bet = min_bets.get(curr, 0)
-                
-                if amount > min_bet:
-                    available_currencies.append(curr)
-                    balances_dict[curr] = amount
-            
-            if not available_currencies:
-                if USE_RICH and display:
-                    display.print_error(f"No currencies with sufficient {balance_type} balance")
-                else:
-                    print(f"✗ No currencies with sufficient {balance_type} balance")
-                return
-            
-            print(f"\nAvailable currencies ({balance_type} balance):")
-            for i, curr in enumerate(available_currencies, 1):
-                balance = balances_dict[curr]
-                print(f"  {i}. {curr.upper():<6} - Balance: {balance:.8f}")
-            
-            currency = prompt_choice("", available_currencies, available_currencies[0])
-            initial_balance = balances_dict[currency]
-            
+            if amount > min_bet:
+                available_currencies.append(curr)
+                balances_dict[curr] = amount
+        
+        if not available_currencies:
             if USE_RICH and display:
-                display.print_success(f"Selected: {currency.upper()} (Balance: {initial_balance:.8f})")
+                display.print_error(f"No currencies with sufficient {balance_type} balance")
             else:
-                print(f"✓ Selected: {currency.upper()} (Balance: {initial_balance:.8f})\n")
-            
-        except Exception as e:
-            if USE_RICH and display:
-                display.print_error(f"Failed to fetch balances: {e}")
-            else:
-                print(f"✗ Failed to fetch balances: {e}")
+                print(f"✗ No currencies with sufficient {balance_type} balance")
             return
+        
+        print(f"\nAvailable currencies ({balance_type} balance):")
+        for i, curr in enumerate(available_currencies, 1):
+            balance = balances_dict[curr]
+            print(f"  {i}. {curr.upper():<6} - Balance: {balance:.8f}")
+        
+        currency = prompt_choice("", available_currencies, available_currencies[0])
+        initial_balance = balances_dict[currency]
+        
+        if USE_RICH and display:
+            display.print_success(f"Selected: {currency.upper()} (Balance: {initial_balance:.8f})")
+        else:
+            print(f"✓ Selected: {currency.upper()} (Balance: {initial_balance:.8f})\n")
+        
+    except Exception as e:
+        if USE_RICH and display:
+            display.print_error(f"Failed to fetch balances: {e}")
+        else:
+            print(f"✗ Failed to fetch balances: {e}")
+        return
     
     
     # Step 3: Choose strategy
