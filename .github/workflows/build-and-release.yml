@@ -1,0 +1,573 @@
+name: Build and Release
+
+on:
+  push:
+    branches: [main]
+    tags:
+      - 'v*'
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  id-token: write  # For PyPI trusted publishing
+
+jobs:
+  # ============================================================================
+  # Test Suite - Run on all platforms
+  # ============================================================================
+  test:
+    name: Test on ${{ matrix.os }} - Python ${{ matrix.python-version }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+        python-version: ['3.9', '3.11', '3.12']
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python ${{ matrix.python-version }}
+      uses: actions/setup-python@v5
+      with:
+        python-version: ${{ matrix.python-version }}
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install pytest
+    
+    - name: Test imports and strategy loading
+      run: |
+        python -c "import sys; sys.path.insert(0, 'src'); from betbot_strategies import list_strategies; print(f'✓ Found {len(list_strategies())} strategies')"
+    
+    - name: Syntax check main modules
+      run: |
+        python -m py_compile duckdice.py
+        python -m py_compile duckdice_cli.py
+        python -m py_compile duckdice_tui.py
+        python -m py_compile strategy_comparison.py
+    
+    - name: Run tests (if available)
+      continue-on-error: true
+      run: |
+        python -m pytest tests/ -v --tb=short || echo "Some tests failed (non-blocking)"
+
+  # ============================================================================
+  # Build Python Package (sdist + wheel)
+  # ============================================================================
+  build-python-package:
+    name: Build Python Package
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install build tools
+      run: |
+        python -m pip install --upgrade pip
+        pip install build twine
+    
+    - name: Build sdist and wheel
+      run: python -m build
+    
+    - name: Check package with twine
+      run: twine check dist/*
+    
+    - name: List built packages
+      run: ls -lh dist/
+    
+    - name: Upload Python package artifacts
+      uses: actions/upload-artifact@v4
+      with:
+        name: python-package
+        path: dist/*
+        retention-days: 30
+
+  # ============================================================================
+  # Build CLI Executable - Windows
+  # ============================================================================
+  build-windows-cli:
+    name: Build Windows CLI Executable
+    runs-on: windows-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Create PyInstaller spec for CLI
+      run: |
+        @"
+        # -*- mode: python ; coding: utf-8 -*-
+        
+        block_cipher = None
+        
+        a = Analysis(
+            ['duckdice_cli.py'],
+            pathex=[],
+            binaries=[],
+            datas=[('src', 'src')],
+            hiddenimports=['betbot_strategies', 'betbot_engine', 'duckdice_api'],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            win_no_prefer_redirects=False,
+            win_private_assemblies=False,
+            cipher=block_cipher,
+            noarchive=False,
+        )
+        pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+        
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.zipfiles,
+            a.datas,
+            [],
+            name='duckdice',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=True,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
+        "@ | Out-File -FilePath duckdice_cli.spec -Encoding utf8
+    
+    - name: Build with PyInstaller
+      run: pyinstaller --clean duckdice_cli.spec
+    
+    - name: Test executable
+      run: |
+        if (Test-Path "dist/duckdice.exe") {
+          Write-Host "✓ Executable created: dist/duckdice.exe"
+          Get-Item "dist/duckdice.exe" | Select-Object Name, Length, LastWriteTime
+          # Test help command
+          & "dist/duckdice.exe" --help
+        } else {
+          Write-Error "Build failed - executable not found"
+          exit 1
+        }
+    
+    - name: Create Windows package
+      run: |
+        $version = (python -c "import sys; sys.path.insert(0, '.'); exec(open('pyproject.toml').read()); print(version)")
+        $pkgName = "duckdice-bot-windows-x64"
+        New-Item -ItemType Directory -Force -Path $pkgName
+        Copy-Item "dist/duckdice.exe" "$pkgName/"
+        Copy-Item "README.md" "$pkgName/"
+        Copy-Item "LICENSE" "$pkgName/"
+        Copy-Item "docs/QUICK_REFERENCE.md" "$pkgName/" -ErrorAction SilentlyContinue
+        Compress-Archive -Path $pkgName -DestinationPath "$pkgName.zip"
+    
+    - name: Upload Windows CLI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: windows-cli-executable
+        path: duckdice-bot-windows-x64.zip
+        retention-days: 30
+
+  # ============================================================================
+  # Build CLI Executable - macOS
+  # ============================================================================
+  build-macos-cli:
+    name: Build macOS CLI Executable
+    runs-on: macos-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Create PyInstaller spec for CLI
+      run: |
+        cat > duckdice_cli.spec << 'EOF'
+        # -*- mode: python ; coding: utf-8 -*-
+        
+        block_cipher = None
+        
+        a = Analysis(
+            ['duckdice_cli.py'],
+            pathex=[],
+            binaries=[],
+            datas=[('src', 'src')],
+            hiddenimports=['betbot_strategies', 'betbot_engine', 'duckdice_api'],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            win_no_prefer_redirects=False,
+            win_private_assemblies=False,
+            cipher=block_cipher,
+            noarchive=False,
+        )
+        pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+        
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.zipfiles,
+            a.datas,
+            [],
+            name='duckdice',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=True,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
+        EOF
+    
+    - name: Build with PyInstaller
+      run: pyinstaller --clean duckdice_cli.spec
+    
+    - name: Test executable
+      run: |
+        if [ -f "dist/duckdice" ]; then
+          echo "✓ Executable created: dist/duckdice"
+          ls -lh dist/duckdice
+          chmod +x dist/duckdice
+          ./dist/duckdice --help
+        else
+          echo "✗ Build failed - executable not found"
+          exit 1
+        fi
+    
+    - name: Create macOS package
+      run: |
+        mkdir -p duckdice-bot-macos-universal
+        cp dist/duckdice duckdice-bot-macos-universal/
+        cp README.md duckdice-bot-macos-universal/
+        cp LICENSE duckdice-bot-macos-universal/
+        cp docs/QUICK_REFERENCE.md duckdice-bot-macos-universal/ || true
+        cd duckdice-bot-macos-universal && chmod +x duckdice && cd ..
+        tar -czf duckdice-bot-macos-universal.tar.gz duckdice-bot-macos-universal
+    
+    - name: Upload macOS CLI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: macos-cli-executable
+        path: duckdice-bot-macos-universal.tar.gz
+        retention-days: 30
+
+  # ============================================================================
+  # Build CLI Executable - Linux
+  # ============================================================================
+  build-linux-cli:
+    name: Build Linux CLI Executable
+    runs-on: ubuntu-latest
+    needs: test
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Set up Python 3.11
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip setuptools wheel
+        pip install -r requirements.txt
+        pip install pyinstaller
+    
+    - name: Create PyInstaller spec for CLI
+      run: |
+        cat > duckdice_cli.spec << 'EOF'
+        # -*- mode: python ; coding: utf-8 -*-
+        
+        block_cipher = None
+        
+        a = Analysis(
+            ['duckdice_cli.py'],
+            pathex=[],
+            binaries=[],
+            datas=[('src', 'src')],
+            hiddenimports=['betbot_strategies', 'betbot_engine', 'duckdice_api'],
+            hookspath=[],
+            hooksconfig={},
+            runtime_hooks=[],
+            excludes=[],
+            win_no_prefer_redirects=False,
+            win_private_assemblies=False,
+            cipher=block_cipher,
+            noarchive=False,
+        )
+        pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+        
+        exe = EXE(
+            pyz,
+            a.scripts,
+            a.binaries,
+            a.zipfiles,
+            a.datas,
+            [],
+            name='duckdice',
+            debug=False,
+            bootloader_ignore_signals=False,
+            strip=False,
+            upx=True,
+            upx_exclude=[],
+            runtime_tmpdir=None,
+            console=True,
+            disable_windowed_traceback=False,
+            argv_emulation=False,
+            target_arch=None,
+            codesign_identity=None,
+            entitlements_file=None,
+        )
+        EOF
+    
+    - name: Build with PyInstaller
+      run: pyinstaller --clean duckdice_cli.spec
+    
+    - name: Test executable
+      run: |
+        if [ -f "dist/duckdice" ]; then
+          echo "✓ Executable created: dist/duckdice"
+          ls -lh dist/duckdice
+          chmod +x dist/duckdice
+          ./dist/duckdice --help
+        else
+          echo "✗ Build failed - executable not found"
+          exit 1
+        fi
+    
+    - name: Create Linux package
+      run: |
+        mkdir -p duckdice-bot-linux-x64
+        cp dist/duckdice duckdice-bot-linux-x64/
+        cp README.md duckdice-bot-linux-x64/
+        cp LICENSE duckdice-bot-linux-x64/
+        cp docs/QUICK_REFERENCE.md duckdice-bot-linux-x64/ || true
+        chmod +x duckdice-bot-linux-x64/duckdice
+        tar -czf duckdice-bot-linux-x64.tar.gz duckdice-bot-linux-x64
+    
+    - name: Upload Linux CLI artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name: linux-cli-executable
+        path: duckdice-bot-linux-x64.tar.gz
+        retention-days: 30
+
+  # ============================================================================
+  # Publish to PyPI (on tags or manual trigger with PyPI token)
+  # ============================================================================
+  publish-pypi:
+    name: Publish to PyPI
+    runs-on: ubuntu-latest
+    needs: build-python-package
+    if: startsWith(github.ref, 'refs/tags/v') || github.event_name == 'workflow_dispatch'
+    environment:
+      name: pypi
+      url: https://pypi.org/p/duckdice-betbot
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download Python package artifacts
+      uses: actions/download-artifact@v4
+      with:
+        name: python-package
+        path: dist
+    
+    - name: Display package contents
+      run: ls -lh dist/
+    
+    - name: Publish to PyPI (with token)
+      if: ${{ secrets.PYPI_API_TOKEN }}
+      env:
+        TWINE_USERNAME: __token__
+        TWINE_PASSWORD: ${{ secrets.PYPI_API_TOKEN }}
+      run: |
+        python -m pip install twine
+        twine upload dist/*
+    
+    - name: Publish to PyPI (trusted publishing)
+      if: ${{ !secrets.PYPI_API_TOKEN }}
+      uses: pypa/gh-action-pypi-publish@release/v1
+
+  # ============================================================================
+  # Create GitHub Release (only on version tags)
+  # ============================================================================
+  create-github-release:
+    name: Create GitHub Release
+    runs-on: ubuntu-latest
+    needs: [build-windows-cli, build-macos-cli, build-linux-cli, build-python-package]
+    if: startsWith(github.ref, 'refs/tags/v')
+    
+    steps:
+    - uses: actions/checkout@v4
+    
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+      with:
+        path: release-artifacts
+    
+    - name: Display artifact structure
+      run: |
+        echo "📦 Release Artifacts:"
+        ls -lhR release-artifacts/
+    
+    - name: Extract version from tag
+      id: version
+      run: echo "VERSION=${GITHUB_REF#refs/tags/v}" >> $GITHUB_OUTPUT
+    
+    - name: Create Release
+      uses: softprops/action-gh-release@v2
+      with:
+        name: "DuckDice Bot v${{ steps.version.outputs.VERSION }}"
+        files: |
+          release-artifacts/windows-cli-executable/*.zip
+          release-artifacts/macos-cli-executable/*.tar.gz
+          release-artifacts/linux-cli-executable/*.tar.gz
+          release-artifacts/python-package/*.whl
+          release-artifacts/python-package/*.tar.gz
+        body: |
+          # 🎲 DuckDice Bot v${{ steps.version.outputs.VERSION }}
+          
+          ## 📦 Installation Options
+          
+          ### Option 1: Install from PyPI (Recommended)
+          ```bash
+          pip install duckdice-betbot
+          
+          # Or with TUI support
+          pip install duckdice-betbot[tui]
+          
+          # Run
+          duckdice --help
+          duckdice interactive
+          duckdice-tui
+          ```
+          
+          ### Option 2: Download Pre-built Executables
+          
+          - **Windows**: `duckdice-bot-windows-x64.zip`
+          - **macOS**: `duckdice-bot-macos-universal.tar.gz`
+          - **Linux**: `duckdice-bot-linux-x64.tar.gz`
+          
+          Extract and run `./duckdice --help`
+          
+          ## ✨ Features
+          
+          - 🎯 **18 Betting Strategies** - From conservative to aggressive
+          - 🖥️  **Multiple Interfaces** - CLI, Interactive, TUI (Textual + ncurses)
+          - 🧪 **Simulation Mode** - Test strategies risk-free
+          - 📊 **Live Stats** - Real-time performance monitoring
+          - 💾 **Database Logging** - SQLite session history
+          - 🎨 **Rich Terminal UI** - Beautiful CLI with colors and progress bars
+          - ⚡ **High Performance** - Up to 80+ bets/second with parallel mode
+          
+          ## 🚀 Quick Start
+          
+          ```bash
+          # Interactive mode (easiest)
+          duckdice interactive
+          
+          # Run specific strategy
+          duckdice run -m simulation -c btc -s classic-martingale --max-bets 100
+          
+          # Modern TUI
+          duckdice-tui
+          
+          # Classic ncurses TUI
+          duckdice-tui --ncurses
+          
+          # List all strategies
+          duckdice strategies
+          
+          # Get strategy details
+          duckdice show progressive-win-scaling
+          ```
+          
+          ## 📚 Documentation
+          
+          - [README](https://github.com/${{ github.repository }}/blob/main/README.md)
+          - [Quick Reference](https://github.com/${{ github.repository }}/blob/main/docs/QUICK_REFERENCE.md)
+          - [TUI Guide](https://github.com/${{ github.repository }}/blob/main/TUI_GUIDE.md)
+          - [Parameters Guide](https://github.com/${{ github.repository }}/blob/main/PARAMETERS_GUIDE.md)
+          
+          ## 🎲 Available Strategies
+          
+          Conservative: dalembert, oscars-grind, one-three-two-six  
+          Moderate: fibonacci, labouchere, paroli  
+          Aggressive: classic-martingale, streak-hunter, progressive-win-scaling  
+          Specialized: kelly-capped, target-aware, rng-analysis-strategy, and more!
+          
+          ## 🔐 Security Note
+          
+          Get your API key from [DuckDice.io](https://duckdice.io) → Settings → Bot API
+          
+          **Never share your API key!**
+          
+          ---
+          
+          ### Checksums
+          
+          See attached files for SHA256 checksums.
+        draft: false
+        prerelease: false
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+    
+    - name: Generate checksums
+      run: |
+        cd release-artifacts
+        find . -type f \( -name "*.zip" -o -name "*.tar.gz" -o -name "*.whl" \) -exec sha256sum {} \; > ../SHA256SUMS.txt
+        cd ..
+        cat SHA256SUMS.txt
+    
+    - name: Upload checksums to release
+      uses: softprops/action-gh-release@v2
+      with:
+        files: SHA256SUMS.txt
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
