@@ -7,6 +7,51 @@
 
 ## 🎯 Core Principles
 
+### 0. Main Branch Protection (MANDATORY)
+
+**Rule**: Main branch MUST always be buildable and deployable.
+
+#### Requirements
+- ✅ All commits pass CI/CD tests before merge
+- ✅ No direct commits that break builds
+- ✅ Every commit must be production-ready
+- ✅ Breaking changes require version bump
+
+#### Validation
+```bash
+# Before EVERY commit to main:
+pytest tests/ -v                    # All tests pass
+python -m py_compile duckdice_cli.py  # Syntax valid
+python -m pip install -e .          # Package builds
+duckdice --help                     # CLI works
+```
+
+#### Enforcement
+- ✅ **CI/CD runs on every push** to main
+- ✅ **Tests MUST pass** (Python 3.9-3.12 × 3 OS)
+- ✅ **Build MUST succeed** (all platforms)
+- ✅ **No broken commits allowed** (immediate revert)
+
+#### Protected Actions
+```bash
+# ✅ SAFE (tested locally first)
+pytest tests/ -v && git push origin main
+
+# ❌ DANGEROUS (untested)
+git push origin main  # Hope it works!
+
+# ❌ FORBIDDEN (breaking build intentionally)
+git push origin main -f  # Force push
+git commit -m "WIP: broken code"  # Work in progress
+```
+
+#### Branch Strategy
+- `main` - **Always buildable** (production-ready)
+- Feature branches - For development (can be broken)
+- Tags (v*) - Triggers full release pipeline
+
+---
+
 ### 1. CLI-First Architecture (MANDATORY)
 
 **Rule**: Every feature MUST be usable via non-interactive CLI.
@@ -217,7 +262,9 @@ Commit to main → Trigger workflow
 - **PATCH**: Bug fixes (2.1.1 → 2.1.2)
 
 #### Release Requirements
-- ✅ All tests must pass
+- ✅ **All tests pass** (Python 3.9-3.12 × 3 OS)
+- ✅ **Build succeeds** on all platforms
+- ✅ **Main branch buildable** (no broken commits)
 - ✅ Version number bumped in `pyproject.toml`
 - ✅ Changelog entry added
 - ✅ Documentation updated
@@ -243,6 +290,13 @@ Commit to main → Trigger workflow
 Before EVERY commit to main:
 
 ```bash
+# 0. Build Validation (CRITICAL)
+□ All tests pass: pytest tests/ -v
+□ Syntax valid: python -m py_compile duckdice_cli.py
+□ Package builds: pip install -e .
+□ CLI works: duckdice --help
+□ No breaking changes (or version bumped)
+
 # 1. CLI Independence
 □ Feature works via CLI arguments only
 □ No interactive prompts in core functionality
@@ -422,12 +476,13 @@ This document is living and may be updated when:
 ## ✅ Summary
 
 **Remember**:
-1. 🎯 CLI-first: Every feature via command-line
-2. 🔌 Decoupled: Core has zero UI dependencies
-3. 🎲 Compatible: DiceBot strategies work unmodified
-4. 🧹 Clean: No legacy/historical content
-5. 📝 Documented: Changes reflect immediately
-6. 🚀 Automated: Every commit triggers releases
+0. 🔒 **Buildable**: Main always builds and passes tests
+1. 🎯 **CLI-first**: Every feature via command-line
+2. 🔌 **Decoupled**: Core has zero UI dependencies
+3. 🎲 **Compatible**: DiceBot strategies work unmodified
+4. 🧹 **Clean**: No legacy/historical content
+5. 📝 **Documented**: Changes reflect immediately
+6. 🚀 **Automated**: Every commit triggers releases
 
 **These are not suggestions. These are requirements.**
 

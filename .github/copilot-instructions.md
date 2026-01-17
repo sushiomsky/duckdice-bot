@@ -8,6 +8,7 @@ This file provides additional context for GitHub Copilot when working with this 
 
 ### Non-Negotiable Rules
 
+0. **Main Always Buildable**: All tests pass, build succeeds, no broken commits
 1. **CLI-First**: Every feature MUST work via non-interactive CLI
 2. **100% Decoupled**: Core/strategies have ZERO UI dependencies
 3. **DiceBot Compatible**: Strategy interface 100% compatible (no alterations to imported strategies)
@@ -130,6 +131,7 @@ version = "4.9.3"  # Increment before commit
 ## Safety Checklist
 
 Before committing:
+- [ ] **Build validation**: pytest tests/ -v && python -m py_compile duckdice_cli.py
 - [ ] Feature works via CLI args (no interactive prompts in core)
 - [ ] Core has no UI imports
 - [ ] DiceBot compatibility maintained
@@ -157,4 +159,4 @@ When adding features, update (same commit):
 
 ---
 
-**Remember**: CLI-first, decoupled, compatible, clean, documented, automated.
+**Remember**: Buildable, CLI-first, decoupled, compatible, clean, documented, automated.
