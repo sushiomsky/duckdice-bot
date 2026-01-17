@@ -12,42 +12,59 @@
 **Rule**: Main branch MUST always be buildable and deployable.
 
 #### Requirements
-- ✅ All commits pass CI/CD tests before merge
-- ✅ No direct commits that break builds
-- ✅ Every commit must be production-ready
+- ✅ **Pull Request workflow required** - No direct commits to main
+- ✅ **All CI/CD checks must pass** before merge allowed
+- ✅ **Branch protection enabled** on GitHub
+- ✅ Every commit production-ready
 - ✅ Breaking changes require version bump
 
-#### Validation
+#### Workflow
 ```bash
-# Before EVERY commit to main:
-pytest tests/ -v                    # All tests pass
-python -m py_compile duckdice_cli.py  # Syntax valid
-python -m pip install -e .          # Package builds
-duckdice --help                     # CLI works
+# ✅ CORRECT: Feature branch → PR → CI/CD → Merge
+git checkout -b feature/my-feature
+git commit -m "feat: add feature"
+git push origin feature/my-feature
+gh pr create --base main  # Opens PR
+# CI/CD runs automatically (9 configs)
+# ✅ All checks pass → Merge allowed
+# Merge via GitHub UI
+
+# ❌ FORBIDDEN: Direct commits to main
+git checkout main
+git commit -m "quick fix"
+git push origin main  # ← REJECTED by GitHub
 ```
+
+#### CI/CD Validation (11 Required Checks)
+1. **Validation on 3 OS × 3 Python versions** (9 checks)
+   - Syntax validation
+   - Import verification  
+   - Test suite (pytest)
+   - Package build
+   - CLI functionality
+
+2. **Code Quality** (1 check)
+   - No legacy files (.bak, .old)
+   - No archive directories
+   - Core decoupled from UI
+
+3. **PR Summary** (1 check)
+   - Overall pass/fail status
+
+#### GitHub Branch Protection Settings
+See `docs/BRANCH_PROTECTION.md` for configuration:
+- ✅ Require pull request before merging
+- ✅ Require status checks to pass (11 checks)
+- ✅ Require branches up to date
+- ✅ Require linear history
+- ❌ Allow force pushes: DISABLED
+- ❌ Allow bypassing: DISABLED (even for admins)
 
 #### Enforcement
-- ✅ **CI/CD runs on every push** to main
-- ✅ **Tests MUST pass** (Python 3.9-3.12 × 3 OS)
-- ✅ **Build MUST succeed** (all platforms)
-- ✅ **No broken commits allowed** (immediate revert)
-
-#### Protected Actions
-```bash
-# ✅ SAFE (tested locally first)
-pytest tests/ -v && git push origin main
-
-# ❌ DANGEROUS (untested)
-git push origin main  # Hope it works!
-
-# ❌ FORBIDDEN (breaking build intentionally)
-git push origin main -f  # Force push
-git commit -m "WIP: broken code"  # Work in progress
-```
-
-#### Branch Strategy
-- `main` - **Always buildable** (production-ready)
-- Feature branches - For development (can be broken)
+- **GitHub prevents merge** until all checks pass
+- **No direct commits** to main (protected)
+- **No force pushes** to main
+- **Automatic release** after merge
 - Tags (v*) - Triggers full release pipeline
 
 ---
