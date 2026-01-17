@@ -73,3 +73,25 @@ htmlcov/
 
 # OS
 Thumbs.db
+
+# === GUARDRAILS: Prevent legacy/archive files ===
+# NO backup files
+*.bak
+*.old
+*_old.*
+*_deprecated.*
+*.backup
+
+# NO archive directories
+archive/
+archives/
+old/
+legacy/
+deprecated/
+backup/
+
+# NO historical documentation
+*_ARCHIVED.*
+*_OLD.*
+*_DEPRECATED.*
+*_BACKUP.*
