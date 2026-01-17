@@ -46,10 +46,8 @@ class TargetAwareStrategy:
     """
     Dynamic, target-aware dice betting strategy with state machine.
     
-    Enforces:
-    - balance ≥ minBet to place bet
-    - profit ≥ minBet for any bet
-    - Stops when balance ≥ target OR balance < minBet
+    Adjusts bet sizing and risk based on distance to target.
+    Engine handles minimum bet validation and balance constraints.
     """
 
     @classmethod
@@ -312,15 +310,12 @@ class TargetAwareStrategy:
         pct_min: float,
         pct_max: float,
         chance: Decimal,
-    ) -> Optional[Decimal]:
+    ) -> Decimal:
         """
-        Compute bet size ensuring all constraints:
-        1. bet ≥ minBet
-        2. profit ≥ minBet
-        3. bet within percentage range of balance
-        4. bet ≤ balance
+        Compute bet size as percentage of balance.
+        Engine will handle minimum bet enforcement.
         
-        Returns None if constraints cannot be satisfied.
+        Returns bet amount within percentage range.
         """
         # Start with percentage-based bet
         pct = self.ctx.rng.uniform(pct_min, pct_max)
@@ -329,16 +324,8 @@ class TargetAwareStrategy:
         # Ensure minimum bet
         bet = max(bet, self.min_bet)
         
-        # Ensure minimum profit constraint
-        multiplier = self._compute_payout_multiplier(chance)
-        if multiplier > Decimal("1"):
-            min_bet_for_profit = self.min_bet / (multiplier - Decimal("1"))
-            bet = max(bet, min_bet_for_profit)
-        
-        # CRITICAL: Check if required bet exceeds balance
-        if bet > balance:
-            # Cannot place a bet that meets minimum profit with current balance
-            return None
+        # Cap at balance  
+        bet = min(bet, balance)
         
         return bet
 
@@ -409,22 +396,6 @@ class TargetAwareStrategy:
             chance,
         )
         
-        # Check if bet size could be computed
-        if bet is None:
-            return None
-        
-        # Validate profit constraint
-        if self._compute_profit(bet, chance) < self.min_bet:
-            # Find valid chance
-            valid_chance = self._find_valid_chance(
-                self.safe_chance_min,
-                self.safe_chance_max,
-                bet,
-            )
-            if valid_chance is None:
-                return None
-            chance = valid_chance
-        
         return {
             "game": "dice",
             "amount": format(bet, 'f'),
@@ -448,20 +419,6 @@ class TargetAwareStrategy:
             chance,
         )
         
-        # Check if bet size could be computed
-        if bet is None:
-            return None
-        
-        if self._compute_profit(bet, chance) < self.min_bet:
-            valid_chance = self._find_valid_chance(
-                self.build_chance_min,
-                self.build_chance_max,
-                bet,
-            )
-            if valid_chance is None:
-                return None
-            chance = valid_chance
-        
         return {
             "game": "dice",
             "amount": format(bet, 'f'),
@@ -484,20 +441,6 @@ class TargetAwareStrategy:
             self.strike_bet_pct_max,
             chance,
         )
-        
-        # Check if bet size could be computed
-        if bet is None:
-            return None
-        
-        if self._compute_profit(bet, chance) < self.min_bet:
-            valid_chance = self._find_valid_chance(
-                self.strike_chance_min,
-                self.strike_chance_max,
-                bet,
-            )
-            if valid_chance is None:
-                return None
-            chance = valid_chance
         
         return {
             "game": "dice",
