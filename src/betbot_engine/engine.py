@@ -183,6 +183,120 @@ def _parse_user_symbol_balance(user_info: Dict[str, Any], symbol: str) -> Decima
     return Decimal(0)
 
 
+def _validate_and_adjust_bet(
+    bet: BetSpec,
+    current_balance: Decimal,
+    min_bet: Decimal = Decimal("0.00000001"),
+    max_chance: Decimal = Decimal("98"),
+    min_chance: Decimal = Decimal("1"),
+    printer: Optional[Callable[[str], None]] = None,
+) -> Optional[BetSpec]:
+    """
+    Validate and adjust bet to meet minimum constraints.
+    
+    Adjustments made (in priority order):
+    1. Enforce minimum bet amount
+    2. Cap bet to available balance
+    3. Ensure chance is within valid range
+    4. Attempt to meet minimum profit constraint by adjusting bet or chance
+    
+    Returns:
+        Adjusted BetSpec if valid bet can be constructed, None otherwise
+    """
+    def print_line(msg: str) -> None:
+        if printer:
+            printer(msg)
+    
+    # Extract bet parameters
+    try:
+        amount_dec = _decimal(bet.get("amount", "0"))
+    except (ValueError, InvalidOperation):
+        print_line("⚠️  Invalid bet amount format")
+        return None
+    
+    game = bet.get("game", "dice")
+    
+    # For dice game, extract chance
+    if game == "dice":
+        try:
+            chance_dec = _decimal(bet.get("chance", "50"))
+        except (ValueError, InvalidOperation):
+            print_line("⚠️  Invalid chance format")
+            return None
+    else:
+        # Range dice doesn't use chance parameter
+        chance_dec = None
+    
+    # 1. Enforce minimum bet
+    original_amount = amount_dec
+    if amount_dec < min_bet:
+        amount_dec = min_bet
+        if printer:
+            print_line(f"   📈 Adjusted bet from {original_amount} to minimum {min_bet}")
+    
+    # 2. Cap at available balance
+    if amount_dec > current_balance:
+        if current_balance < min_bet:
+            # Cannot place any valid bet
+            print_line(f"⚠️  Insufficient balance ({current_balance}) for minimum bet ({min_bet})")
+            return None
+        amount_dec = current_balance
+        print_line(f"   ⚖️  Capped bet to available balance: {amount_dec}")
+    
+    # 3. Validate chance range (dice only)
+    if game == "dice" and chance_dec is not None:
+        if chance_dec > max_chance:
+            chance_dec = max_chance
+            print_line(f"   ⚖️  Capped chance to maximum: {chance_dec}%")
+        elif chance_dec < min_chance:
+            chance_dec = min_chance
+            print_line(f"   📈 Raised chance to minimum: {chance_dec}%")
+    
+    # 4. Check minimum profit constraint (dice only)
+    # profit = bet * (payout_multiplier - 1)
+    # payout_multiplier ≈ 99 / chance (house edge ~1%)
+    # For profit >= min_bet: bet * ((99/chance) - 1) >= min_bet
+    if game == "dice" and chance_dec is not None and chance_dec > Decimal("0"):
+        try:
+            payout_multiplier = Decimal("99") / chance_dec
+            expected_profit = amount_dec * (payout_multiplier - Decimal("1"))
+            
+            if expected_profit < min_bet:
+                # Try to fix by increasing bet amount
+                required_bet = min_bet / (payout_multiplier - Decimal("1"))
+                
+                if required_bet <= current_balance:
+                    # Can increase bet to meet profit requirement
+                    print_line(f"   💰 Increased bet from {amount_dec} to {required_bet} to meet minimum profit")
+                    amount_dec = required_bet
+                else:
+                    # Try to fix by decreasing chance (higher multiplier)
+                    # profit = bet * ((99/chance) - 1) >= min_bet
+                    # (99/chance) >= (min_bet/bet) + 1
+                    # chance <= 99 / ((min_bet/bet) + 1)
+                    max_valid_chance = Decimal("99") / ((min_bet / amount_dec) + Decimal("1"))
+                    
+                    if max_valid_chance >= min_chance:
+                        print_line(f"   🎯 Reduced chance from {chance_dec}% to {max_valid_chance}% to meet minimum profit")
+                        chance_dec = max_valid_chance
+                    else:
+                        # Cannot satisfy constraints
+                        print_line(f"⚠️  Cannot construct valid bet: profit ({expected_profit}) < minimum ({min_bet})")
+                        print_line(f"      Balance too low for this chance setting")
+                        return None
+        except (InvalidOperation, ZeroDivisionError):
+            # Calculation failed, allow bet to proceed
+            pass
+    
+    # Build adjusted bet
+    adjusted_bet = dict(bet)
+    adjusted_bet["amount"] = format(amount_dec, 'f')
+    if game == "dice" and chance_dec is not None:
+        adjusted_bet["chance"] = format(chance_dec, 'f')
+    
+    return adjusted_bet
+
+
 def run_auto_bet(
     api: DuckDiceAPI,
     strategy_name: str,
@@ -311,23 +425,33 @@ def run_auto_bet(
             # Enforce symbol and faucet default
             bet.setdefault("faucet", ctx.faucet)
 
-            # Amount cap
-            amount_dec = _decimal(bet["amount"]) if "amount" in bet else Decimal(0)
-            if limits.max_bet is not None and amount_dec > limits.max_bet:
-                amount_dec = limits.max_bet
-                bet["amount"] = format(amount_dec, 'f')
+            # Apply max_bet limit from session limits
+            if limits.max_bet is not None:
+                try:
+                    amount_dec = _decimal(bet.get("amount", "0"))
+                    if amount_dec > limits.max_bet:
+                        bet["amount"] = format(limits.max_bet, 'f')
+                        print_line(f"   ⚖️  Capped bet to session max_bet: {limits.max_bet}")
+                except (ValueError, InvalidOperation):
+                    pass
             
-            # Balance validation - prevent betting more than available
-            if amount_dec > current_balance:
-                print_line(f"⚠️  Warning: Strategy requested {amount_dec} but only {current_balance} available")
-                # Stop if can't afford minimum bet
-                if current_balance <= Decimal("0.00000001"):
-                    stopped_reason = "insufficient_balance"
-                    break
-                # Otherwise cap to current balance
-                amount_dec = current_balance
-                bet["amount"] = format(amount_dec, 'f')
-                print_line(f"   Adjusted bet to {amount_dec} (all available balance)")
+            # Comprehensive bet validation and adjustment
+            min_bet = Decimal("0.00000001")  # 1 satoshi default
+            validated_bet = _validate_and_adjust_bet(
+                bet=bet,
+                current_balance=current_balance,
+                min_bet=min_bet,
+                printer=print_line,
+            )
+            
+            if validated_bet is None:
+                # Cannot place a valid bet, stop session
+                stopped_reason = "insufficient_balance"
+                break
+            
+            # Use validated bet
+            bet = validated_bet
+            amount_dec = _decimal(bet["amount"])
 
             # Execute bet
             ts = time.time()
