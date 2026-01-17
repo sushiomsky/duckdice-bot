@@ -312,12 +312,15 @@ class TargetAwareStrategy:
         pct_min: float,
         pct_max: float,
         chance: Decimal,
-    ) -> Decimal:
+    ) -> Optional[Decimal]:
         """
         Compute bet size ensuring all constraints:
         1. bet ≥ minBet
         2. profit ≥ minBet
         3. bet within percentage range of balance
+        4. bet ≤ balance
+        
+        Returns None if constraints cannot be satisfied.
         """
         # Start with percentage-based bet
         pct = self.ctx.rng.uniform(pct_min, pct_max)
@@ -332,8 +335,10 @@ class TargetAwareStrategy:
             min_bet_for_profit = self.min_bet / (multiplier - Decimal("1"))
             bet = max(bet, min_bet_for_profit)
         
-        # Cap at balance
-        bet = min(bet, balance)
+        # CRITICAL: Check if required bet exceeds balance
+        if bet > balance:
+            # Cannot place a bet that meets minimum profit with current balance
+            return None
         
         return bet
 
@@ -404,6 +409,10 @@ class TargetAwareStrategy:
             chance,
         )
         
+        # Check if bet size could be computed
+        if bet is None:
+            return None
+        
         # Validate profit constraint
         if self._compute_profit(bet, chance) < self.min_bet:
             # Find valid chance
@@ -439,6 +448,10 @@ class TargetAwareStrategy:
             chance,
         )
         
+        # Check if bet size could be computed
+        if bet is None:
+            return None
+        
         if self._compute_profit(bet, chance) < self.min_bet:
             valid_chance = self._find_valid_chance(
                 self.build_chance_min,
@@ -471,6 +484,10 @@ class TargetAwareStrategy:
             self.strike_bet_pct_max,
             chance,
         )
+        
+        # Check if bet size could be computed
+        if bet is None:
+            return None
         
         if self._compute_profit(bet, chance) < self.min_bet:
             valid_chance = self._find_valid_chance(
