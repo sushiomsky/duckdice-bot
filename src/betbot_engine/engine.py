@@ -518,7 +518,67 @@ def run_auto_bet(
                 except Exception as e:
                     # Handle API errors gracefully
                     error_msg = str(e)
-                    if "insufficient balance" in error_msg.lower() or "422" in error_msg:
+                    
+                    # Try to extract response body for detailed error parsing
+                    response_text = ""
+                    if hasattr(e, 'response') and hasattr(e.response, 'text'):
+                        response_text = e.response.text
+                    
+                    # Try to parse minimum bet from error response
+                    # Error format: "The minimum bet is {{amount}} {{symbol}}"
+                    # Response: {"error":"...","params":{"amount":"0.00001269","symbol":"LTC"}}
+                    import re
+                    import json
+                    
+                    # Check response_text first, fallback to error_msg
+                    search_text = response_text if response_text else error_msg
+                    min_bet_match = re.search(r'"amount"\s*:\s*"([0-9.]+)"', search_text)
+                    
+                    if min_bet_match and "minimum bet" in search_text.lower():
+                        # Extract minimum bet from error
+                        try:
+                            api_min_bet = Decimal(min_bet_match.group(1))
+                            print_line(f"⚠️  Bet too small. API requires minimum: {api_min_bet}")
+                            
+                            # Retry with corrected minimum
+                            if api_min_bet <= current_balance:
+                                print_line(f"   🔄 Retrying with minimum bet: {api_min_bet}")
+                                bet["amount"] = str(api_min_bet)
+                                amount_dec = api_min_bet
+                                
+                                # Retry the API call
+                                try:
+                                    if bet.get("game") == "dice":
+                                        api_raw = api.play_dice(
+                                            symbol=config.symbol,
+                                            amount=bet["amount"],
+                                            chance=bet["chance"],
+                                            is_high=bool(bet.get("is_high")),
+                                            faucet=bool(bet.get("faucet")),
+                                        )
+                                    else:
+                                        r = bet.get("range") or (0, 0)
+                                        api_raw = api.play_range_dice(
+                                            symbol=config.symbol,
+                                            amount=bet["amount"],
+                                            range_values=[int(r[0]), int(r[1])],
+                                            is_in=bool(bet.get("is_in")),
+                                            faucet=bool(bet.get("faucet")),
+                                        )
+                                except Exception as retry_error:
+                                    print_line(f"⚠️  Retry failed: {retry_error}")
+                                    stopped_reason = "api_error"
+                                    break
+                            else:
+                                print_line(f"⚠️  Insufficient balance ({current_balance}) for minimum bet ({api_min_bet})")
+                                stopped_reason = "insufficient_balance"
+                                break
+                        except (ValueError, InvalidOperation) as parse_err:
+                            # Failed to parse minimum bet, fall through to general error handling
+                            print_line(f"⚠️  Failed to parse minimum bet from error: {parse_err}")
+                            stopped_reason = "api_error"
+                            break
+                    elif "insufficient balance" in error_msg.lower():
                         print_line(f"⚠️  API Error: Insufficient balance to place bet of {amount_dec}")
                         stopped_reason = "insufficient_balance"
                         break
