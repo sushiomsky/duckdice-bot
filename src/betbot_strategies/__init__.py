@@ -77,6 +77,7 @@ from . import (
     custom_script,
     streak_hunter,
     micro_exponential,
-    micro_exponential_safe,  # NEW: Safer micro exponential variant
-    progressive_win_scaling  # NEW: Progressive win-only scaling strategy
+    micro_exponential_safe,
+    progressive_win_scaling,
+    streak_multiplier  # NEW: Exponential growth on win streaks
 )
