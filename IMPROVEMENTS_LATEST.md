@@ -1,9 +1,81 @@
 # Latest Improvements Summary
 
-**Date**: 2026-01-18  
+**Date**: 2026-01-19  
 **Version**: 4.9.2+
 
-## 1. Streak-Multiplier Strategy ✅
+## Recent Fixes (Latest → Oldest)
+
+### 3. Decimal Precision Fix ✅
+
+**Commit**: `a599cd6` (2026-01-19)
+
+Fixed "Invalid chance" API errors by quantizing bet values to proper precision.
+
+**Problem**: Bet validation calculations produced excessive decimal precision:
+```
+amount: "0.0000005142646406142484520548250163" (33 decimals!)
+Error: "Invalid chance"
+```
+
+**Solution**: Quantize to API-compatible precision:
+- **Amount**: 8 decimal places (crypto standard)
+- **Chance**: 2 decimal places (e.g., 95.50%)
+
+**Implementation**:
+```python
+amount_quantized = amount_dec.quantize(Decimal("0.00000001"))
+chance_quantized = chance_dec.quantize(Decimal("0.01"))
+```
+
+**Test Results**:
+- ✅ XAUT: 3 real bets, all accepted by API
+- ✅ BTC simulation: 20 bets, 95.24% win rate, nearly hit target
+
+---
+
+### 2. JSON Import Scope Fix ✅
+
+**Commit**: `cc27580` (2026-01-19)
+
+Fixed NameError caused by local import shadowing module-level import.
+
+**Problem**:
+```python
+NameError: cannot access free variable 'json' where it is not
+associated with a value in enclosing scope
+```
+
+**Root Cause**: Local `import json` in exception handler shadowed module-level import, breaking `file_sink` closure.
+
+**Solution**: 
+- Added `import re` to module-level imports
+- Removed local imports from exception handler
+
+**Test Results**:
+- ✅ range-50-random: 5 simulation bets
+- ✅ DECOY live: 3 real bets, +30% profit (+21.69 DECOY)
+
+---
+
+### 1. Auto-Retry with API Minimum Bet ✅
+
+**Commit**: `a7d7e7c` (2026-01-18)
+
+Automatically handles currency-specific minimum bet requirements from DuckDice API.
+
+**Problem**: When strategies calculate bets below API minimums (e.g., LTC requires 0.00001269), the API returns 422 error.
+
+**Solution**: Parse minimum from error response and retry with corrected amount.
+
+**Test Results**:
+- ✅ LTC: 10 real bets, +10.43% profit
+- ✅ XAUT: 3 real bets, working correctly
+
+---
+
+## Core Features (2026-01-18)
+
+### Streak-Multiplier Strategy ✅
 
 **Commit**: `9cea160`
 
@@ -37,101 +109,30 @@ duckdice run -m simulation -c btc -s streak-multiplier --max-bets 100
 
 ---
 
-## 2. Auto-Retry with API Minimum Bet ✅
-
-**Commit**: `a7d7e7c`
-
-Automatically handles currency-specific minimum bet requirements from DuckDice API.
-
-### Problem Solved
-
-When strategies calculate bets below API minimums (e.g., LTC requires 0.00001269), the API returns:
-```json
-{
-  "error": "The minimum bet is {{amount}} {{symbol}}.",
-  "params": {"amount": "0.00001269", "symbol": "LTC"}
-}
-```
-
-Previous behavior: Stopped with "insufficient balance" error
-
-### Solution
-
-**Intelligent auto-retry mechanism**:
-
-1. **Parse** minimum bet from 422 error response
-2. **Validate** balance is sufficient
-3. **Retry** bet with corrected amount
-
-### Implementation
-
-**File**: `src/betbot_engine/engine.py` (lines 518-586)
-
-**Error Detection**:
-- Extracts `e.response.text` for detailed JSON
-- Regex: `"amount"\s*:\s*"([0-9.]+)"`
-- Checks for "minimum bet" in message
-
-**Retry Logic**:
-```python
-if api_min_bet <= current_balance:
-    bet["amount"] = str(api_min_bet)
-    # Retry API call
-else:
-    stopped_reason = "insufficient_balance"
-```
-
-### Test Results
-
-✅ **LTC** (min bet: 0.00001269):
-- Strategy calculated: 0.00001230616
-- Auto-adjusted to: 0.00001269
-- **10 real bets**: +10.43% profit ✅
-
-✅ **XAUT** (min bet: 0.0000002):
-- Auto-adjusted successfully
-- **3 real bets**: Working correctly ✅
-
-### User Experience
-
-**Before**:
-```
-HTTP Error: 422...
-⚠️  API Error: Insufficient balance to place bet
-```
-
-**After**:
-```
-⚠️  Bet too small. API requires minimum: 0.00001269
-   🔄 Retrying with minimum bet: 0.00001269
-Bet #1: ✗ LOSE | Amount: 0.00001269 | ...
-```
-
-### Benefits
-
-✅ **Guardrail Compliance**: Bet validation in engine (Principle #2)  
-✅ **Strategy Simplicity**: No currency-specific minimums needed  
-✅ **User Transparency**: Clear adjustment messages  
-✅ **Optimal Betting**: Uses exact API minimums, not estimates  
-
-### Edge Cases Handled
-
-- Balance < API minimum → Stop with "insufficient_balance"
-- Retry fails → Stop with "api_error"
-- Non-minimum errors → Proper error handling
-
----
-
 ## Impact Summary
 
 | Improvement | Benefit | Status |
 |------------|---------|--------|
+| Decimal Precision | XAUT and all currencies work | ✅ Live |
+| JSON Scope Fix | All strategies log correctly | ✅ Live |
 | Streak-Multiplier | New high-risk exponential strategy | ✅ Live |
 | Auto-Retry | Universal currency support | ✅ Live |
 | Bet Validation | Engine-level enforcement | ✅ Live |
 | Development Guardrails | Consistent code quality | ✅ Active |
 | Branch Protection | Main always buildable | ⚠️ Needs GitHub config |
 | CI/CD Workflows | Automated builds/releases | ✅ Ready |
+
+## Recent Test Results
+
+**Live Trading** (Real API):
+- ✅ LTC: 10 bets, +10.43% profit
+- ✅ XAUT: 6 bets total, all successful
+- ✅ DECOY: 3 bets, +30% profit
+
+**Simulation** (Monte Carlo):
+- ✅ BTC target-aware: 20 bets, 95% win rate
+- ✅ BTC streak-multiplier: 50 bets, +30% profit
+- ✅ DECOY range-50-random: 5 bets, functional
 
 ## Next Steps
 
@@ -152,3 +153,5 @@ Bet #1: ✗ LOSE | Amount: 0.00001269 | ...
 ---
 
 **All changes validated and pushed to GitHub** ✅
+
+**Commits**: `a599cd6`, `cc27580`, `a7d7e7c`, `f80d81a`, `9cea160`
