@@ -8,6 +8,7 @@ Packaged variant that depends on:
 """
 import json
 import os
+import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal, getcontext, InvalidOperation
@@ -527,8 +528,6 @@ def run_auto_bet(
                     # Try to parse minimum bet from error response
                     # Error format: "The minimum bet is {{amount}} {{symbol}}"
                     # Response: {"error":"...","params":{"amount":"0.00001269","symbol":"LTC"}}
-                    import re
-                    import json
                     
                     # Check response_text first, fallback to error_msg
                     search_text = response_text if response_text else error_msg
