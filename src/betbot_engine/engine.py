@@ -290,10 +290,17 @@ def _validate_and_adjust_bet(
             pass
     
     # Build adjusted bet
+    # Use reasonable precision for API (8 decimal places for crypto)
     adjusted_bet = dict(bet)
-    adjusted_bet["amount"] = format(amount_dec, 'f')
+    
+    # Quantize to 8 decimal places and strip trailing zeros
+    amount_quantized = amount_dec.quantize(Decimal("0.00000001"))
+    adjusted_bet["amount"] = str(amount_quantized)
+    
     if game == "dice" and chance_dec is not None:
-        adjusted_bet["chance"] = format(chance_dec, 'f')
+        # Quantize chance to 2 decimal places (e.g., 95.50%)
+        chance_quantized = chance_dec.quantize(Decimal("0.01"))
+        adjusted_bet["chance"] = str(chance_quantized)
     
     return adjusted_bet
 
