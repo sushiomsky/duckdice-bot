@@ -81,4 +81,5 @@ from . import (
     progressive_win_scaling,
     streak_multiplier,  # Exponential growth on win streaks
     adaptive_survival,  # Meta-strategy with adaptive pattern detection
+    simple_progression_40,  # Simple 40% chance win progression
 )
