@@ -67,7 +67,8 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **Interactive Mode** - Guided setup, zero configuration needed
 - **Profile Management** - Save and reuse configurations
 - **Risk Controls** - Stop-loss, take-profit, max bets/losses
-- **Session History** - SQLite database tracks all bets
+- **Database Logging** - Complete bet stream logged to SQLite for analysis ⭐
+- **Session History** - Query sessions, export CSV, debug strategies
 - **Real-time Stats** - Live progress tracking and statistics
 - **Analytics Dashboard** - Comprehensive performance metrics
 

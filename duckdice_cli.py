@@ -609,7 +609,9 @@ def cmd_run(args):
         max_losses=args.max_losses,
         max_duration_sec=args.max_duration,
         delay_ms=delay_ms,
-        jitter_ms=jitter_ms
+        jitter_ms=jitter_ms,
+        db_log=getattr(args, 'db_log', True),
+        db_path=getattr(args, 'db_path', None)
     )
     
     # Run strategy
@@ -1259,6 +1261,12 @@ def main():
                                 'Example: -P base_amount=0.00001 -P chance=49.5 -P multiplier=2')
     run_parser.add_argument('--interactive-params', '-I', action='store_true',
                            help='Interactively configure strategy parameters')
+    run_parser.add_argument('--db-log', action='store_true', default=True,
+                           help='Enable database logging (default: enabled)')
+    run_parser.add_argument('--no-db-log', action='store_false', dest='db_log',
+                           help='Disable database logging')
+    run_parser.add_argument('--db-path', type=str,
+                           help='Custom database path (default: data/duckdice_bot.db)')
     run_parser.set_defaults(func=cmd_run)
     
     # List strategies

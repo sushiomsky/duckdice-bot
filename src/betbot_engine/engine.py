@@ -12,6 +12,7 @@ import re
 import time
 from dataclasses import dataclass
 from decimal import Decimal, getcontext, InvalidOperation
+from pathlib import Path
 from typing import Any, Callable, Dict, Optional
 
 from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
@@ -73,6 +74,8 @@ class EngineConfig:
     max_duration_sec: Optional[int] = None
     seed: Optional[int] = None
     log_dir: str = os.path.join("bet_history", "auto")
+    db_log: bool = True  # Enable database logging
+    db_path: Optional[str] = None  # Custom database path
     
     @staticmethod
     def get_speed_preset(preset: str = "fast"):
@@ -353,6 +356,17 @@ def run_auto_bet(
         max_duration_sec=config.max_duration_sec,
     )
 
+    # Database logger (optional)
+    db = None
+    if config.db_log:
+        try:
+            from .bet_database import BetDatabase
+            db_path = Path(config.db_path) if config.db_path else None
+            db = BetDatabase(db_path)
+        except Exception as e:
+            if printer:
+                printer(f"⚠️  Database logging disabled: {e}")
+
     # Logger
     session_id = time.strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(config.log_dir, f"{session_id}_{config.symbol}_{strategy_name}.jsonl")
@@ -389,6 +403,8 @@ def run_auto_bet(
 
     # Session state
     bets_done = 0
+    wins_count = 0
+    losses_count = 0
     losses_in_row = 0
     current_balance = starting_balance
 
@@ -400,6 +416,28 @@ def run_auto_bet(
     strategy.on_session_start()
     start_msg = f"[start] strategy={strategy_name} symbol={config.symbol} dry_run={config.dry_run} faucet={config.faucet}"
     print_line(start_msg)
+    
+    # Start database session
+    if db:
+        try:
+            db.start_session(
+                session_id=session_id,
+                strategy_name=strategy_name,
+                symbol=config.symbol,
+                simulation_mode=config.dry_run,
+                starting_balance=starting_balance,
+                strategy_params=params,
+                limits={
+                    'stop_loss': config.stop_loss,
+                    'take_profit': config.take_profit,
+                    'max_bet': config.max_bet,
+                    'max_bets': config.max_bets,
+                    'max_losses': config.max_losses,
+                    'max_duration_sec': config.max_duration_sec,
+                }
+            )
+        except Exception as e:
+            print_line(f"⚠️  Database session start failed: {e}")
     
     if emitter and _EVENTS_AVAILABLE:
         emitter.emit(SessionStartedEvent(
@@ -617,11 +655,13 @@ def run_auto_bet(
                 "timestamp": ts,
             }
 
-            # Loss streaks
+            # Loss streaks and win/loss tracking
             if win:
                 losses_in_row = 0
+                wins_count += 1
             else:
                 losses_in_row += 1
+                losses_count += 1
 
             # Log
             sink({
@@ -635,6 +675,35 @@ def run_auto_bet(
                 "loss_streak": losses_in_row,
                 "bets_done": bets_done + 1,
             })
+            
+            # Log to database
+            if db:
+                try:
+                    # Get strategy state if available
+                    strategy_state = None
+                    if hasattr(strategy, 'get_state'):
+                        try:
+                            strategy_state = strategy.get_state()
+                        except:
+                            pass
+                    
+                    db.log_bet(
+                        session_id=session_id,
+                        bet_data={
+                            "symbol": config.symbol,
+                            "strategy": strategy_name,
+                            **bet
+                        },
+                        result_data=result,
+                        bet_number=bets_done + 1,
+                        balance=current_balance,
+                        loss_streak=losses_in_row,
+                        simulation_mode=config.dry_run,
+                        strategy_state=strategy_state
+                    )
+                except Exception as e:
+                    # Don't fail bet on database error
+                    pass
             
             # Emit bet result event
             if emitter and _EVENTS_AVAILABLE:
@@ -672,14 +741,12 @@ def run_auto_bet(
             
             # Emit stats update
             if emitter and _EVENTS_AVAILABLE:
-                wins = sum(1 for i in range(bets_done) if True)  # TODO: track wins properly
-                losses = bets_done - wins
-                win_rate = (wins / bets_done * 100) if bets_done > 0 else 0
+                win_rate = (wins_count / bets_done * 100) if bets_done > 0 else 0
                 emitter.emit(StatsUpdatedEvent(
                     timestamp=ts,
                     total_bets=bets_done,
-                    wins=wins,
-                    losses=losses,
+                    wins=wins_count,
+                    losses=losses_count,
                     win_rate=win_rate,
                     profit=pl,
                     profit_percent=float(pct),
@@ -696,6 +763,21 @@ def run_auto_bet(
     strategy.on_session_end(stopped_reason)
 
     duration = time.time() - start_ts
+    
+    # End database session
+    if db:
+        try:
+            db.end_session(
+                session_id=session_id,
+                ending_balance=current_balance,
+                stop_reason=stopped_reason,
+                total_bets=bets_done,
+                wins=wins_count,
+                losses=losses_count
+            )
+        except Exception as e:
+            print_line(f"⚠️  Database session end failed: {e}")
+    
     summary = {
         "strategy": strategy_name,
         "symbol": config.symbol,
