@@ -21,11 +21,25 @@ class DuckDiceConfig:
     pool_connections: int = 10  # Connection pool size
     pool_maxsize: int = 20  # Max connections in pool
     max_retries: int = 3  # Retry failed requests
+    fallback_domains: List[str] = None  # Alternative domains to try
+    
+    def __post_init__(self):
+        """Initialize fallback domains if not provided."""
+        if self.fallback_domains is None:
+            # Default fallback domains
+            self.fallback_domains = [
+                "https://duckdice.io/api",
+                "https://duckdice.live/api",
+                "https://duckdice.net/api",
+            ]
 
 
 class DuckDiceAPI:
     def __init__(self, config: DuckDiceConfig):
         self.config = config
+        self.current_base_url = config.base_url
+        self.fallback_index = 0
+        
         # Create session with connection pooling for better performance
         self.session = requests.Session()
         
@@ -51,28 +65,68 @@ class DuckDiceAPI:
         )
 
     def _make_request(self, method: str, endpoint: str, data: Optional[Dict] = None) -> Dict[Any, Any]:
-        url = f"{self.config.base_url}/{endpoint}"
-        params = {"api_key": self.config.api_key}
-        try:
-            if method.upper() == "GET":
-                response = self.session.get(url, params=params, timeout=self.config.timeout)
-            elif method.upper() == "POST":
-                response = self.session.post(url, params=params, json=data, timeout=self.config.timeout)
-            else:
-                raise ValueError(f"Unsupported HTTP method: {method}")
-            response.raise_for_status()
-            return response.json()
-        except requests.exceptions.HTTPError as e:
-            print(f"HTTP Error: {e}", file=sys.stderr)
-            if hasattr(e.response, "text"):
-                print(f"Response: {e.response.text}", file=sys.stderr)
-            raise
-        except requests.exceptions.RequestException as e:
-            print(f"Request Error: {e}", file=sys.stderr)
-            raise
-        except json.JSONDecodeError as e:
-            print(f"JSON Decode Error: {e}", file=sys.stderr)
-            raise
+        """Make HTTP request with automatic fallback to alternative domains."""
+        last_exception = None
+        
+        # Try current domain first, then fallbacks
+        domains_to_try = [self.current_base_url]
+        if self.config.fallback_domains:
+            for domain in self.config.fallback_domains:
+                if domain != self.current_base_url:
+                    domains_to_try.append(domain)
+        
+        for domain_url in domains_to_try:
+            url = f"{domain_url}/{endpoint}"
+            params = {"api_key": self.config.api_key}
+            
+            try:
+                if method.upper() == "GET":
+                    response = self.session.get(url, params=params, timeout=self.config.timeout)
+                elif method.upper() == "POST":
+                    response = self.session.post(url, params=params, json=data, timeout=self.config.timeout)
+                else:
+                    raise ValueError(f"Unsupported HTTP method: {method}")
+                
+                response.raise_for_status()
+                
+                # Success! Update current base URL if we switched
+                if domain_url != self.current_base_url:
+                    print(f"✓ Switched to {domain_url}", file=sys.stderr)
+                    self.current_base_url = domain_url
+                
+                return response.json()
+                
+            except (requests.exceptions.ConnectionError, 
+                    requests.exceptions.Timeout,
+                    requests.exceptions.HTTPError) as e:
+                last_exception = e
+                
+                # Only log if this is the last domain to try
+                if domain_url == domains_to_try[-1]:
+                    print(f"Request Error: {e}", file=sys.stderr)
+                else:
+                    # Briefly note the failure and try next domain
+                    domain_name = domain_url.split('/')[2]
+                    print(f"⚠ {domain_name} unavailable, trying next...", file=sys.stderr)
+                
+                continue
+                
+            except requests.exceptions.RequestException as e:
+                last_exception = e
+                print(f"Request Error: {e}", file=sys.stderr)
+                raise
+                
+            except json.JSONDecodeError as e:
+                last_exception = e
+                print(f"JSON Decode Error: {e}", file=sys.stderr)
+                raise
+        
+        # All domains failed
+        if last_exception:
+            print(f"❌ All API endpoints failed", file=sys.stderr)
+            raise last_exception
+        
+        raise RuntimeError("No domains to try")
 
     def play_dice(
         self,
