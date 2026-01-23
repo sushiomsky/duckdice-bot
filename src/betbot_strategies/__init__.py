@@ -79,5 +79,6 @@ from . import (
     micro_exponential,
     micro_exponential_safe,
     progressive_win_scaling,
-    streak_multiplier  # NEW: Exponential growth on win streaks
+    streak_multiplier,  # Exponential growth on win streaks
+    adaptive_survival,  # Meta-strategy with adaptive pattern detection
 )
