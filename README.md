@@ -68,6 +68,7 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **Profile Management** - Save and reuse configurations
 - **Risk Controls** - Stop-loss, take-profit, max bets/losses
 - **Database Logging** - Complete bet stream logged to SQLite for analysis ⭐
+- **API Fallback** - Automatic failover to .live and .net domains ⭐
 - **Session History** - Query sessions, export CSV, debug strategies
 - **Real-time Stats** - Live progress tracking and statistics
 - **Analytics Dashboard** - Comprehensive performance metrics
@@ -231,6 +232,18 @@ GROUP BY strategy;
 ```
 
 ## 🔧 Advanced Usage
+
+### API Fallback Domains
+
+The bot automatically tries alternative domains if the primary is unavailable:
+
+```
+1. duckdice.io   (primary)
+2. duckdice.live (fallback #1)  
+3. duckdice.net  (fallback #2)
+```
+
+No configuration needed - works automatically! See [API_FALLBACK.md](docs/API_FALLBACK.md) for details.
 
 ### Batch Testing
 
