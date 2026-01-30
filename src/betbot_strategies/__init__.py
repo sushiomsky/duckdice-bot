@@ -82,4 +82,5 @@ from . import (
     streak_multiplier,  # Exponential growth on win streaks
     adaptive_survival,  # Meta-strategy with adaptive pattern detection
     simple_progression_40,  # Simple 40% chance win progression
+    adaptive_volatility_hunter,  # Ultra-low chance hunting with volatility adaptation
 )

@@ -1,21 +1,26 @@
 from __future__ import annotations
 """
-Simple Progression Strategy - 40% Chance with Win Progression
+Simple Progression Strategy - 40% Chance with Decreasing Win Progression
 
-A straightforward reverse martingale strategy that increases bet by 45% on wins
-and resets to base bet on losses.
+A reverse martingale strategy with smart progression that decreases increases
+over time to manage risk during long win streaks.
 
 Strategy:
 - Fixed 40% win chance
-- Base bet: 1/100 of balance (1%)
-- On win: Increase bet by 45%
-- On loss: Reset to base bet
+- Base bet: Always recalculated as % of current balance (default 1%)
+- On win: Increase bet by decreasing amounts
+  * 1st win: +50% (1.50x previous)
+  * 2nd win: +40% (1.40x previous)
+  * 3rd win: +30% (1.30x previous)
+  * 4th+ wins: +20% (1.20x previous)
+- On loss: Reset to base bet (recalculated from current balance)
 - Bet high (target > 60)
 
 Characteristics:
-- Low risk on losses (always reset to small base)
-- Capitalizes on win streaks
-- Simple and predictable
+- Base bet automatically adjusts to balance changes
+- Low risk on losses (always reset to small % of current balance)
+- Capitalizes on win streaks with managed growth
+- Progressive risk reduction on longer streaks
 - Good risk/reward balance
 """
 from typing import Any, Dict, Optional
@@ -43,8 +48,8 @@ class SimpleProgression40Strategy:
     @classmethod
     def describe(cls) -> str:
         return (
-            "40% chance, 45% increase on win, reset on loss. "
-            "Base bet 1% of balance. Simple win streak capitalizer."
+            "40% chance with decreasing progression: +50%→+40%→+30%→+20%. "
+            "Base bet always 1% of current balance. Smart win streak capitalizer."
         )
     
     @classmethod
@@ -57,29 +62,32 @@ class SimpleProgression40Strategy:
             recommended_for="Beginners",
             pros=[
                 "Simple and easy to understand",
-                "Low risk on losses (always reset to 1%)",
-                "Capitalizes on win streaks",
-                "Predictable bet sizing",
+                "Base bet auto-adjusts to balance changes",
+                "Low risk on losses (always reset to 1% of balance)",
+                "Decreasing progression reduces long streak risk",
+                "Capitalizes on win streaks intelligently",
+                "Predictable bet sizing with safety built-in",
                 "Good risk/reward balance",
-                "Fast profit potential on streaks"
+                "Fast profit potential on short streaks"
             ],
             cons=[
                 "Single loss erases win streak progress",
                 "Requires win streaks for significant profit",
                 "40% chance means ~60% loss rate",
                 "Can be frustrating with alternating results",
-                "No drawdown protection",
+                "Slower growth on long streaks vs fixed increase",
                 "Not optimal for long sessions without streaks"
             ],
-            best_use_case="Short to medium sessions hoping to catch win streaks. Good for learning progression mechanics.",
+            best_use_case="Short to medium sessions hoping to catch win streaks. Base bet automatically scales with balance changes.",
             tips=[
                 "Set take-profit to lock in win streak gains",
                 "Use max-bets limit to prevent overexposure",
                 "Best in calm market conditions",
                 "Exit after 3+ win streak if target met",
-                "Adjust win_increase for risk tolerance",
+                "Adjust base_bet_pct for risk tolerance (0.5-2%)",
+                "Adjust progression rates for different risk profiles",
                 "Consider stopping after big loss streak",
-                "Works well with small base_bet_pct for safety"
+                "Decreasing progression protects on 4+ win streaks"
             ]
         )
     
@@ -89,17 +97,32 @@ class SimpleProgression40Strategy:
             "base_bet_pct": {
                 "type": "float",
                 "default": 0.01,
-                "desc": "Base bet as % of balance (1% = 0.01)",
+                "desc": "Base bet as % of current balance (1% = 0.01, recalculated each bet)",
             },
             "win_chance": {
                 "type": "str",
                 "default": "40",
                 "desc": "Win chance percentage (40%)",
             },
-            "win_increase": {
+            "first_win_increase": {
                 "type": "float",
-                "default": 0.45,
-                "desc": "Increase % on win (45% = 0.45)",
+                "default": 0.50,
+                "desc": "1st win increase % (50% = 0.50, makes bet 1.5x)",
+            },
+            "second_win_increase": {
+                "type": "float",
+                "default": 0.40,
+                "desc": "2nd win increase % (40% = 0.40, makes bet 1.4x)",
+            },
+            "third_win_increase": {
+                "type": "float",
+                "default": 0.30,
+                "desc": "3rd win increase % (30% = 0.30, makes bet 1.3x)",
+            },
+            "fourth_plus_win_increase": {
+                "type": "float",
+                "default": 0.20,
+                "desc": "4th+ win increase % (20% = 0.20, makes bet 1.2x)",
             },
             "max_bet_multiplier": {
                 "type": "float",
@@ -120,15 +143,31 @@ class SimpleProgression40Strategy:
         # Parse parameters
         self.base_bet_pct = Decimal(str(params.get('base_bet_pct', 0.01)))
         self.win_chance = Decimal(str(params.get('win_chance', '40')))
-        self.win_increase = Decimal(str(params.get('win_increase', 0.45)))
+        self.first_win_increase = Decimal(str(params.get('first_win_increase', 0.50)))
+        self.second_win_increase = Decimal(str(params.get('second_win_increase', 0.40)))
+        self.third_win_increase = Decimal(str(params.get('third_win_increase', 0.30)))
+        self.fourth_plus_win_increase = Decimal(str(params.get('fourth_plus_win_increase', 0.20)))
         self.max_bet_multiplier = Decimal(str(params.get('max_bet_multiplier', 10.0)))
         self.bet_high = params.get('bet_high', True)
         
         # State
         self.current_bet_multiplier = Decimal(1)  # Starts at 1x base
+        self.current_balance = Decimal(str(ctx.starting_balance))  # Track balance ourselves
         self.win_streak = 0
         self.total_wins = 0
         self.total_losses = 0
+        self.last_bet_amount = Decimal(0)  # Track for progression calculation
+    
+    def _get_win_increase_for_streak(self) -> Decimal:
+        """Get the increase percentage based on current win streak."""
+        if self.win_streak == 0:
+            return self.first_win_increase
+        elif self.win_streak == 1:
+            return self.second_win_increase
+        elif self.win_streak == 2:
+            return self.third_win_increase
+        else:  # 3+
+            return self.fourth_plus_win_increase
     
     def on_session_start(self):
         """Called when session starts."""
@@ -136,11 +175,15 @@ class SimpleProgression40Strategy:
     
     def on_bet_result(self, result: BetResult):
         """Called after each bet result."""
+        # Update balance from result
+        self.current_balance = Decimal(str(result.get('balance', '0')))
+        
         if result.get('win', False):
-            # Win: Increase bet
+            # Win: Increase bet using decreasing progression
+            increase_pct = self._get_win_increase_for_streak()
             self.win_streak += 1
             self.total_wins += 1
-            self.current_bet_multiplier *= (Decimal(1) + self.win_increase)
+            self.current_bet_multiplier *= (Decimal(1) + increase_pct)
             
             # Cap at max multiplier
             if self.current_bet_multiplier > self.max_bet_multiplier:
@@ -153,14 +196,14 @@ class SimpleProgression40Strategy:
     
     def next_bet(self) -> Optional[BetSpec]:
         """Generate next bet."""
-        # Get current balance
-        balance = Decimal(str(self.ctx.current_balance_str()))
+        # Use our tracked balance (updated in on_bet_result)
+        balance = self.current_balance
         
         # Check minimum balance
         if balance < Decimal("0.00000001"):
             return None
         
-        # Calculate bet amount
+        # Calculate bet amount - base bet recalculates from current balance every time
         base_bet = balance * self.base_bet_pct
         bet_amount = base_bet * self.current_bet_multiplier
         
@@ -171,6 +214,9 @@ class SimpleProgression40Strategy:
         
         # Quantize to 8 decimal places
         bet_amount = bet_amount.quantize(Decimal("0.00000001"))
+        
+        # Store for tracking
+        self.last_bet_amount = bet_amount
         
         return {
             "game": "dice",

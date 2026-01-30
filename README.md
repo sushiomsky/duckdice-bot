@@ -60,7 +60,7 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 
 ### 🎯 Core Capabilities
 
-- **22 Built-in Strategies** - From conservative to aggressive
+- **26 Built-in Strategies** - From conservative to aggressive
 - **Beautiful Terminal UI** - CLI with colors, TUI with Textual/NCurses ⭐
 - **Simulation Mode** - Test risk-free with virtual balance
 - **Live Betting** - Real betting with main or faucet balance
@@ -85,7 +85,7 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 2. **Live Main** - Bet with your main balance
 3. **Live Faucet** - Bet with faucet balance (perfect for testing)
 
-### 🎲 Available Strategies (22 Total)
+### 🎲 Available Strategies (26 Total)
 
 #### Conservative (Low Risk)
 - **dalembert** - Increase/decrease bets gradually
@@ -104,23 +104,36 @@ Get your API key from [DuckDice](https://duckdice.io) → Account Settings → B
 - **streak-hunter** - Win streak amplifier
 
 #### Specialized
+- **adaptive-volatility-hunter** - Ultra-low chance hunting with volatility adaptation ⭐ NEW
+- **adaptive-survival** - Meta-strategy with pattern detection
 - **faucet-grind** - Optimized for faucet betting
 - **faucet-cashout** - USD-targeted staged growth
 - **kelly-capped** - Kelly criterion with safety caps
 - **target-aware** - State machine with profit targets
 - **range50-random** - Range dice at 50% chance
 - **max-wager-flow** - Maximize wagering throughput
-- **micro-exponential** - Exponential growth with micro bets ⭐ NEW
-- **micro-exponential-safe** - Safe variant with caps ⭐ NEW
+- **micro-exponential** - Exponential growth with micro bets
+- **micro-exponential-safe** - Safe variant with caps
+- **progressive-win-scaling** - Win-based progression
+- **simple-progression-40** - Simple 40% chance progression
 - **rng-analysis-strategy** - RNG pattern analysis (educational)
 - **custom-script** - Load your own Python strategy
 
 ## 📖 Documentation
 
+### General Guides
 - **[CLI Guide](CLI_GUIDE.md)** - Complete command reference and examples
 - **[TUI Guide](TUI_GUIDE.md)** - Terminal UI interfaces (Textual/NCurses)
 - **[User Guide](USER_GUIDE.md)** - Strategy details and best practices
 - **[Deployment Guide](DEPLOYMENT_GUIDE.md)** - Production deployment tips
+
+### Strategy Guides
+- **[Adaptive Volatility Hunter](docs/ADAPTIVE_VOLATILITY_HUNTER_GUIDE.md)** - Ultra-low chance hunting (0.01%-1%)
+- **[Adaptive Survival Guide](docs/ADAPTIVE_SURVIVAL_GUIDE.md)** - Meta-strategy with pattern detection
+- **[Streak Hunter Guide](STREAK_HUNTER_GUIDE.md)** - Win streak amplification
+- **[RNG Strategy Guide](RNG_STRATEGY_GUIDE.md)** - RNG pattern analysis
+
+### Technical Documentation
 - **[Architecture](docs/ARCHITECTURE.md)** - Technical architecture overview
 - **[Roadmap](docs/ROADMAP.md)** - Future development plans
 

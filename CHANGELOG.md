@@ -2,6 +2,35 @@
 
 All notable changes to DuckDice Bot will be documented in this file.
 
+## [Unreleased]
+
+## [4.11.0] - 2026-01-30
+
+### Added
+- **New Strategy: adaptive-volatility-hunter** - Ultra-low chance hunting (0.01%-1%) with real-time volatility adaptation
+  - Dynamically adjusts win chance and bet size based on RNG volatility
+  - Calm RNG: Lower chance (bigger multipliers 1000x-10000x)
+  - Chaotic RNG: Higher chance (survival mode 100x-500x)
+  - Safety features: Emergency brake, profit lock cooldown
+  - Comprehensive guide: `docs/ADAPTIVE_VOLATILITY_HUNTER_GUIDE.md`
+- Total strategies increased from 22 to 26
+
+### Changed
+- **simple-progression-40**: Now uses decreasing progression instead of fixed 45%
+  - Old: Fixed +45% increase on every win
+  - New: Decreasing progression +50% → +40% → +30% → +20%
+  - Benefit: Reduces risk on long win streaks while maintaining early growth
+  - Configurable via new parameters: `first_win_increase`, `second_win_increase`, etc.
+  - Base bet: Always recalculated as 1% of current balance (auto-adjusts to wins/losses)
+
+### Fixed
+- **adaptive-volatility-hunter**: Emergency brake no longer spams on every bet
+  - Now only triggers once then counts down properly through cooldown period
+  - Added "Cooldown complete" message when resuming normal operation
+- **simple-progression-40**: Base bet now properly recalculates from current balance
+  - Fixed bug where base bet stayed at 1% of starting balance instead of current balance
+  - Now tracks balance internally in `on_bet_result()` for accurate calculations
+
 ## [3.8.0] - 2026-01-09 - GUI Streamlining (Phase 7)
 
 ### Added

@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "duckdice-betbot"
-version = "4.10.0"
+version = "4.11.0"
 description = "DuckDice betting bot with 18 strategies, Monte Carlo simulation, and comprehensive CLI"
 readme = "README.md"
 authors = [{ name = "Dennis", email = "schnickfitzel1@gmail.com" }]
