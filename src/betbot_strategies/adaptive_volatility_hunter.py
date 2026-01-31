@@ -298,6 +298,8 @@ class AdaptiveVolatilityHunter:
                 print(f"🛡️  Cooldown: {self._cooldown_counter} bets remaining")
             elif self._cooldown_counter == 0:
                 print(f"✅ Cooldown complete - resuming normal operation")
+                # Reset loss streak to prevent immediate re-trigger
+                self._loss_streak = 0
             
             return BetSpec(
                 game="dice",

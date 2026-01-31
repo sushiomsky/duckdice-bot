@@ -236,7 +236,10 @@ Volatility: 0.92
 Loss Streak: 8
 Action: EMERGENCY BRAKE ACTIVATED
 Cooldown: 30 bets @ 1% chance, 0.025% bet size
+Result: Loss streak resets to 0 when cooldown completes
 ```
+
+**Important**: After cooldown ends, loss streak resets to prevent immediate re-triggering. Requires 7 fresh losses to activate again.
 
 ### Scenario 5: Profit Lock
 
