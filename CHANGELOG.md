@@ -4,11 +4,18 @@ All notable changes to DuckDice Bot will be documented in this file.
 
 ## [Unreleased]
 
+## [4.11.1] - 2026-02-02
+
 ### Fixed
 - **adaptive-volatility-hunter**: Loss streak now resets when cooldown completes
   - Prevents emergency brake from re-triggering immediately after cooldown
   - Requires 7 fresh losses to trigger again (not just 1 bet)
   - Previously would exit cooldown and re-trigger on the very next loss
+
+### Changed
+- **CI/CD**: Removed broken workflows that referenced non-existent GUI builds
+  - Ensures main branch always remains buildable per DEVELOPMENT_GUARDRAILS.md
+  - Switched to PyPI Trusted Publishing (no secrets required)
 
 ## [4.11.0] - 2026-01-30
 
