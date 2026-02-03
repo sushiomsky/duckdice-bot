@@ -187,7 +187,7 @@ jobs:
     
     - name: Create Windows package
       run: |
-        $version = (python -c "import sys; sys.path.insert(0, '.'); exec(open('pyproject.toml').read()); print(version)")
+        $version = (python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])")
         $pkgName = "duckdice-bot-windows-x64"
         New-Item -ItemType Directory -Force -Path $pkgName
         Copy-Item "dist/duckdice.exe" "$pkgName/"
