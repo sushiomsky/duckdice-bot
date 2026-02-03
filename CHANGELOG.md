@@ -4,6 +4,13 @@ All notable changes to DuckDice Bot will be documented in this file.
 
 ## [Unreleased]
 
+## [4.11.2] - 2026-02-03
+
+### Fixed
+- **PyInstaller**: Fixed executable builds failing with "ModuleNotFoundError: No module named '__future__'"
+  - Added `__future__` and `src.*` modules to hidden imports in PyInstaller spec
+  - All platform executables (Windows, macOS, Linux) now build and run successfully
+
 ## [4.11.1] - 2026-02-02
 
 ### Fixed
