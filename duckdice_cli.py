@@ -1143,7 +1143,9 @@ def cmd_interactive(args=None):
         print("\n" + "="*60)
         print("📋 SESSION SUMMARY")
         print("="*60)
-        print(f"Mode:             {'Simulation' if is_simulation else f'Live ({'Faucet' if use_faucet else 'Main'})'}")
+        # Nested f-strings not supported in Python 3.9
+        mode_str = 'Simulation' if is_simulation else ('Live (Faucet)' if use_faucet else 'Live (Main)')
+        print(f"Mode:             {mode_str}")
         print(f"Currency:         {currency.upper()}")
         print(f"Current Balance:  {initial_balance:.8f}")
         print(f"Strategy:         {strategy_name}")

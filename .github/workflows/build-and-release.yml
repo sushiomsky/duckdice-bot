@@ -42,7 +42,7 @@ jobs:
     
     - name: Test imports and strategy loading
       run: |
-        python -c "import sys; sys.path.insert(0, 'src'); from betbot_strategies import list_strategies; print(f'✓ Found {len(list_strategies())} strategies')"
+        python -c "import sys; sys.path.insert(0, 'src'); from betbot_strategies import list_strategies; print(f'Found {len(list_strategies())} strategies')"
     
     - name: Syntax check main modules
       run: |
