@@ -92,14 +92,15 @@ class ProgressiveWinScaling:
         self.max_chance = float(params.get("max_chance", 24.0))
         self.is_high = bool(params.get("is_high", True))
 
-        # Bet increase table per win streak
+        # Bet increase percentages per win streak
+        # Each win increases the bet by this percentage FROM LAST BET
         # index = win streak AFTER win
-        self.bet_multipliers = {
-            1: 4.0,   # +300% on 1st win
-            2: 3.4,   # +240% on 2nd win
-            3: 2.8,   # +180% on 3rd win
-            4: 2.2,   # +120% on 4th win
-            5: 1.6    # +60% on 5th win
+        self.bet_increase_pct = {
+            1: 3.0,   # +300% (multiply last bet by 4.0x)
+            2: 2.4,   # +240% (multiply last bet by 3.4x)
+            3: 1.8,   # +180% (multiply last bet by 2.8x)
+            4: 1.2,   # +120% (multiply last bet by 2.2x)
+            5: 0.6    # +60% (multiply last bet by 1.6x)
         }
 
         # Chance progression per win streak
@@ -171,9 +172,10 @@ class ProgressiveWinScaling:
             # Apply chance progression
             self._current_chance = self.chance_steps.get(step, self.max_chance)
 
-            # Apply bet multiplier based on last bet
-            multiplier = self.bet_multipliers.get(step, 1.6)
-            self._current_bet = self._current_bet * Decimal(str(multiplier))
+            # Apply bet increase percentage based on last bet (compounding)
+            increase_pct = self.bet_increase_pct.get(step, 0.6)
+            multiplier = Decimal("1.0") + Decimal(str(increase_pct))
+            self._current_bet = self._current_bet * multiplier
 
         else:
             # Full reset on any loss
