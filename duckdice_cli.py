@@ -202,9 +202,9 @@ def prompt_choice(prompt: str, choices: List[str], default: str = None) -> str:
         print("Invalid choice, try again.")
 
 
-def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfig, 
-                api_key: str = None, dry_run: bool = True, use_parallel: bool = False, 
-                max_concurrent: int = 5):
+def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfig,
+                api_key: str = None, dry_run: bool = True, use_parallel: bool = False,
+                max_concurrent: int = 5, resume_state: Optional[Dict[str, Any]] = None):
     """Run a betting strategy with enhanced display and runtime controls"""
     
     # Use rich display if available
@@ -395,7 +395,8 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
                 params=params,
                 printer=printer,  # Enable printer for debug messages
                 json_sink=json_sink,
-                stop_checker=should_stop
+                stop_checker=should_stop,
+                resume_state=resume_state,
             )
         
         # Close progress bar if active
@@ -435,7 +436,8 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
             print(f"Ending balance: {stats['current_balance']:.8f}")
             print(f"Profit: {stats['profit']:.8f} ({stats['profit_percent']:.2f}%)")
             print(f"{'='*60}\n")
-        
+        return result
+
     except KeyboardInterrupt:
         if progress:
             progress.__exit__(None, None, None)
@@ -444,6 +446,7 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
         else:
             print("\n\n⚠ Interrupted by user")
         stop_requested = True
+        return None
     except Exception as e:
         if progress:
             progress.__exit__(None, None, None)
@@ -453,12 +456,229 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
             print(f"\n\n✗ Error: {e}")
         import traceback
         traceback.print_exc()
+        return None
+
+
+# ---------------------------------------------------------------------------
+# Faucet balance thresholds (min bet per currency, matches engine floor)
+# ---------------------------------------------------------------------------
+_FAUCET_MIN_BETS: Dict[str, float] = {
+    'btc': 0.00000034, 'eth': 0.000001, 'ltc': 0.0001, 'doge': 0.1,
+    'bch': 0.00001,    'trx': 1.0,      'sol': 0.000001, 'xrp': 0.000001,
+    'pepe': 1.0,       'trump': 1.0,
+}
+
+
+def _faucet_do_claim(api, symbol: str, cookie: Optional[str],
+                     last_claim_time: float) -> tuple:
+    """Wait for 60s cooldown if needed, then claim faucet.
+
+    Returns (success, new_faucet_balance, claims_remaining, updated_last_claim_time).
+    """
+    import time
+    elapsed = time.time() - last_claim_time
+    if elapsed < 60.0:
+        wait_sec = int(60.0 - elapsed) + 2   # +2s server-side buffer
+        print(f"⏳ Faucet cooldown — waiting {wait_sec}s…")
+        for remaining in range(wait_sec, 0, -1):
+            print(f"\r⏳ {remaining:3d}s remaining…  ", end="", flush=True)
+            time.sleep(1)
+        print()
+
+    now = time.time()
+    result = api.claim_faucet(symbol, cookie)
+
+    if result.get('success'):
+        amount = result.get('amount', 0)
+        claims_left = result.get('claims_remaining', 0)
+        print(f"🪙  Faucet claimed! +{amount} {symbol.upper()}  |  "
+              f"Claims remaining today: {claims_left}")
+        try:
+            new_bal = api.get_faucet_balance(symbol)
+        except Exception:
+            new_bal = float(amount)
+        return True, new_bal, claims_left, now
+    else:
+        error = result.get('error', 'unknown error')
+        claims_left = result.get('claims_remaining', 0)
+        print(f"❌  Faucet claim failed: {error}")
+        if claims_left == 0:
+            print("⏰  Daily faucet limit reached.")
+        return False, 0.0, claims_left, last_claim_time
+
+
+def _run_faucet_auto_loop(strategy_name: str, params: Dict[str, Any],
+                           config: "EngineConfig", api_key: str,
+                           cookie: Optional[str], take_profit_target: float) -> None:
+    """Run a strategy on faucet balance with automatic reclaim on bust.
+
+    Flow per iteration:
+    1. Verify faucet balance can cover min bet; if not, claim (respecting 60s cooldown).
+    2. Run one strategy session.
+    3. If take-profit reached (overall or per-session) → stop.
+    4. If busted (stop_loss / insufficient_balance): double-check faucet balance,
+       then claim and restart.
+    5. Stop when no claims remain for the day or Ctrl-C.
+    """
+    import time
+    from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
+
+    api = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+    sym = config.symbol.lower()
+    min_bet = _FAUCET_MIN_BETS.get(sym, 0.00000001)
+
+    last_claim_time: float = 0.0
+    session_num: int = 0
+    overall_start_balance: Optional[float] = None
+
+    print(f"\n🔄  Faucet auto-loop started | strategy={strategy_name} "
+          f"| currency={sym.upper()} | overall target=+{take_profit_target*100:.0f}%")
+    print(f"    Auto-reclaim after bust  |  60s cooldown respected  |  "
+          f"stops when daily limit exhausted\n")
+
+    while True:
+        # ── 1. Ensure there is enough faucet balance to bet ────────────────
+        try:
+            faucet_bal = api.get_faucet_balance(sym)
+        except Exception as e:
+            print(f"⚠️  Could not read faucet balance: {e}")
+            faucet_bal = 0.0
+
+        if faucet_bal < min_bet:
+            print(f"\n💸  Faucet balance {faucet_bal:.8f} < min bet {min_bet}. Claiming…")
+            ok, faucet_bal, claims_left, last_claim_time = _faucet_do_claim(
+                api, sym, cookie, last_claim_time)
+            if not ok or claims_left == 0 or faucet_bal < min_bet:
+                print("⛔  Cannot continue: faucet unavailable or daily limit reached.")
+                break
+
+        if overall_start_balance is None:
+            overall_start_balance = faucet_bal
+
+        session_num += 1
+        if session_num > 1:
+            print(f"\n{'─'*60}")
+            print(f"🔄  Faucet session #{session_num}  |  balance: {faucet_bal:.8f} {sym.upper()}")
+            print(f"{'─'*60}\n")
+
+        # ── 2. Run one session ──────────────────────────────────────────────
+        result = run_strategy(strategy_name, params, config, api_key, dry_run=False)
+
+        if result is None:
+            # Ctrl-C or unhandled error — stop loop
+            break
+
+        stop_reason = result.get('stop_reason', 'unknown')
+        final_balance = float(result.get('final_balance', result.get('ending_balance', 0)))
+
+        # ── 3. Overall take-profit check ───────────────────────────────────
+        if overall_start_balance and overall_start_balance > 0:
+            total_gain = (final_balance - overall_start_balance) / overall_start_balance
+            if total_gain >= take_profit_target:
+                print(f"\n🎯  Overall faucet target reached! "
+                      f"+{total_gain*100:.1f}% on {sym.upper()}")
+                break
+
+        if stop_reason == 'take_profit':
+            print(f"\n🎯  Take-profit reached in session #{session_num}!")
+            break
+
+        # ── 4. Non-bust stops — just exit ─────────────────────────────────
+        if stop_reason in ('cancelled', 'max_bets', 'max_duration'):
+            print(f"\nℹ️   Session ended: {stop_reason}. Exiting faucet loop.")
+            break
+
+        # ── 5. Bust — verify balance really below min bet ─────────────────
+        try:
+            current_faucet = api.get_faucet_balance(sym)
+        except Exception:
+            current_faucet = 0.0
+
+        if current_faucet >= min_bet:
+            print(f"\nℹ️   Still {current_faucet:.8f} {sym.upper()} in faucet — continuing.")
+            continue
+
+        # Truly busted — reclaim
+        print(f"\n💸  Bust ({stop_reason}) | faucet balance: {current_faucet:.8f} < {min_bet}. Reclaiming…")
+        ok, new_bal, claims_left, last_claim_time = _faucet_do_claim(
+            api, sym, cookie, last_claim_time)
+        if not ok:
+            print("⛔  Claim failed. Exiting faucet loop.")
+            break
+        if claims_left == 0:
+            print("⏰  No faucet claims remaining today. Exiting.")
+            break
+        if new_bal < min_bet:
+            print(f"⚠️   Claimed but balance {new_bal:.8f} still below min bet. Exiting.")
+            break
+
+    print(f"\n{'='*60}")
+    print(f"🏁  Faucet auto-loop finished after {session_num} session(s).")
+    print(f"{'='*60}\n")
 
 
 def cmd_run(args):
     """Run a betting strategy"""
     config_mgr = ConfigManager()
-    
+
+    # ------------------------------------------------------------------
+    # --continue: load last cancelled session and pre-fill defaults
+    # ------------------------------------------------------------------
+    _resume_state: Optional[Dict[str, Any]] = None
+    if getattr(args, 'resume', False):
+        db_path = getattr(args, 'db_path', None) or 'data/duckdice_bot.db'
+        try:
+            from betbot_engine.bet_database import BetDatabase
+            from pathlib import Path
+            _db = BetDatabase(Path(db_path))
+            _last = _db.get_last_cancelled_session()
+            if not _last:
+                print("⚠️  No cancelled session found in DB. Starting fresh.")
+            else:
+                import json as _json
+                _tail = _db.get_session_tail_state(_last['session_id'])
+                # Pre-fill args (only if not already explicitly set)
+                if not args.strategy:
+                    args.strategy = _last['strategy_name']
+                if not args.currency:
+                    args.currency = _last['symbol']
+                if not args.mode and _last.get('simulation_mode') is not None:
+                    args.mode = 'simulation' if _last['simulation_mode'] else 'live-main'
+                # Load saved strategy params (CLI --param overrides apply later)
+                if not args.profile and not args.params:
+                    _saved_params = _last.get('strategy_params')
+                    if _saved_params:
+                        try:
+                            _parsed = _json.loads(_saved_params) if isinstance(_saved_params, str) else _saved_params
+                            args._resume_params = _parsed
+                        except Exception:
+                            args._resume_params = None
+                # Restore limits (only if not explicitly provided)
+                if args.stop_loss is None and _last.get('stop_loss') is not None:
+                    args.stop_loss = _last['stop_loss']
+                if args.take_profit is None and _last.get('take_profit') is not None:
+                    args.take_profit = _last['take_profit']
+                if args.max_bets is None and _last.get('max_bets') is not None:
+                    args.max_bets = _last['max_bets']
+                if args.max_losses is None and _last.get('max_losses') is not None:
+                    args.max_losses = _last['max_losses']
+                if args.max_duration is None and _last.get('max_duration_sec') is not None:
+                    args.max_duration = _last['max_duration_sec']
+                _resume_state = {
+                    'resumed_from': _last['session_id'],
+                    **_tail,
+                }
+                _ended_bal = _last.get('ending_balance') or _tail.get('last_balance', 0)
+                print(f"\n♻️  Continuing cancelled session: {_last['session_id']}")
+                print(f"   Strategy : {_last['strategy_name']}")
+                print(f"   Currency : {_last['symbol']}")
+                print(f"   Bal when stopped : {_ended_bal:.8f}")
+                print(f"   Loss streak      : {_tail.get('loss_streak', '?')} (will restore)")
+                print(f"   Bets done        : {_last.get('total_bets', '?')}")
+                print()
+        except Exception as _e:
+            print(f"⚠️  Could not load last session ({_e}). Starting fresh.")
+
     # Check for API key first (auto-detect live mode)
     api_key = args.api_key or config_mgr.config.get('api_key')
     
@@ -514,6 +734,10 @@ def cmd_run(args):
             print(f"Loaded profile: {args.profile}")
         else:
             print(f"Warning: Profile '{args.profile}' not found, using defaults")
+    elif hasattr(args, '_resume_params') and args._resume_params:
+        # Restored from cancelled session DB record
+        params = dict(args._resume_params)
+        print(f"Restored strategy parameters from previous session")
     
     # Get strategy class for schema
     try:
@@ -603,7 +827,7 @@ def cmd_run(args):
         symbol=currency,
         dry_run=is_simulation,
         faucet=use_faucet,
-        stop_loss=args.stop_loss if args.stop_loss is not None else -0.5,  # -50%
+        stop_loss=args.stop_loss if args.stop_loss is not None else -0.25,  # -25% recommended
         take_profit=args.take_profit if args.take_profit is not None else 1.0,  # +100%
         max_bets=args.max_bets,
         max_losses=args.max_losses,
@@ -614,9 +838,28 @@ def cmd_run(args):
         db_path=getattr(args, 'db_path', None)
     )
     
-    # Run strategy
-    run_strategy(strategy_name, params, config, api_key, is_simulation, 
-                 use_parallel=use_parallel, max_concurrent=max_concurrent)
+    # Run strategy (faucet mode uses the auto-reclaim loop)
+    if use_faucet and not is_simulation:
+        # Resolve cookie: CLI arg → saved file → None
+        faucet_cookie = getattr(args, 'faucet_cookie', None)
+        if not faucet_cookie:
+            try:
+                from faucet_manager.cookie_manager import CookieManager as _CM
+                faucet_cookie = _CM().get_cookie()
+            except Exception:
+                faucet_cookie = None
+        if not faucet_cookie:
+            print("⚠️  No faucet cookie found. Auto-reclaim disabled.")
+            print("   Use --faucet-cookie or run interactive mode to save one.")
+        _run_faucet_auto_loop(
+            strategy_name, params, config, api_key,
+            cookie=faucet_cookie,
+            take_profit_target=args.take_profit if args.take_profit is not None else 1.0,
+        )
+    else:
+        run_strategy(strategy_name, params, config, api_key, is_simulation,
+                     use_parallel=use_parallel, max_concurrent=max_concurrent,
+                     resume_state=_resume_state)
 
 
 def cmd_list_strategies(args):
@@ -820,15 +1063,48 @@ def cmd_interactive(args=None):
         print("\nWelcome! Let's set up your betting session.\n")
     
     config_mgr = ConfigManager()
-    
-    # Always use live mode with main balance (skip Step 1)
+
     is_simulation = False
-    use_faucet = False
-    
+    faucet_cookie: Optional[str] = None
+
+    # ── Ask: main balance or faucet balance? ────────────────────────────
+    print("\n⚙️  Choose balance type:")
+    balance_type_choice = prompt_choice("", ["main", "faucet"], "main")
+    use_faucet = (balance_type_choice == "faucet")
+
     if USE_RICH and display:
-        display.print_info("Mode: Live (Main Balance)")
+        display.print_info(f"Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)")
     else:
-        print("ℹ️  Mode: Live (Main Balance)\n")
+        print(f"ℹ️  Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)\n")
+
+    # ── If faucet: load or prompt for browser cookie (needed for claiming) ─
+    if use_faucet:
+        try:
+            from faucet_manager.cookie_manager import CookieManager as _CM
+            _cm = _CM()
+            faucet_cookie = _cm.get_cookie()
+        except Exception:
+            faucet_cookie = None
+
+        if faucet_cookie:
+            print(f"🍪  Faucet cookie loaded from saved config.\n")
+        else:
+            print("\n🍪  Auto-claiming requires your DuckDice browser session cookie.")
+            print("    Log in at duckdice.io, then copy the full Cookie header value.")
+            faucet_cookie = input("    Paste cookie (or press Enter to skip auto-claim): ").strip() or None
+            if faucet_cookie:
+                try:
+                    from faucet_manager.cookie_manager import CookieManager as _CM2
+                    _cm2 = _CM2()
+                    save_cookie = input("    Save cookie for future sessions? (y/n) [y]: ").strip().lower()
+                    if save_cookie != 'n':
+                        _cm2.set_cookie(faucet_cookie)
+                        _cm2.save()
+                        print("    ✓ Cookie saved\n")
+                except Exception:
+                    pass
+            else:
+                print("    ⚠️  No cookie — faucet will NOT be auto-reclaimed on bust.\n")
     
     # Step 1: API Key (auto-detect, don't prompt if found)
     api_key = config_mgr.config.get('api_key')
@@ -1219,8 +1495,15 @@ def cmd_interactive(args=None):
         jitter_ms=25    # Minimal jitter: 25ms
     )
     
-    # Run strategy
-    run_strategy(strategy_name, params, config, api_key, is_simulation)
+    # Run strategy (faucet mode uses the auto-reclaim loop)
+    if use_faucet and not is_simulation:
+        _run_faucet_auto_loop(
+            strategy_name, params, config, api_key,
+            cookie=faucet_cookie,
+            take_profit_target=take_profit if take_profit else 1.0,
+        )
+    else:
+        run_strategy(strategy_name, params, config, api_key, is_simulation)
 
 
 def main():
@@ -1246,8 +1529,8 @@ def main():
     run_parser.add_argument('-p', '--profile', help='Load strategy profile')
     run_parser.add_argument('-b', '--balance', help='Initial balance (simulation only)')
     run_parser.add_argument('-k', '--api-key', help='API key (live mode)')
-    run_parser.add_argument('--stop-loss', type=float, help='Stop loss percentage (e.g., -0.5 for -50%%)')
-    run_parser.add_argument('--take-profit', type=float, help='Take profit percentage (e.g., 1.0 for +100%%)')
+    run_parser.add_argument('--stop-loss', type=float, help='Stop loss percentage (e.g., -0.25 for -25%%, default: -0.25)')
+    run_parser.add_argument('--take-profit', type=float, help='Take profit percentage (e.g., 1.0 for +100%%, default: +100%%)')
     run_parser.add_argument('--max-bets', type=int, help='Maximum number of bets')
     run_parser.add_argument('--max-losses', type=int, help='Maximum consecutive losses')
     run_parser.add_argument('--max-duration', type=int, help='Maximum duration in seconds')
@@ -1269,6 +1552,11 @@ def main():
                            help='Disable database logging')
     run_parser.add_argument('--db-path', type=str,
                            help='Custom database path (default: data/duckdice_bot.db)')
+    run_parser.add_argument('--continue', '-C', action='store_true', dest='resume',
+                           help='Continue the last cancelled session (restores strategy, params, limits, and state)')
+    run_parser.add_argument('--faucet-cookie', type=str, dest='faucet_cookie',
+                           help='Browser session cookie for faucet auto-claim (live-faucet mode). '
+                                'If omitted, uses cookie saved in ~/.duckdice/faucet_cookies.json')
     run_parser.set_defaults(func=cmd_run)
     
     # List strategies
