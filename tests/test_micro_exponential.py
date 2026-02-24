@@ -65,14 +65,6 @@ def test_micro_exponential():
     print("Mode: SIMULATION (dry_run=True)")
     print("Bets: 50 test bets")
     print()
-    print("⚠️  WARNING: This is an EXTREMELY aggressive strategy!")
-    print("   - Targets 300x profit")
-    print("   - Accepts 45% drawdown")
-    print("   - Uses kill mode with 65% of balance")
-    print("   - Only suitable for micro balances (<$1)")
-    print()
-    input("Press Enter to start test...")
-    print()
     
     try:
         summary = engine.run(

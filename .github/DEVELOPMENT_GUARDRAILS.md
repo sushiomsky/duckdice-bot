@@ -12,30 +12,31 @@
 **Rule**: Main branch MUST always be buildable and deployable.
 
 #### Requirements
-- ✅ **Pull Request workflow required** - No direct commits to main
-- ✅ **All CI/CD checks must pass** before merge allowed
-- ✅ **Branch protection enabled** on GitHub
+- ✅ **Direct commits to main** are allowed — pre-commit hook enforces quality
+- ✅ **Pre-commit hook runs full test suite** before every commit
+- ✅ **Auto-commit and push** via `bash scripts/autocommit.sh "message"`
 - ✅ Every commit production-ready
 - ✅ Breaking changes require version bump
 
 #### Workflow
 ```bash
-# ✅ CORRECT: Feature branch → PR → CI/CD → Merge
-git checkout -b feature/my-feature
-git commit -m "feat: add feature"
-git push origin feature/my-feature
-gh pr create --base main  # Opens PR
-# CI/CD runs automatically (9 configs)
-# ✅ All checks pass → Merge allowed
-# Merge via GitHub UI
+# ✅ CORRECT: Make changes → auto-commit-push (hook runs tests automatically)
+# make code changes...
+bash scripts/autocommit.sh "feat: add feature"
+# pre-commit hook: validates .gitignore → runs pytest → commits → pushes
 
-# ❌ FORBIDDEN: Direct commits to main
-git checkout main
-git commit -m "quick fix"
-git push origin main  # ← REJECTED by GitHub
+# ❌ FORBIDDEN: Committing broken tests or skipping hook
+git commit --no-verify  # ← NEVER DO THIS
 ```
 
-#### CI/CD Validation (11 Required Checks)
+#### Pre-commit Hook Validation
+Every commit automatically:
+1. Validates `.gitignore` required patterns (auto-repairs if missing)
+2. Runs full test suite: `pytest tests/ -q --tb=line`
+3. Blocks commit if any test fails
+
+#### CI/CD Pipeline (GitHub Actions)
+After push to main:
 1. **Validation on 3 OS × 3 Python versions** (9 checks)
    - Syntax validation
    - Import verification  
@@ -48,24 +49,10 @@ git push origin main  # ← REJECTED by GitHub
    - No archive directories
    - Core decoupled from UI
 
-3. **PR Summary** (1 check)
-   - Overall pass/fail status
-
-#### GitHub Branch Protection Settings
-See `docs/BRANCH_PROTECTION.md` for configuration:
-- ✅ Require pull request before merging
-- ✅ Require status checks to pass (11 checks)
-- ✅ Require branches up to date
-- ✅ Require linear history
-- ❌ Allow force pushes: DISABLED
-- ❌ Allow bypassing: DISABLED (even for admins)
-
 #### Enforcement
-- **GitHub prevents merge** until all checks pass
-- **No direct commits** to main (protected)
-- **No force pushes** to main
-- **Automatic release** after merge
-- Tags (v*) - Triggers full release pipeline
+- **Pre-commit hook prevents push** until all tests pass
+- **No `--no-verify` bypassing** (violation = revert)
+- **Automatic release** triggered by version bump in `pyproject.toml`
 
 ---
 

@@ -266,47 +266,4 @@ class EnhancedScriptGenerator:
         
         return logic, state_update, initial_state
     
-    def save_to_script_system(
-        self,
-        script_code: str,
-        metadata: dict,
-        category: str = 'generated',
-    ) -> Path:
-        """
-        Save generated script to Phase 2 script system.
-        
-        Args:
-            script_code: Python script code
-            metadata: Script metadata dictionary
-            category: Script category (generated, custom, etc.)
-            
-        Returns:
-            Path to saved script
-        """
-        from src.script_system import ScriptStorage
-        
-        storage = ScriptStorage()
-        
-        # Create StrategyScript object
-        from src.script_system import StrategyScript
-        
-        script = StrategyScript(
-            name=metadata['name'],
-            description=metadata['description'],
-            code=script_code,
-            category=category,
-            version=metadata['version'],
-            author=metadata['author'],
-        )
-        
-        # Save to storage
-        filepath = storage.save(script, category=category)
-        
-        # Save metadata
-        metadata_path = filepath.with_suffix('.meta.json')
-        with open(metadata_path, 'w') as f:
-            json.dump(metadata, f, indent=2)
-        
-        logger.info(f"Saved generated strategy to {filepath}")
-        
-        return filepath
+
