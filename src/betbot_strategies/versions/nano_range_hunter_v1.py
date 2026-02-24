@@ -1,12 +1,11 @@
 from __future__ import annotations
 # =============================================================================
-# nano-range-hunter  VERSION 4  (latest)
+# nano-range-hunter  VERSION 1
+# Snapshot: commit 1974988 (pre-session baseline)
 # Changelog:
-#   v1 — Original: oscillating chance, cold-zone bias, drought/emergency modes.
-#   v2 — Added post-win boost phase (elevated chance + larger bets after each win).
-#   v3 — Added 50/50 recovery burst; persistent session defaults; risk warnings.
-#   v4 — Added min_bet_abs: absolute coin-unit floor overrides balance% minimum.
-# Select older versions: --strategy "nano-range-hunter@v3"
+#   v1 — Original: oscillating chance, cold-zone bias, drought/emergency modes,
+#         fractional Kelly sizing, profit-lock probe phase.
+# To use: --strategy "nano-range-hunter@v1"
 # =============================================================================
 """
 Nano Range Hunter Strategy
@@ -35,50 +34,19 @@ Range Dice domain: 0 – 9999 (10 000 slots)
   payout multiplier ≈ 99 / chance_pct
 """
 
-import json
 import math
 import random
 from decimal import Decimal, ROUND_DOWN
-from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
-from . import register
-from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
+from .. import register
+from ..base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 _DOMAIN = 10_000          # Range Dice total slots  (0 … 9999)
 _MIN_SLOT_WIDTH = 1
 _COLD_BUCKETS  = 200      # divide 0-9999 into 200 buckets of 50 slots each
 _COLD_HISTORY  = 5000     # analyse last N rolls from DB
 _COLD_REFRESH  = 300      # refresh map every N bets
-
-# Persistent defaults file (relative to working directory = project root)
-_LAST_PARAMS_FILE = Path("data/nano_range_hunter_last_params.json")
-
-# All param keys persisted across sessions
-_ALL_PARAMS = {
-    "min_chance", "max_chance", "cycle_length",
-    "win_at_ceil", "win_at_nano", "max_bet_pct", "min_bet_pct", "min_bet_abs",
-    "drawdown_sensitivity", "drawdown_bet_floor",
-    "drought_widen_at", "drought_widen_step", "emergency_streak",
-    "recovery_streak", "recovery_bets", "recovery_chance", "recovery_bet_pct",
-    "post_win_bets", "post_win_chance", "post_win_bet_mult",
-    "profit_lock_pct", "probe_bets", "cold_zone_bias", "is_in",
-}
-
-
-def _load_json_safe(path: Path) -> dict:
-    try:
-        return json.loads(path.read_text())
-    except Exception:
-        return {}
-
-
-def _save_json_safe(path: Path, data: dict) -> None:
-    try:
-        path.parent.mkdir(parents=True, exist_ok=True)
-        path.write_text(json.dumps(data, indent=2))
-    except Exception:
-        pass
 
 
 class _ColdZoneMap:
@@ -162,7 +130,7 @@ def _chance_for_width(width: int) -> float:
     return (width / _DOMAIN) * 100
 
 
-@register("nano-range-hunter")
+@register("nano-range-hunter@v1")
 class NanoRangeHunter:
     """Ultra-low chance Range Dice hunter with rotating targets and adaptive sizing."""
 
@@ -238,24 +206,20 @@ class NanoRangeHunter:
                 "desc": "Bets per full chance oscillation cycle",
             },
             "win_at_ceil": {
-                "type": "float", "default": 0.25,
-                "desc": "Profit target as fraction of balance when hitting at max_chance (0.25 = +25% per ceiling hit). Lower = smaller ceiling bets = much less drain between jackpots.",
+                "type": "float", "default": 0.12,
+                "desc": "Profit target as fraction of balance when hitting at max_chance (0.12 = +12% per ceiling hit). Lower = smaller ceiling bets = much less drain between jackpots.",
             },
             "win_at_nano": {
                 "type": "float", "default": 3.0,
                 "desc": "Profit target as multiple of balance when hitting at min_chance (3.0 = profit triples balance; new balance = 4×). Geometrically interpolated — bet_pct is monotone, peak drain only at ceiling.",
             },
             "max_bet_pct": {
-                "type": "float", "default": 0.01,
-                "desc": "Hard cap: max bet as fraction of balance (1% safety ceiling)",
+                "type": "float", "default": 0.004,
+                "desc": "Hard cap: max bet as fraction of balance (0.4% safety ceiling)",
             },
             "min_bet_pct": {
                 "type": "float", "default": 0.000001,
-                "desc": "Minimum bet as fraction of balance. Rarely the real floor — min_bet_abs usually dominates.",
-            },
-            "min_bet_abs": {
-                "type": "float", "default": 0.000001,
-                "desc": "Absolute minimum bet in coin units regardless of balance size (e.g. 0.01 = 1 cent). Overrides min_bet_pct when balance is small. Set to match 1 cent in your currency.",
+                "desc": "Theoretical floor (effectively 0 — the API minimum is always the real floor)",
             },
             "drawdown_sensitivity": {
                 "type": "float", "default": 4.0,
@@ -293,81 +257,30 @@ class NanoRangeHunter:
                 "type": "float", "default": 0.65,
                 "desc": "How strongly to prefer historically cold number zones (0.0=uniform, 1.0=max cold-bias). Loads last 5 000 rolls from history. Note: PRNG has no memory — this is a preference, not a mathematical edge.",
             },
-            "post_win_bets": {
-                "type": "int", "default": 10,
-                "desc": "Bets at boosted size/chance immediately after each win (0 = disabled). Capitalises on fresh-win momentum before returning to deep hunting.",
-            },
-            "post_win_chance": {
-                "type": "float", "default": 0.0,
-                "desc": "Chance % to use during post-win boost (0.0 = use max_chance). Set higher, e.g. 2.0, for a wider window and more frequent follow-up wins.",
-            },
-            "post_win_bet_mult": {
-                "type": "float", "default": 2.0,
-                "desc": "Multiply bet size during post-win boost phase (2.0 = double bets for the next post_win_bets bets). Hard-capped at 3 % of balance.",
-            },
-            "recovery_streak": {
-                "type": "int", "default": 400,
-                "desc": "Consecutive losses that trigger a 50/50 recovery burst. Fires after emergency mode when the drought is extreme. 0 = disabled.",
-            },
-            "recovery_bets": {
-                "type": "int", "default": 5,
-                "desc": "Number of ~50/50 bets per recovery burst. Kept small to limit house-edge cost.",
-            },
-            "recovery_chance": {
-                "type": "float", "default": 49.5,
-                "desc": "Win chance % for recovery bets (49.5 ≈ coin-flip; ~2× payout). Lower = rarer but bigger payout.",
-            },
-            "recovery_bet_pct": {
-                "type": "float", "default": 0.005,
-                "desc": "Bet size as fraction of balance for recovery bets (0.5% default). Hard-capped at 2% to prevent busting.",
-            },
         }
 
     # ------------------------------------------------------------------
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
         self.ctx = ctx
 
-        # Load last-session params as fallback defaults.
-        # Resolution order: explicit CLI value > last-session value > hardcoded default.
-        # If the value in `params` equals the hardcoded schema default we assume it
-        # was not explicitly set by the user and prefer the last-session value instead.
-        _last = _load_json_safe(_LAST_PARAMS_FILE)
-
-        def _p(key: str, type_fn: Any, hardcoded: Any) -> Any:
-            cli = params.get(key, hardcoded)
-            if cli == hardcoded and key in _last:
-                try:
-                    return type_fn(_last[key])
-                except Exception:
-                    pass
-            return type_fn(cli)
-
-        self.min_chance       = _p("min_chance", float, 0.01)
-        self.max_chance       = _p("max_chance", float, 1.00)
-        self.cycle_length     = max(4, _p("cycle_length", int, 100))
+        self.min_chance       = float(params.get("min_chance", 0.01))
+        self.max_chance       = float(params.get("max_chance", 1.00))
+        self.cycle_length     = max(4, int(params.get("cycle_length", 100)))
         # Win targets — legacy compat: if old target_win_pct is in params, derive from it.
         _legacy = float(params["target_win_pct"]) if "target_win_pct" in params else None
-        self.win_at_ceil      = _p("win_at_ceil", float, _legacy if _legacy else 0.25)
-        self.win_at_nano      = _p("win_at_nano", float, _legacy * 10 if _legacy else 3.0)
-        self.max_bet_pct      = _p("max_bet_pct", float, 0.01)
-        self.min_bet_pct      = _p("min_bet_pct", float, 0.000001)
-        self.min_bet_abs      = _p("min_bet_abs", float, 0.000001)
-        self.drawdown_sensitivity = _p("drawdown_sensitivity", float, 4.0)
-        self.drawdown_bet_floor   = max(0.0, min(1.0, _p("drawdown_bet_floor", float, 0.2)))
-        self.drought_widen_at = _p("drought_widen_at", int, 100)
-        self.drought_widen_step = _p("drought_widen_step", float, 0.10)
-        self.emergency_streak = _p("emergency_streak", int, 250)
-        self.profit_lock_pct  = _p("profit_lock_pct", float, 0.75)
-        self.probe_bets       = _p("probe_bets", int, 20)
-        self.is_in            = _p("is_in", bool, True)
-        self.cold_zone_bias   = max(0.0, min(1.0, _p("cold_zone_bias", float, 0.65)))
-        self.post_win_bets    = max(0, _p("post_win_bets", int, 10))
-        self.post_win_chance  = _p("post_win_chance", float, 0.0)
-        self.post_win_bet_mult = max(1.0, _p("post_win_bet_mult", float, 2.0))
-        self.recovery_streak  = max(0, _p("recovery_streak", int, 400))
-        self.recovery_bets    = max(1, _p("recovery_bets", int, 5))
-        self.recovery_chance  = max(1.0, min(98.0, _p("recovery_chance", float, 49.5)))
-        self.recovery_bet_pct = max(0.0001, min(0.02, _p("recovery_bet_pct", float, 0.005)))
+        self.win_at_ceil      = float(params.get("win_at_ceil",  _legacy if _legacy else 0.12))
+        self.win_at_nano      = float(params.get("win_at_nano",  _legacy * 10 if _legacy else 3.0))
+        self.max_bet_pct      = float(params.get("max_bet_pct", 0.004))
+        self.min_bet_pct      = float(params.get("min_bet_pct", 0.000001))
+        self.drawdown_sensitivity = float(params.get("drawdown_sensitivity", 4.0))
+        self.drawdown_bet_floor   = max(0.0, min(1.0, float(params.get("drawdown_bet_floor", 0.2))))
+        self.drought_widen_at = int(params.get("drought_widen_at", 100))
+        self.drought_widen_step = float(params.get("drought_widen_step", 0.10))
+        self.emergency_streak = int(params.get("emergency_streak", 250))
+        self.profit_lock_pct  = float(params.get("profit_lock_pct", 0.75))
+        self.probe_bets       = int(params.get("probe_bets", 20))
+        self.is_in            = bool(params.get("is_in", True))
+        self.cold_zone_bias   = max(0.0, min(1.0, float(params.get("cold_zone_bias", 0.65))))
 
         # Derived: adaptive ceiling (raised during droughts, reset on wins)
         self._dyn_max_chance  = self.max_chance
@@ -375,13 +288,6 @@ class NanoRangeHunter:
         # Cold-zone frequency map
         self._cold_map        = _ColdZoneMap()
         self._cold_refresh_ctr = 0
-
-        # Post-win boost counter
-        self._win_boost_counter = 0
-        # 50/50 recovery burst counter
-        self._recovery_counter  = 0
-        # Cached Decimal floor for fast use in hot path
-        self._min_bet_d = Decimal(str(self.min_bet_abs))
 
         # State
         self._phase           = 0          # oscillation phase 0..cycle_length-1
@@ -395,134 +301,6 @@ class NanoRangeHunter:
         self._live_bal        = Decimal("0")  # updated every bet from result
 
     # ------------------------------------------------------------------
-    @staticmethod
-    def _check_risks(p: dict) -> List[str]:
-        """Return human-readable risk warnings for the given param dict."""
-        w: List[str] = []
-        max_bp  = float(p.get("max_bet_pct",       0.004))
-        rec_bp  = float(p.get("recovery_bet_pct",  0.005))
-        pwm     = float(p.get("post_win_bet_mult",  2.0))
-        wac     = float(p.get("win_at_ceil",        0.12))
-        ds      = float(p.get("drawdown_sensitivity", 4.0))
-        es      = int(p.get("emergency_streak",    250))
-        rs      = int(p.get("recovery_streak",     400))
-        rc      = float(p.get("recovery_chance",   49.5))
-        rb      = int(p.get("recovery_bets",         5))
-        dws     = float(p.get("drought_widen_step", 0.10))
-        mc      = float(p.get("min_chance",         0.01))
-        xc      = float(p.get("max_chance",         1.0))
-        pwb     = int(p.get("post_win_bets",        10))
-        pwc     = float(p.get("post_win_chance",    0.0))
-        dba     = int(p.get("drought_widen_at",    100))
-        clk     = int(p.get("cycle_length",        100))
-        mba     = float(p.get("min_bet_abs",       0.00001))
-
-        # ── Absolute minimum bet vs balance ───────────────────────────
-        # (Can't check against live balance here, but warn if it looks large)
-        if mba > 1.0:
-            w.append(
-                f"🚨 CRITICAL  min_bet_abs={mba} — absolute floor is very high. "
-                f"Every bet will be at least {mba} coin units. Verify this matches your currency."
-            )
-        elif mba > 0.1:
-            w.append(
-                f"⚠️  HIGH     min_bet_abs={mba} — floor of {mba} coin units per bet. "
-                f"Ensure your balance can sustain this (recommend ≥500× min_bet_abs)."
-            )
-
-        # ── Bet sizing ────────────────────────────────────────────────
-        eff_ceil = max(xc, 0.0001)
-        drain50  = wac * eff_ceil / max(0.0001, 99.0 - eff_ceil) * 50
-        if max_bp >= 0.015:
-            w.append(
-                f"🚨 CRITICAL  max_bet_pct={max_bp*100:.2f}% — catastrophic drain risk. "
-                f"A drought of 200 bets at ceiling drains >{200*max_bp*100:.0f}% of "
-                f"starting balance. Recommended ≤0.5%. Use drawdown_sensitivity instead."
-            )
-        elif max_bp >= 0.008:
-            w.append(
-                f"⚠️  HIGH     max_bet_pct={max_bp*100:.2f}% — drain of ~{drain50*100:.1f}% "
-                f"per 50 ceiling bets. Drawdown scaling will help, but consider ≤0.5%."
-            )
-
-        if rec_bp >= 0.015:
-            w.append(
-                f"🚨 CRITICAL  recovery_bet_pct={rec_bp*100:.2f}% — {rb} recovery bets × "
-                f"{rec_bp*100:.2f}% = up to -{rb*rec_bp*100:.1f}% of balance in one burst. "
-                f"Recommended ≤0.5%."
-            )
-        elif rec_bp >= 0.01:
-            w.append(
-                f"⚠️  HIGH     recovery_bet_pct={rec_bp*100:.2f}% — full burst costs "
-                f"{rb*rec_bp*100:.1f}% if all {rb} recovery bets lose."
-            )
-
-        # ── Post-win boost ────────────────────────────────────────────
-        if pwm >= 4.0:
-            boost_ch = pwc if pwc > 0 else xc
-            w.append(
-                f"⚠️  HIGH     post_win_bet_mult={pwm}× — a single loss in the {pwb}-bet "
-                f"boost gives back most of the win profit. Each boost bet is "
-                f"~{pwm * wac * boost_ch / max(0.0001, 99-boost_ch) * 100:.2f}% of balance."
-            )
-        elif pwm >= 3.0:
-            w.append(
-                f"💡 MODERATE post_win_bet_mult={pwm}× — aggressive post-win boost. "
-                f"Monitor that wins aren't being given back during the boost phase."
-            )
-
-        # ── Recovery vs emergency ordering ───────────────────────────
-        if rs > 0 and rs <= es:
-            w.append(
-                f"🚨 CRITICAL  recovery_streak={rs} ≤ emergency_streak={es} — "
-                f"recovery fires BEFORE emergency mode, interrupting it. "
-                f"Set recovery_streak > emergency_streak (e.g. {es + 150})."
-            )
-
-        if rc < 40.0:
-            w.append(
-                f"💡 MODERATE recovery_chance={rc:.1f}% — below 40% is no longer near-fair. "
-                f"House edge matters more here; consider 45–50%."
-            )
-
-        # ── Drought widening ──────────────────────────────────────────
-        if dws >= 0.30:
-            steps_to_5 = max(0, int((5.0 - xc) / dws)) * 50
-            w.append(
-                f"⚠️  HIGH     drought_widen_step={dws} — ceiling reaches 5% after "
-                f"~{steps_to_5} extra losses beyond drought_widen_at={dba}. "
-                f"At 5% the multiplier is only ~20x — no longer nano range."
-            )
-
-        # ── Chance range sanity ───────────────────────────────────────
-        if mc >= xc:
-            w.append(
-                f"🚨 CRITICAL  min_chance={mc}% ≥ max_chance={xc}% — invalid range. "
-                f"Strategy bets at a fixed chance. Set min_chance < max_chance."
-            )
-        elif mc > 1.0:
-            w.append(
-                f"💡 INFO      min_chance={mc:.2f}% — lowest multiplier is only "
-                f"~{99/mc:.0f}x. For true jackpot hunting consider ≤0.1%."
-            )
-
-        # ── Drawdown protection ───────────────────────────────────────
-        if ds < 1.0 and max_bp > 0.005:
-            w.append(
-                f"⚠️  HIGH     drawdown_sensitivity={ds} with max_bet_pct={max_bp*100:.2f}% "
-                f"— very low drawdown protection combined with large bets. "
-                f"Bets won't shrink as balance falls. Consider sensitivity ≥2.0."
-            )
-
-        if clk < 20:
-            w.append(
-                f"💡 MODERATE cycle_length={clk} — very fast oscillation means many "
-                f"consecutive near-ceiling bets per cycle. Consider ≥50 for smoother variance."
-            )
-
-        return w
-
-    # ------------------------------------------------------------------
     def on_session_start(self) -> None:
         self._phase           = 0
         self._loss_streak     = 0
@@ -530,8 +308,6 @@ class NanoRangeHunter:
         self._total_bets      = 0
         self._total_wins      = 0
         self._probe_counter   = 0
-        self._win_boost_counter = 0
-        self._recovery_counter  = 0
         self._cold_refresh_ctr = 0
         self._dyn_max_chance  = self.max_chance
         self._starting_bal    = Decimal(self.ctx.starting_balance)
@@ -550,63 +326,20 @@ class NanoRangeHunter:
 
         bp_ceil = self.win_at_ceil * self.max_chance / max(0.0001, 99.0 - self.max_chance)
         bp_nano = self.win_at_nano * self.min_chance / max(0.0001, 99.0 - self.min_chance)
-
-        # ── Check for last-session params diff ────────────────────────
-        _last = _load_json_safe(_LAST_PARAMS_FILE)
-        _changed_from_last: List[str] = []
-        if _last:
-            for key in _ALL_PARAMS:
-                old = _last.get(key)
-                cur = getattr(self, key, None)
-                if old is not None and old != cur:
-                    _changed_from_last.append(f"{key}: {old} → {cur}")
-
-        self.ctx.printer(f"\n🎯  Nano Range Hunter started")
-        self.ctx.printer(f"    Chance range  : {self.min_chance}% ↔ {self.max_chance}%")
-        self.ctx.printer(f"    Multipliers   : ~{99/self.max_chance:.0f}x – ~{99/self.min_chance:.0f}x")
-        self.ctx.printer(f"    Win at ceiling: +{self.win_at_ceil*100:.0f}% of balance  "
+        print(f"\n🎯  Nano Range Hunter started")
+        print(f"    Chance range  : {self.min_chance}% ↔ {self.max_chance}%")
+        print(f"    Multipliers   : ~{99/self.max_chance:.0f}x – ~{99/self.min_chance:.0f}x")
+        print(f"    Win at ceiling: +{self.win_at_ceil*100:.0f}% of balance  "
               f"(bet {bp_ceil*100:.3f}% per try)")
-        self.ctx.printer(f"    Win at nano   : +{self.win_at_nano*100:.0f}% of balance  "
+        print(f"    Win at nano   : +{self.win_at_nano*100:.0f}% of balance  "
               f"(bet {bp_nano*100:.5f}% per try) → {1+self.win_at_nano:.1f}× account")
-        self.ctx.printer(f"    Max drain/50  : {bp_ceil*50*100:.1f}% (ceiling phase, no wins)")
-        self.ctx.printer(f"    Drawdown scale: sensitivity={self.drawdown_sensitivity}  "
+        print(f"    Max drain/50  : {bp_ceil*50*100:.1f}% (ceiling phase, no wins)")
+        print(f"    Drawdown scale: sensitivity={self.drawdown_sensitivity}  "
               f"floor={self.drawdown_bet_floor:.0%}  (bets shrink as balance falls from peak)")
-        self.ctx.printer(f"    Bet cap       : {self.max_bet_pct*100:.2f}% of balance per bet  "
-              f"(min {self.min_bet_abs} absolute)")
-        self.ctx.printer(f"    Drought widen : after {self.drought_widen_at} losses  "
-              f"(+{self.drought_widen_step*100:.0f}% ceiling per 50 extra losses, "
-              f"emergency at streak {self.emergency_streak})")
-        self.ctx.printer(f"    Cold zones    : {cold_status}")
-        self.ctx.printer(f"    Profit lock   : +{self.profit_lock_pct*100:.0f}% gain triggers "
-              f"{self.probe_bets}-bet reduced-stake cooldown")
-        if self.post_win_bets > 0:
-            boost_ch = self.post_win_chance if self.post_win_chance > 0 else self.max_chance
-            self.ctx.printer(f"    Post-win boost: {self.post_win_bets} bets @ {boost_ch:.2f}% "
-                  f"× {self.post_win_bet_mult}× size after each win")
-        if self.recovery_streak > 0:
-            self.ctx.printer(
-                f"    Recovery burst: {self.recovery_bets} × {self.recovery_chance:.1f}% bets @ "
-                f"{self.recovery_bet_pct*100:.2f}% balance after streak ≥ {self.recovery_streak}"
-            )
-
-        if _last:
-            if _changed_from_last:
-                self.ctx.printer(f"\n    ↩️  Changed from last session:")
-                for diff in _changed_from_last:
-                    self.ctx.printer(f"       {diff}")
-            else:
-                self.ctx.printer(f"\n    ↩️  All params match last session (loaded from saved defaults)")
-
-        # ── Risk warnings ─────────────────────────────────────────────
-        effective = {k: getattr(self, k, None) for k in _ALL_PARAMS if hasattr(self, k)}
-        risks = self._check_risks(effective)
-        if risks:
-            self.ctx.printer(f"\n  ⚠️  Risk warnings ({len(risks)}):")
-            for r in risks:
-                self.ctx.printer(f"    {r}")
-        else:
-            self.ctx.printer(f"\n  ✅  No risk warnings — config looks safe")
-        self.ctx.printer("")
+        print(f"    Bet cap       : {self.max_bet_pct*100:.2f}% of balance per bet")
+        print(f"    Drought widen : after {self.drought_widen_at} consecutive losses")
+        print(f"    Cold zones    : {cold_status}")
+        print(f"    Profit lock   : +{self.profit_lock_pct*100:.0f}% gain triggers {self.probe_bets}-bet reduced-stake cooldown\n")
 
     # ------------------------------------------------------------------
     def on_resume(self, state: Dict[str, Any]) -> None:
@@ -635,7 +368,7 @@ class NanoRangeHunter:
             self.max_chance + extra_steps * self.drought_widen_step,
             max(self.max_chance, 5.0),
         )
-        self.ctx.printer(
+        print(
             f"♻️  Resumed — loss_streak={self._loss_streak}  "
             f"phase={self._phase}  dyn_ceiling={self._dyn_max_chance:.2f}%  "
             f"balance={float(self._live_bal):.8f}"
@@ -737,8 +470,8 @@ class NanoRangeHunter:
         bet_pct = max(self.min_bet_pct, min(self.max_bet_pct, bet_pct))
 
         bet = bal * Decimal(str(bet_pct))
-        if bet < self._min_bet_d:
-            bet = self._min_bet_d
+        if bet < Decimal("0.00000034"):
+            bet = Decimal("0.00000034")
         return bet.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
 
 
@@ -782,42 +515,14 @@ class NanoRangeHunter:
             probe_bet = (bal * Decimal(str(probe_bet_pct))).quantize(
                 Decimal("0.00000001"), rounding=ROUND_DOWN
             )
-            probe_bet = max(probe_bet, self._min_bet_d)
+            probe_bet = max(probe_bet, Decimal("0.00000034"))
             width = _width_for_chance(probe_chance)
             window = self._pick_window(width)
             if self._probe_counter % 10 == 0 and self._probe_counter > 0:
-                self.ctx.printer(f"🛡️  Probe mode: {self._probe_counter} bets remaining")
+                print(f"🛡️  Probe mode: {self._probe_counter} bets remaining")
             return BetSpec(
                 game="range-dice",
                 amount=str(probe_bet),
-                range=window,
-                is_in=self.is_in,
-                faucet=self.ctx.faucet,
-            )
-
-        # Post-win boost: elevated chance + larger bet for N bets after each win.
-        # Capitalises on momentum by staying wide before returning to deep hunting.
-        if self._win_boost_counter > 0:
-            self._win_boost_counter -= 1
-            boost_chance = self.post_win_chance if self.post_win_chance > 0 else self.max_chance
-            base_bet = self._calc_bet(boost_chance)
-            boosted = base_bet * Decimal(str(self.post_win_bet_mult))
-            # Hard cap: never exceed 3% of balance in a single boost bet
-            hard_cap = bal * Decimal("0.03")
-            boosted = min(boosted, hard_cap).quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
-            boosted = max(boosted, self._min_bet_d)
-            width = _width_for_chance(boost_chance)
-            window = self._pick_window(width)
-            remaining = self._win_boost_counter + 1
-            if remaining in (self.post_win_bets, 1) or remaining % 5 == 0:
-                self.ctx.printer(
-                    f"⚡ Win-boost #{self.post_win_bets - self._win_boost_counter}/{self.post_win_bets} | "
-                    f"chance={boost_chance:.2f}% | bet×{self.post_win_bet_mult} | "
-                    f"{self._win_boost_counter} left"
-                )
-            return BetSpec(
-                game="range-dice",
-                amount=str(boosted),
                 range=window,
                 is_in=self.is_in,
                 faucet=self.ctx.faucet,
@@ -832,42 +537,6 @@ class NanoRangeHunter:
             max(self.max_chance, 5.0),
         )
 
-        # 50/50 recovery burst: fires after an extreme drought to claw back losses
-        # with near-fair-odds bets before returning to nano hunting.
-        if self.recovery_streak > 0 and self._loss_streak >= self.recovery_streak:
-            if self._recovery_counter == 0:
-                # Arm a new burst
-                self._recovery_counter = self.recovery_bets
-                self.ctx.printer(
-                    f"🆘 RECOVERY BURST triggered at streak {self._loss_streak}! "
-                    f"{self.recovery_bets} × {self.recovery_chance:.1f}% bets "
-                    f"@ {self.recovery_bet_pct*100:.2f}% of balance"
-                )
-        if self._recovery_counter > 0:
-            self._recovery_counter -= 1
-            rec_bet = (bal * Decimal(str(self.recovery_bet_pct))).quantize(
-                Decimal("0.00000001"), rounding=ROUND_DOWN
-            )
-            rec_bet = max(rec_bet, self._min_bet_d)
-            width = _width_for_chance(self.recovery_chance)
-            window = self._pick_window(width)
-            multi = 99.0 / self.recovery_chance
-            self.ctx.printer(
-                f"🔄 Recovery bet {self.recovery_bets - self._recovery_counter}/{self.recovery_bets} | "
-                f"{self.recovery_chance:.1f}% (~{multi:.1f}x) | "
-                f"amount={float(rec_bet):.8f} | streak={self._loss_streak}"
-            )
-            if self._recovery_counter == 0:
-                # Back off the streak so we don't immediately re-arm on the next loss
-                self._loss_streak = max(0, self.recovery_streak - 50)
-            return BetSpec(
-                game="range-dice",
-                amount=str(rec_bet),
-                range=window,
-                is_in=self.is_in,
-                faucet=self.ctx.faucet,
-            )
-
         # Emergency mode: streak too deep — bypass oscillation, force ceiling chance
         # every bet until a win. At 1.5-5% chance P(≥1 win in 200 bets) > 95%.
         if self._loss_streak >= self.emergency_streak:
@@ -876,7 +545,7 @@ class NanoRangeHunter:
             width = _width_for_chance(chance)
             window = self._pick_window(width)
             if self._loss_streak == self.emergency_streak:
-                self.ctx.printer(
+                print(
                     f"🚨 EMERGENCY MODE activated at streak {self._loss_streak}! "
                     f"Forcing {chance:.2f}% chance (~{99/chance:.0f}x) until next win."
                 )
@@ -905,7 +574,7 @@ class NanoRangeHunter:
             expected_win_pct = bet_pct_actual * (99.0 / chance - 1) * 100 if chance > 0 else 0
             # Drawdown info
             dd_pct = float((self._peak_bal - bal) / self._peak_bal * 100) if self._peak_bal > 0 else 0
-            self.ctx.printer(
+            print(
                 f"📊 Bet #{self._total_bets:>5} | "
                 f"Chance: {chance:.4f}% (~{multiplier:.0f}x) | "
                 f"Window: {window[0]}-{window[1]} | "
@@ -953,7 +622,7 @@ class NanoRangeHunter:
             prev_bal = bal - profit
             bal_mult = float(bal / prev_bal) if prev_bal > 0 else 0
             profit_pct = float(profit / prev_bal * 100) if prev_bal > 0 else 0
-            self.ctx.printer(
+            print(
                 f"🚀 WIN #{self._total_wins}! "
                 f"+{float(profit):.8f} (+{profit_pct:.1f}%) @ ~{multi:.0f}x | "
                 f"Balance: {float(prev_bal):.8f} → {float(bal):.8f} "
@@ -963,25 +632,15 @@ class NanoRangeHunter:
             # Reset drought state
             self._loss_streak    = 0
             self._dyn_max_chance = self.max_chance  # return to configured ceiling
-            self._recovery_counter = 0              # cancel any in-flight recovery burst
             # Snap phase to 0 to immediately hunt deep again
             self._phase = 0
-
-            # Post-win boost: queue N elevated bets before returning to deep hunt
-            if self.post_win_bets > 0 and self._win_boost_counter == 0:
-                boost_ch = self.post_win_chance if self.post_win_chance > 0 else self.max_chance
-                self._win_boost_counter = self.post_win_bets
-                self.ctx.printer(
-                    f"⚡ WIN BOOST queued: {self.post_win_bets} bets @ "
-                    f"{boost_ch:.2f}% × {self.post_win_bet_mult}× size"
-                )
 
             # Profit lock: check cumulative gain vs starting balance
             if self._starting_bal > 0:
                 gain_pct = float((bal - self._starting_bal) / self._starting_bal)
                 if gain_pct >= self.profit_lock_pct and self._probe_counter == 0:
                     self._probe_counter = self.probe_bets
-                    self.ctx.printer(
+                    print(
                         f"💰 PROFIT LOCK! +{gain_pct*100:.1f}% gain → "
                         f"{self.probe_bets}-bet probe cooldown"
                     )
@@ -994,19 +653,14 @@ class NanoRangeHunter:
     def on_session_end(self, reason: str) -> None:
         bal = self._current_balance()
         net = float(bal - self._starting_bal)
-        self.ctx.printer(f"\n{'='*62}")
-        self.ctx.printer(f"🏁  Nano Range Hunter — Session End")
-        self.ctx.printer(f"{'='*62}")
-        self.ctx.printer(f"  Reason       : {reason}")
-        self.ctx.printer(f"  Total bets   : {self._total_bets}")
-        self.ctx.printer(f"  Total wins   : {self._total_wins}")
+        print(f"\n{'='*62}")
+        print(f"🏁  Nano Range Hunter — Session End")
+        print(f"{'='*62}")
+        print(f"  Reason       : {reason}")
+        print(f"  Total bets   : {self._total_bets}")
+        print(f"  Total wins   : {self._total_wins}")
         if self._total_bets > 0:
-            self.ctx.printer(f"  Win rate     : {self._total_wins/self._total_bets*100:.3f}%")
-        self.ctx.printer(f"  Max l-streak : {self._max_loss_streak}")
-        self.ctx.printer(f"  Net P/L      : {net:+.8f}")
-        self.ctx.printer(f"{'='*62}\n")
-
-        # Save effective params so the next session defaults to them
-        save_data: dict = {k: getattr(self, k) for k in _ALL_PARAMS if hasattr(self, k)}
-        _save_json_safe(_LAST_PARAMS_FILE, save_data)
-        self.ctx.printer(f"  💾  Params saved → {_LAST_PARAMS_FILE} (used as defaults next session)")
+            print(f"  Win rate     : {self._total_wins/self._total_bets*100:.3f}%")
+        print(f"  Max l-streak : {self._max_loss_streak}")
+        print(f"  Net P/L      : {net:+.8f}")
+        print(f"{'='*62}\n")

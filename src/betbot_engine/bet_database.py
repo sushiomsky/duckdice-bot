@@ -424,6 +424,49 @@ class BetDatabase:
             cursor.execute(query, params)
             return [dict(row) for row in cursor.fetchall()]
     
+    def get_last_cancelled_session(
+        self,
+        strategy_name: Optional[str] = None,
+        simulation_mode: Optional[bool] = None,
+    ) -> Optional[Dict[str, Any]]:
+        """Return the most recent session that was cancelled by the user."""
+        query = "SELECT * FROM sessions WHERE stop_reason = 'cancelled'"
+        params: list = []
+        if strategy_name:
+            query += " AND strategy_name = ?"
+            params.append(strategy_name)
+        if simulation_mode is not None:
+            query += " AND simulation_mode = ?"
+            params.append(1 if simulation_mode else 0)
+        query += " ORDER BY started_at DESC LIMIT 1"
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            row = cursor.fetchone()
+            return dict(row) if row else None
+
+    def get_session_tail_state(self, session_id: str) -> Dict[str, Any]:
+        """Return restorable state from the last bet of a session.
+
+        Returns a dict with: loss_streak, bet_number, last_balance.
+        Used by strategies that implement on_resume() to restore internal state.
+        """
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute("""
+                SELECT bet_number, loss_streak, balance
+                FROM bet_history WHERE session_id = ?
+                ORDER BY bet_number DESC LIMIT 1
+            """, (session_id,))
+            row = cursor.fetchone()
+            if not row:
+                return {}
+            return {
+                "loss_streak": row["loss_streak"] or 0,
+                "bet_number": row["bet_number"] or 0,
+                "last_balance": row["balance"] or 0,
+            }
+
     def get_statistics(
         self,
         session_id: Optional[str] = None,
@@ -502,6 +545,36 @@ class BetDatabase:
                 'max_balance': row['max_balance'] or 0,
             }
     
+    def get_recent_rolls(
+        self,
+        symbol: Optional[str] = None,
+        limit: int = 5000,
+    ) -> List[float]:
+        """Return the rolled numbers from the most recent `limit` bets.
+
+        Used by strategies for frequency-aware range placement.
+        Returns a list of floats (0.0 – 9999.0) ordered oldest-first.
+        """
+        query = """
+            SELECT roll FROM (
+                SELECT id, roll FROM bet_history
+                WHERE roll IS NOT NULL
+                {symbol_filter}
+                ORDER BY id DESC LIMIT ?
+            ) ORDER BY id ASC
+        """
+        params: List[Any] = [limit]
+        symbol_filter = ""
+        if symbol:
+            symbol_filter = "AND symbol = ?"
+            params = [symbol, limit]
+
+        query = query.format(symbol_filter=symbol_filter)
+        with self._get_connection() as conn:
+            cursor = conn.cursor()
+            cursor.execute(query, params)
+            return [float(row[0]) for row in cursor.fetchall()]
+
     def export_to_csv(
         self,
         output_path: Path,

@@ -202,6 +202,62 @@ def prompt_choice(prompt: str, choices: List[str], default: str = None) -> str:
         print("Invalid choice, try again.")
 
 
+def _pick_strategy(preselected: str = None) -> str:
+    """Two-step strategy selection: base name → version (if variants exist).
+    Shows description after selection. Returns final strategy name (may include @vN).
+    """
+    from betbot_strategies import list_strategies, get_strategy
+
+    all_raw = list_strategies()
+    all_names = [s['name'] for s in all_raw]
+    desc_map = {s['name']: s.get('description', '') for s in all_raw}
+
+    # Separate base names from versioned variants
+    base_names = sorted(set(n.split('@')[0] for n in all_names))
+
+    if preselected:
+        base = preselected.split('@')[0]
+        if base not in base_names:
+            return preselected
+        strategy_base = base
+        # If already has version suffix, skip prompts
+        if '@' in preselected:
+            _show_strategy_desc(preselected, desc_map)
+            return preselected
+    else:
+        strategy_base = prompt_choice("Select strategy:", base_names)
+
+    # Offer version choice if variants exist
+    variants = sorted(n for n in all_names if n.startswith(strategy_base + '@'))
+    if variants:
+        version_opts = [f'{strategy_base} (latest)'] + variants
+        choice = prompt_choice(
+            f"Multiple versions of '{strategy_base}' available:",
+            version_opts,
+            default=version_opts[0],
+        )
+        strategy_name = strategy_base if choice == version_opts[0] else choice
+    else:
+        strategy_name = strategy_base
+
+    _show_strategy_desc(strategy_name, desc_map)
+    return strategy_name
+
+
+def _show_strategy_desc(strategy_name: str, desc_map: dict) -> None:
+    """Print description for the selected strategy."""
+    desc = desc_map.get(strategy_name, '')
+    if not desc:
+        # Try the base name's description for versioned strategies
+        base = strategy_name.split('@')[0]
+        desc = desc_map.get(base, '')
+    if desc:
+        if USE_RICH and display:
+            display.console.print(f"\n[dim]{desc}[/dim]\n")
+        else:
+            print(f"\n  {desc}\n")
+
+
 def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfig,
                 api_key: str = None, dry_run: bool = True, use_parallel: bool = False,
                 max_concurrent: int = 5, resume_state: Optional[Dict[str, Any]] = None):
@@ -252,7 +308,10 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
     
     def printer(msg: str):
         """Print bet results and debug messages"""
-        print(msg)
+        if USE_RICH and display:
+            display.console.print(msg)
+        else:
+            print(msg)
     
     def json_sink(bet_data: Dict[str, Any]):
         """Track bet statistics with enhanced display"""
@@ -374,7 +433,13 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
             # Create strategy instance
             strategy_class = get_strategy(strategy_name)
             strategy_instance = strategy_class(params, ctx)
-            
+
+            # --- Keypress bet-size adjuster ---
+            from betbot_engine.keypress_adjuster import KeypressAdjuster
+            _adj_step = float(params.get("min_bet_abs", 0.000001))
+            _adjuster = KeypressAdjuster(step=_adj_step, printer=printer)
+            _adjuster.start()
+
             # Create parallel engine
             parallel_engine = ParallelBettingEngine(api, config, max_concurrent=max_concurrent)
             
@@ -386,6 +451,12 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
                 stop_checker=should_stop
             )
         else:
+            # --- Keypress bet-size adjuster (sequential) ---
+            from betbot_engine.keypress_adjuster import KeypressAdjuster
+            _adj_step = float(params.get("min_bet_abs", 0.000001))
+            _adjuster = KeypressAdjuster(step=_adj_step, printer=printer)
+            _adjuster.start()
+
             # Sequential engine (original)
             engine = AutoBetEngine(api, config)
             
@@ -397,11 +468,18 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
                 json_sink=json_sink,
                 stop_checker=should_stop,
                 resume_state=resume_state,
+                bet_offset_fn=_adjuster.get_offset,
             )
         
         # Close progress bar if active
         if progress:
             progress.__exit__(None, None, None)
+
+        # Stop keypress adjuster
+        try:
+            _adjuster.stop()
+        except Exception:
+            pass
         
         # Print final summary
         stats = tracker.get_stats()
@@ -709,17 +787,17 @@ def cmd_run(args):
     # Get available strategies
     available_strategies_raw = list_strategies()
     available_strategies = [s['name'] if isinstance(s, dict) else s for s in available_strategies_raw]
-    
+
     if not available_strategies:
         print("Error: No strategies available")
         return
-    
-    # Get strategy
+
+    # Get strategy (with version selection and description if interactive)
     if args.strategy:
-        strategy_name = args.strategy
+        strategy_name = _pick_strategy(preselected=args.strategy)
     else:
-        strategy_name = prompt_choice("Select strategy:", available_strategies)
-    
+        strategy_name = _pick_strategy()
+
     if strategy_name not in available_strategies:
         print(f"Error: Unknown strategy '{strategy_name}'")
         print(f"Available strategies: {', '.join(available_strategies)}")
@@ -1229,47 +1307,49 @@ def cmd_interactive(args=None):
     else:
         print(f"\nStep 3: Select Strategy")
         print("-" * 40)
-    
+
     available_strategies_raw = list_strategies()
-    available_strategies = [s['name'] if isinstance(s, dict) else s for s in available_strategies_raw]
-    
+    all_names = [s['name'] for s in available_strategies_raw]
+    # Show only base names (no @vN variants) in the grouped/numbered list
+    base_strategy_names = sorted(set(n.split('@')[0] for n in all_names))
+
     if USE_RICH and display:
-        display.print_strategy_list(available_strategies)
+        display.print_strategy_list(base_strategy_names)
     else:
         # Group strategies by risk level
         print("\n🟢 Conservative (Low Risk):")
         conservative = ['dalembert', 'oscars-grind', 'one-three-two-six']
-        for s in [s for s in available_strategies if s in conservative]:
+        for s in [s for s in base_strategy_names if s in conservative]:
             print(f"  • {s}")
-        
+
         print("\n🟡 Moderate (Medium Risk):")
         moderate = ['fibonacci', 'labouchere', 'paroli', 'fib-loss-cluster']
-        for s in [s for s in available_strategies if s in moderate]:
+        for s in [s for s in base_strategy_names if s in moderate]:
             print(f"  • {s}")
-        
+
         print("\n🔴 Aggressive (High Risk):")
         aggressive = ['classic-martingale', 'anti-martingale-streak', 'streak-hunter']
-        for s in [s for s in available_strategies if s in aggressive]:
+        for s in [s for s in base_strategy_names if s in aggressive]:
             print(f"  • {s}")
-        
+
         print("\n🔵 Specialized:")
-        specialized = ['faucet-grind', 'faucet-cashout', 'kelly-capped', 'target-aware', 
+        specialized = ['faucet-grind', 'faucet-cashout', 'kelly-capped', 'target-aware',
                        'rng-analysis-strategy', 'range-50-random', 'max-wager-flow', 'custom-script']
-        for s in [s for s in available_strategies if s in specialized]:
+        for s in [s for s in base_strategy_names if s in specialized]:
             print(f"  • {s}")
-    
+
     print("\nFull list:")
-    for i, s in enumerate(available_strategies, 1):
+    for i, s in enumerate(base_strategy_names, 1):
         if i % 3 == 1:
             print(f"  {i:2}. {s:<25}", end="")
         elif i % 3 == 2:
             print(f"{i:2}. {s:<25}", end="")
         else:
             print(f"{i:2}. {s}")
-    if len(available_strategies) % 3 != 0:
+    if len(base_strategy_names) % 3 != 0:
         print()
-    
-    strategy_name = prompt_choice("", available_strategies)
+
+    strategy_name = _pick_strategy()
     if USE_RICH and display:
         display.print_success(f"Selected: {strategy_name}")
     else:

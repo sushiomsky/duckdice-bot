@@ -72,6 +72,7 @@ class StrategyContext:
     jitter_ms: int = 500
     recent_results: Deque[BetResult] = field(default_factory=lambda: deque(maxlen=256))
     starting_balance: str = "0"
+    printer: Callable[[str], None] = field(default_factory=lambda: print)
 
     def sleep_with_jitter(self):
         base = max(0, self.delay_ms) / 1000.0

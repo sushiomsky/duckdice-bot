@@ -120,6 +120,8 @@ class AutoBetEngine:
         json_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
         stop_checker: Optional[Callable[[], bool]] = None,
         emitter: Optional['EventEmitter'] = None,
+        resume_state: Optional[Dict[str, Any]] = None,
+        bet_offset_fn: Optional[Callable[[], 'Decimal']] = None,
     ) -> Dict[str, Any]:
         """Run a session using stored api+config and return a summary.
         Delegates to run_auto_bet to preserve behavior.
@@ -131,6 +133,7 @@ class AutoBetEngine:
             json_sink: Optional callback for structured events (legacy)
             stop_checker: Optional callback to check if session should stop
             emitter: Optional EventEmitter to use instead of self.emitter
+            resume_state: Optional dict with prior session state to restore
         """
         return run_auto_bet(
             api=self.api,
@@ -141,6 +144,8 @@ class AutoBetEngine:
             json_sink=json_sink,
             stop_checker=stop_checker,
             emitter=emitter or self.emitter,
+            resume_state=resume_state,
+            bet_offset_fn=bet_offset_fn,
         )
 
     @classmethod
@@ -317,6 +322,8 @@ def run_auto_bet(
     json_sink: Optional[Callable[[Dict[str, Any]], None]] = None,
     stop_checker: Optional[Callable[[], bool]] = None,
     emitter: Optional['EventEmitter'] = None,
+    resume_state: Optional[Dict[str, Any]] = None,
+    bet_offset_fn: Optional[Callable[[], 'Decimal']] = None,
 ) -> Dict[str, Any]:
     """Run an auto-betting session and return a summary dict.
 
@@ -324,6 +331,8 @@ def run_auto_bet(
     - json_sink: called with structured records per bet (optional) [LEGACY]
     - stop_checker: if provided and returns True, the session stops gracefully
     - emitter: EventEmitter for event-driven interfaces (recommended)
+    - bet_offset_fn: if provided, its return value is added to every bet amount
+                     (used by the keypress bet-size adjuster)
     """
     start_ts = time.time()
     _ensure_dir(config.log_dir)
@@ -398,6 +407,7 @@ def run_auto_bet(
         delay_ms=config.delay_ms,
         jitter_ms=config.jitter_ms,
         starting_balance=format(starting_balance, 'f'),
+        printer=printer if printer else print,
     )
     strategy = StrategyCls(params, ctx)  # type: ignore[call-arg]
 
@@ -407,6 +417,7 @@ def run_auto_bet(
     losses_count = 0
     losses_in_row = 0
     current_balance = starting_balance
+    discovered_api_min_bet: Decimal = Decimal("0.00000001")  # updated on first 422
 
     def print_line(msg: str) -> None:
         if printer:
@@ -414,7 +425,15 @@ def run_auto_bet(
 
     # Start
     strategy.on_session_start()
+    # Restore prior session state (if resuming a cancelled session)
+    if resume_state and hasattr(strategy, 'on_resume'):
+        try:
+            strategy.on_resume(resume_state)
+        except Exception as e:
+            print_line(f"⚠️  State restore failed (starting fresh): {e}")
     start_msg = f"[start] strategy={strategy_name} symbol={config.symbol} dry_run={config.dry_run} faucet={config.faucet}"
+    if resume_state:
+        start_msg += f" resumed_from={resume_state.get('resumed_from', 'unknown')}"
     print_line(start_msg)
     
     # Start database session
@@ -434,7 +453,8 @@ def run_auto_bet(
                     'max_bets': config.max_bets,
                     'max_losses': config.max_losses,
                     'max_duration_sec': config.max_duration_sec,
-                }
+                },
+                metadata={'resumed_from': resume_state.get('resumed_from')} if resume_state else None,
             )
         except Exception as e:
             print_line(f"⚠️  Database session start failed: {e}")
@@ -468,6 +488,16 @@ def run_auto_bet(
                 stopped_reason = "strategy_stopped"
                 break
 
+            # Apply keypress bet-size offset (+ / - keys)
+            if bet_offset_fn is not None:
+                try:
+                    offset = bet_offset_fn()
+                    if offset and offset > 0:
+                        raw = _decimal(bet.get("amount", "0"))
+                        bet["amount"] = format(raw + offset, 'f')
+                except Exception:
+                    pass
+
             # Enforce symbol and faucet default
             bet.setdefault("faucet", ctx.faucet)
 
@@ -482,11 +512,11 @@ def run_auto_bet(
                     pass
             
             # Comprehensive bet validation and adjustment
-            min_bet = Decimal("0.00000001")  # 1 satoshi default
+            # Use the highest known API minimum (updated when a 422 is received)
             validated_bet = _validate_and_adjust_bet(
                 bet=bet,
                 current_balance=current_balance,
-                min_bet=min_bet,
+                min_bet=discovered_api_min_bet,
                 printer=print_line,
             )
             
@@ -582,13 +612,19 @@ def run_auto_bet(
                         # Extract minimum bet from error
                         try:
                             api_min_bet = Decimal(min_bet_match.group(1))
-                            print_line(f"⚠️  Bet too small. API requires minimum: {api_min_bet}")
-                            
-                            # Retry with corrected minimum
-                            if api_min_bet <= current_balance:
-                                print_line(f"   🔄 Retrying with minimum bet: {api_min_bet}")
-                                bet["amount"] = str(api_min_bet)
-                                amount_dec = api_min_bet
+                            # Add a tiny buffer (1%) so we never hit the floor again
+                            api_min_bet_buffered = (api_min_bet * Decimal("1.01")).quantize(
+                                Decimal("0.00000001")
+                            )
+                            # Persist for all future bets this session
+                            discovered_api_min_bet = api_min_bet_buffered
+                            print_line(f"⚠️  Bet too small. API minimum: {api_min_bet} → caching {api_min_bet_buffered} (+1%) for session")
+
+                            # Retry with buffered minimum
+                            if api_min_bet_buffered <= current_balance:
+                                print_line(f"   🔄 Retrying with minimum bet: {api_min_bet_buffered}")
+                                bet["amount"] = str(api_min_bet_buffered)
+                                amount_dec = api_min_bet_buffered
                                 
                                 # Retry the API call
                                 try:
@@ -614,7 +650,7 @@ def run_auto_bet(
                                     stopped_reason = "api_error"
                                     break
                             else:
-                                print_line(f"⚠️  Insufficient balance ({current_balance}) for minimum bet ({api_min_bet})")
+                                print_line(f"⚠️  Insufficient balance ({current_balance}) for minimum bet ({api_min_bet_buffered})")
                                 stopped_reason = "insufficient_balance"
                                 break
                         except (ValueError, InvalidOperation) as parse_err:
@@ -717,6 +753,7 @@ def run_auto_bet(
                 ))
 
             # Strategy callback
+            ctx.recent_results.append(result)   # keeps current_balance_str() live
             strategy.on_bet_result(result)
             bets_done += 1
 
