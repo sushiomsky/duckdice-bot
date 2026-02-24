@@ -63,6 +63,7 @@ _ALL_PARAMS = {
     "recovery_streak", "recovery_bets", "recovery_chance", "recovery_bet_pct",
     "post_win_bets", "post_win_chance", "post_win_bet_mult",
     "profit_lock_pct", "probe_bets", "cold_zone_bias", "is_in",
+    "profit_target_pct",
 }
 
 
@@ -285,6 +286,17 @@ class NanoRangeHunter:
                 "type": "int", "default": 20,
                 "desc": "Number of reduced-stake probe bets after profit lock (short cooldown only)",
             },
+            "profit_target_pct": {
+                "type": "float", "default": 0.0,
+                "desc": (
+                    "Profit target as % of starting balance (0 = disabled). "
+                    "E.g. 100 = double your balance (+100%). "
+                    "Enables target-aware mode: strategy reduces variance as it approaches the goal "
+                    "and calculates a precise finish-bet in the final 5% to close the gap cleanly. "
+                    "Phases — HUNT (<50%): unchanged; BUILD (50-80%): raise chance floor, scale bets ×0.75; "
+                    "LOCK (80-95%): ceiling-biased chance, bets ×0.5; FINISH (≥95%): exact close-out bet."
+                ),
+            },
             "is_in": {
                 "type": "bool", "default": True,
                 "desc": "Bet IN the range (True) or OUT of it (False)",
@@ -359,6 +371,7 @@ class NanoRangeHunter:
         self.emergency_streak = _p("emergency_streak", int, 250)
         self.profit_lock_pct  = _p("profit_lock_pct", float, 0.75)
         self.probe_bets       = _p("probe_bets", int, 20)
+        self.profit_target_pct = _p("profit_target_pct", float, 0.0)
         self.is_in            = _p("is_in", bool, True)
         self.cold_zone_bias   = max(0.0, min(1.0, _p("cold_zone_bias", float, 0.65)))
         self.post_win_bets    = max(0, _p("post_win_bets", int, 10))
@@ -393,6 +406,8 @@ class NanoRangeHunter:
         self._starting_bal    = Decimal("0")
         self._peak_bal        = Decimal("0")
         self._live_bal        = Decimal("0")  # updated every bet from result
+        self._target_bal: Optional[Decimal] = None
+        self._target_phase    = ""            # "HUNT" / "BUILD" / "LOCK" / "FINISH"
 
     # ------------------------------------------------------------------
     @staticmethod
@@ -537,6 +552,11 @@ class NanoRangeHunter:
         self._starting_bal    = Decimal(self.ctx.starting_balance)
         self._peak_bal        = self._starting_bal
         self._live_bal        = self._starting_bal
+        self._target_phase    = ""
+        if self.profit_target_pct > 0:
+            self._target_bal = self._starting_bal * Decimal(str(1 + self.profit_target_pct / 100))
+        else:
+            self._target_bal = None
 
         # Load cold-zone frequency map from bet history
         if self.cold_zone_bias > 0.0:
@@ -579,6 +599,12 @@ class NanoRangeHunter:
         self.ctx.printer(f"    Cold zones    : {cold_status}")
         self.ctx.printer(f"    Profit lock   : +{self.profit_lock_pct*100:.0f}% gain triggers "
               f"{self.probe_bets}-bet reduced-stake cooldown")
+        if self._target_bal:
+            self.ctx.printer(
+                f"    Target        : +{self.profit_target_pct:.0f}% "
+                f"({float(self._starting_bal):.8f} → {float(self._target_bal):.8f}) | "
+                f"HUNT→BUILD@50%→LOCK@80%→FINISH@95%"
+            )
         if self.post_win_bets > 0:
             boost_ch = self.post_win_chance if self.post_win_chance > 0 else self.max_chance
             self.ctx.printer(f"    Post-win boost: {self.post_win_bets} bets @ {boost_ch:.2f}% "
@@ -762,11 +788,93 @@ class NanoRangeHunter:
         return (start, start + width - 1)
 
     # ------------------------------------------------------------------
+    def _target_phase_label(self, progress: float) -> str:
+        if progress >= 0.95:  return "FINISH"
+        if progress >= 0.80:  return "LOCK"
+        if progress >= 0.50:  return "BUILD"
+        return "HUNT"
+
+    def _apply_target_awareness(
+        self, chance: float, bet: Decimal, bal: Decimal
+    ) -> Tuple[float, Decimal]:
+        """Adjust chance and bet based on proximity to profit target.
+
+        HUNT  (<50% progress): no change — hunt aggressively
+        BUILD (50–80%):  raise chance floor to geometric mean of min/max, scale bet ×0.75–1.0
+        LOCK  (80–95%):  floor at max_chance×0.5, scale bet ×0.5
+        FINISH (≥95%):   one precise ceiling-chance bet sized to close the remaining gap exactly
+        """
+        if not self._target_bal or self._starting_bal <= 0:
+            return chance, bet
+
+        gain_needed = float(self._target_bal - self._starting_bal)
+        if gain_needed <= 0:
+            return chance, bet
+
+        gain_actual = float(bal - self._starting_bal)
+        progress = gain_actual / gain_needed  # 0.0 = start, 1.0 = target
+
+        phase = self._target_phase_label(progress)
+
+        # Log phase transitions
+        if phase != self._target_phase:
+            self._target_phase = phase
+            pct_done = max(0.0, progress * 100)
+            self.ctx.printer(
+                f"🎯 Target phase → {phase} ({pct_done:.1f}% of +{self.profit_target_pct:.0f}% goal | "
+                f"balance {float(bal):.8f} / target {float(self._target_bal):.8f})"
+            )
+
+        if phase == "HUNT":
+            return chance, bet
+
+        if phase == "FINISH":
+            remaining = self._target_bal - bal
+            if remaining <= 0:
+                return chance, bet
+            finish_chance = self.max_chance
+            multiplier = 99.0 / finish_chance - 1.0
+            if multiplier > 0:
+                finish_bet = remaining / Decimal(str(multiplier))
+                finish_bet = max(finish_bet, self._min_bet_d)
+                # Hard cap: never risk more than max_bet_pct in a single finish bet
+                cap = bal * Decimal(str(self.max_bet_pct))
+                finish_bet = min(finish_bet, cap)
+                finish_bet = finish_bet.quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
+                return finish_chance, finish_bet
+
+        if phase == "LOCK":
+            lock_floor = max(self.min_chance, self.max_chance * 0.5)
+            adjusted_chance = max(chance, lock_floor)
+            adjusted_bet = (bet * Decimal("0.5")).quantize(Decimal("0.00000001"), rounding=ROUND_DOWN)
+            return adjusted_chance, max(adjusted_bet, self._min_bet_d)
+
+        # BUILD (50–80%): geometric mean as floor, gradual bet scale-down
+        build_floor = math.sqrt(self.min_chance * self.max_chance)
+        adjusted_chance = max(chance, build_floor)
+        # scale linearly from 1.0 at 50% progress to 0.75 at 80%
+        scale = 1.0 - 0.25 * (progress - 0.50) / 0.30
+        scale = max(0.75, min(1.0, scale))
+        adjusted_bet = (bet * Decimal(str(round(scale, 4)))).quantize(
+            Decimal("0.00000001"), rounding=ROUND_DOWN
+        )
+        return adjusted_chance, max(adjusted_bet, self._min_bet_d)
+
+    # ------------------------------------------------------------------
     def next_bet(self) -> Optional[BetSpec]:
         self._total_bets += 1
 
         bal = self._current_balance()
         if bal <= 0:
+            return None
+
+        # Target-awareness: stop when profit target reached
+        if self._target_bal and bal >= self._target_bal:
+            gain_pct = float((bal - self._starting_bal) / self._starting_bal * 100) if self._starting_bal > 0 else 0
+            self.ctx.printer(
+                f"\n🎯 PROFIT TARGET REACHED! "
+                f"Balance: {float(bal):.8f} (+{gain_pct:.1f}% / target was +{self.profit_target_pct:.0f}%)"
+            )
             return None
 
         # Update peak balance for profit-lock check
@@ -891,6 +999,10 @@ class NanoRangeHunter:
         chance = self._calc_chance()
         bet_amount = self._calc_bet(chance)
 
+        # Apply target-awareness: adjust chance/bet based on proximity to goal
+        if self._target_bal:
+            chance, bet_amount = self._apply_target_awareness(chance, bet_amount, bal)
+
         width = _width_for_chance(chance)
         window = self._pick_window(width)
 
@@ -903,8 +1015,13 @@ class NanoRangeHunter:
             bal = self._current_balance()
             bet_pct_actual = float(bet_amount) / float(bal) if bal > 0 else 0
             expected_win_pct = bet_pct_actual * (99.0 / chance - 1) * 100 if chance > 0 else 0
-            # Drawdown info
             dd_pct = float((self._peak_bal - bal) / self._peak_bal * 100) if self._peak_bal > 0 else 0
+            target_info = ""
+            if self._target_bal and self._starting_bal > 0:
+                gain_needed = float(self._target_bal - self._starting_bal)
+                gain_actual = float(bal - self._starting_bal)
+                pct = gain_actual / gain_needed * 100 if gain_needed > 0 else 0
+                target_info = f" | Target: {pct:.1f}% [{self._target_phase}]"
             self.ctx.printer(
                 f"📊 Bet #{self._total_bets:>5} | "
                 f"Chance: {chance:.4f}% (~{multiplier:.0f}x) | "
@@ -913,6 +1030,7 @@ class NanoRangeHunter:
                 f"WinIf: +{expected_win_pct:.0f}% | "
                 f"DD: {dd_pct:.1f}% | "
                 f"Streak: {self._loss_streak}"
+                f"{target_info}"
             )
 
         return BetSpec(
@@ -1004,6 +1122,14 @@ class NanoRangeHunter:
             self.ctx.printer(f"  Win rate     : {self._total_wins/self._total_bets*100:.3f}%")
         self.ctx.printer(f"  Max l-streak : {self._max_loss_streak}")
         self.ctx.printer(f"  Net P/L      : {net:+.8f}")
+        if self._target_bal and self._starting_bal > 0:
+            gain_needed = float(self._target_bal - self._starting_bal)
+            gain_pct = net / float(self._starting_bal) * 100 if self._starting_bal > 0 else 0
+            progress = net / gain_needed * 100 if gain_needed > 0 else 0
+            if bal >= self._target_bal:
+                self.ctx.printer(f"  Target       : ✅ REACHED! +{gain_pct:.1f}% (goal was +{self.profit_target_pct:.0f}%)")
+            else:
+                self.ctx.printer(f"  Target       : {progress:.1f}% of +{self.profit_target_pct:.0f}% goal reached")
         self.ctx.printer(f"{'='*62}\n")
 
         # Save effective params so the next session defaults to them
