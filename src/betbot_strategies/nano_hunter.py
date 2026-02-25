@@ -85,18 +85,18 @@ class NanoHunter:
         return {
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.001,
-                "desc": "Fraction of CURRENT balance bet per spin (0.001 = 0.1%)",
+                "default": 0.005,
+                "desc": "Fraction of CURRENT balance bet per spin (0.005 = 0.5%)",
             },
             "loss_mult": {
                 "type": "float",
-                "default": 1.0,
-                "desc": "Multiply bet by this factor after each loss (1.0 = flat)",
+                "default": 1.1,
+                "desc": "Multiply bet by this factor after each loss (1.1 = +10% per loss, 1.0 = flat)",
             },
             "max_mult": {
                 "type": "float",
-                "default": 1.0,
-                "desc": "Cap the accumulated multiplier at this value",
+                "default": 10.0,
+                "desc": "Cap the accumulated multiplier at this value (10 = max 10× base bet)",
             },
             "min_bet_abs": {
                 "type": "str",
@@ -105,7 +105,7 @@ class NanoHunter:
             },
             "max_bet_pct": {
                 "type": "float",
-                "default": 0.05,
+                "default": 0.10,
                 "desc": "Hard cap: bet never exceeds this fraction of current balance",
             },
             "profit_target_pct": {
@@ -125,10 +125,10 @@ class NanoHunter:
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
         self.ctx = ctx
 
-        self.base_bet_pct  = float(params.get("base_bet_pct",  0.001))
-        self.loss_mult     = max(1.0, float(params.get("loss_mult",  1.0)))
-        self.max_mult      = max(1.0, float(params.get("max_mult",   1.0)))
-        self.max_bet_pct   = float(params.get("max_bet_pct",   0.05))
+        self.base_bet_pct  = float(params.get("base_bet_pct",  0.005))
+        self.loss_mult     = max(1.0, float(params.get("loss_mult",  1.1)))
+        self.max_mult      = max(1.0, float(params.get("max_mult",   10.0)))
+        self.max_bet_pct   = float(params.get("max_bet_pct",   0.10))
         self.profit_target_pct = float(params.get("profit_target_pct", 0.0))
         self.is_in         = bool(params.get("is_in", True))
 
