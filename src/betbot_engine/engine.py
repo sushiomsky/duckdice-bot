@@ -54,6 +54,8 @@ try:
     from betbot_strategies import target_aware  # noqa: F401
     # Scripting engine
     from betbot_strategies import custom_script  # noqa: F401
+    # Low-end jackpot hunter
+    from betbot_strategies import low_hunter  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass
