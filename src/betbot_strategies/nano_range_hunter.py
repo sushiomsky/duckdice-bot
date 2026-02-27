@@ -30,7 +30,7 @@ _ALL_PARAMS = {
     "drought_widen_at", "drought_widen_step", "emergency_streak",
     "post_win_bets", "post_win_chance", "post_win_bet_mult",
     "cold_zone_bias", "is_in",
-    "profit_target_pct", "stop_loss_pct",
+    "profit_target_pct", "stop_loss_pct", "survival_dd_pct",
 }
 
 
@@ -168,16 +168,16 @@ class NanoRangeHunterMediumMoon:
                 "desc": "Bets per full oscillation cycle",
             },
             "win_at_ceil": {
-                "type": "float", "default": 0.18,
-                "desc": "+18% of balance target on ceiling hits",
+                "type": "float", "default": 0.12,
+                "desc": "+12% of balance target on ceiling hits (conservative — 33% smaller ceiling bets)",
             },
             "win_at_nano": {
                 "type": "float", "default": 12.0,
                 "desc": "13× account target on nano hit",
             },
             "max_bet_pct": {
-                "type": "float", "default": 0.0045,
-                "desc": "Hard cap 0.45% of balance per bet",
+                "type": "float", "default": 0.003,
+                "desc": "Hard cap 0.3% of balance per bet (tighter to slow drain)",
             },
             "min_bet_pct": {
                 "type": "float", "default": 0.000001,
@@ -188,8 +188,8 @@ class NanoRangeHunterMediumMoon:
                 "desc": "Absolute floor in coin units (~$0.005 USDT equiv)",
             },
             "drawdown_sensitivity": {
-                "type": "float", "default": 5.8,
-                "desc": "Halves bets at ~17% drawdown",
+                "type": "float", "default": 6.5,
+                "desc": "Bets halved at ~15% drawdown, near-zero at ~23% (adaptive floor continues past that)",
             },
             "drawdown_bet_floor": {
                 "type": "float", "default": 0.12,
@@ -215,6 +215,10 @@ class NanoRangeHunterMediumMoon:
                 "type": "float", "default": 0.0,
                 "desc": "Stop session if balance drops this % below starting balance (0 = disabled, e.g. 40 = stop at -40%)",
             },
+            "survival_dd_pct": {
+                "type": "float", "default": 35.0,
+                "desc": "Enter survival mode (force nano bets) when balance drops this % below session peak (0 = disabled)",
+            },
             "is_in": {
                 "type": "bool", "default": True,
                 "desc": "Bet IN the range",
@@ -232,8 +236,8 @@ class NanoRangeHunterMediumMoon:
                 "desc": "4.2% chance during post-win burst",
             },
             "post_win_bet_mult": {
-                "type": "float", "default": 1.45,
-                "desc": "1.45× size during boost phase",
+                "type": "float", "default": 1.25,
+                "desc": "1.25× size during boost phase (conservative to avoid burning the win)",
             },
         }
 
@@ -254,29 +258,31 @@ class NanoRangeHunterMediumMoon:
         self.min_chance       = _p("min_chance", float, 0.025)
         self.max_chance       = _p("max_chance", float, 2.80)
         self.cycle_length     = max(4, _p("cycle_length", int, 55))
-        self.win_at_ceil      = _p("win_at_ceil", float, 0.18)
+        self.win_at_ceil      = _p("win_at_ceil", float, 0.12)
         self.win_at_nano      = _p("win_at_nano", float, 12.0)
-        self.max_bet_pct      = _p("max_bet_pct", float, 0.0045)
+        self.max_bet_pct      = _p("max_bet_pct", float, 0.003)
         self.min_bet_pct      = _p("min_bet_pct", float, 0.000001)
         self.min_bet_abs      = _p("min_bet_abs", float, 0.00005)
-        self.drawdown_sensitivity = _p("drawdown_sensitivity", float, 5.8)
+        self.drawdown_sensitivity = _p("drawdown_sensitivity", float, 6.5)
         self.drawdown_bet_floor   = max(0.0, min(1.0, _p("drawdown_bet_floor", float, 0.12)))
         self.drought_widen_at = _p("drought_widen_at", int, 65)
         self.drought_widen_step = _p("drought_widen_step", float, 0.18)
         self.emergency_streak = _p("emergency_streak", int, 190)
         self.profit_target_pct = _p("profit_target_pct", float, 0.0)
         self.stop_loss_pct     = max(0.0, _p("stop_loss_pct", float, 0.0))
+        self.survival_dd_pct   = max(0.0, _p("survival_dd_pct", float, 35.0))
         self.is_in            = _p("is_in", bool, True)
         self.cold_zone_bias   = max(0.0, min(1.0, _p("cold_zone_bias", float, 0.55)))
         self.post_win_bets    = max(0, _p("post_win_bets", int, 7))
         self.post_win_chance  = _p("post_win_chance", float, 4.2)
-        self.post_win_bet_mult = max(1.0, _p("post_win_bet_mult", float, 1.45))
+        self.post_win_bet_mult = max(1.0, _p("post_win_bet_mult", float, 1.25))
 
         self._dyn_max_chance  = self.max_chance
         self._cold_map        = _ColdZoneMap()
         self._cold_refresh_ctr = 0
         self._win_boost_counter = 0
         self._min_bet_d       = Decimal(str(self.min_bet_abs))
+        self._in_survival_mode = False
 
         self._phase           = 0
         self._loss_streak     = 0
@@ -369,6 +375,7 @@ class NanoRangeHunterMediumMoon:
         self._total_wins      = 0
         self._win_boost_counter = 0
         self._cold_refresh_ctr = 0
+        self._in_survival_mode = False
         self._dyn_max_chance  = self.max_chance
         self._starting_bal    = Decimal(self.ctx.starting_balance)
         self._peak_bal        = self._starting_bal
@@ -431,6 +438,11 @@ class NanoRangeHunterMediumMoon:
         if self.stop_loss_pct > 0:
             sl_floor = self._starting_bal * Decimal(str(1.0 - self.stop_loss_pct / 100.0))
             self.ctx.printer(f"    Stop-loss     : -{self.stop_loss_pct:.1f}% (floor: {float(sl_floor):.8f})")
+        if self.survival_dd_pct > 0:
+            self.ctx.printer(
+                f"    Survival mode : kicks in at -{self.survival_dd_pct:.0f}% from peak → "
+                f"forces nano bets ({self.min_chance:.3f}% chance) to preserve balance"
+            )
 
         if _last:
             if _changed_from_last:
@@ -505,10 +517,10 @@ class NanoRangeHunterMediumMoon:
         power exponent is flattened toward 0.4 which INVERTS the bias — the
         strategy then spends more time at HIGH chances to survive the drought:
 
-          streak=0    power=2.5  → ~70% of bets at deep nano (jackpot hunting)
-          streak=100  power=1.5  → balanced
-          streak=200  power=0.5  → biased toward high chance (survival mode)
-          streak=210+ power=0.4  → strongly biased high (emergency survival)
+          streak=0    power=3.5  → ~80% of bets at deep nano (jackpot hunting)
+          streak=100  power=2.5  → biased deep still
+          streak=200  power=1.5  → balanced
+          streak=310+ power=0.4  → strongly biased high (emergency survival)
 
         Phase 0      → min_chance  (deepest hunt, biggest multiplier)
         Phase cycle/2 → _dyn_max_chance (highest chance, survival probe)
@@ -516,8 +528,10 @@ class NanoRangeHunterMediumMoon:
         t = self._phase / self.cycle_length
         raw_blend = (1 - math.cos(2 * math.pi * t)) / 2
 
-        # Flatten power toward 0.4 (biased-high) as streak deepens
-        effective_power = max(0.4, 2.5 - self._loss_streak / 100.0)
+        # Flatten power toward 0.4 (biased-high) as streak deepens.
+        # Base raised from 2.5 → 3.5 so at zero streak the strategy spends
+        # ~80% of bets near nano (very cheap) and only ~20% near ceiling.
+        effective_power = max(0.4, 3.5 - self._loss_streak / 100.0)
         blend = raw_blend ** effective_power
 
         chance = self.min_chance + blend * (self._dyn_max_chance - self.min_chance)
@@ -561,6 +575,8 @@ class NanoRangeHunterMediumMoon:
         - Maximum drain rate only occurs at ceiling chance, not at intermediate depths
         - Drawdown scaler reduces bets proportionally as balance falls from peak,
           extending runway during losing streaks
+        - Adaptive floor: the floor itself shrinks as drawdown deepens, so bets
+          keep reducing well past the point where the old fixed floor used to lock in
         - Sizing is frozen at max_chance during drought/emergency to prevent oversizing
         """
         bal = self._current_balance()
@@ -571,10 +587,14 @@ class NanoRangeHunterMediumMoon:
         sizing_chance = min(chance, self.max_chance)
         bet_pct = self._bet_pct_for_chance(sizing_chance)
 
-        # Drawdown scaler: shrink bets as balance falls from peak
+        # Drawdown scaler: shrink bets as balance falls from peak.
+        # Adaptive floor decreases as drawdown deepens so bets keep shrinking
+        # past the old fixed-floor trigger point.
         if self.drawdown_sensitivity > 0 and self._peak_bal > 0:
             dd = max(0.0, float((self._peak_bal - bal) / self._peak_bal))
-            dd_scale = max(self.drawdown_bet_floor, 1.0 - dd * self.drawdown_sensitivity)
+            # Adaptive floor: full floor at 0% dd, 15% of floor at 35%+ dd
+            adaptive_floor = self.drawdown_bet_floor * max(0.15, 1.0 - dd * 2.5)
+            dd_scale = max(adaptive_floor, 1.0 - dd * self.drawdown_sensitivity)
             bet_pct *= dd_scale
 
         bet_pct = max(self.min_bet_pct, min(self.max_bet_pct, bet_pct))
@@ -752,6 +772,43 @@ class NanoRangeHunterMediumMoon:
             # Hard cap: allow up to 5% during extreme droughts for survival
             max(self.max_chance, 5.0),
         )
+
+        # Survival mode: balance has dropped too far from its session peak.
+        # Force nano-depth bets (minimum chance = cheapest possible bets) to
+        # preserve the bankroll while waiting for a jackpot hit.
+        # This is distinct from emergency mode (streak-based): survival activates
+        # on BALANCE drawdown, not on streak length.
+        if self.survival_dd_pct > 0 and self._peak_bal > 0:
+            dd_from_peak = float((self._peak_bal - bal) / self._peak_bal) * 100
+            if dd_from_peak >= self.survival_dd_pct:
+                if not self._in_survival_mode:
+                    self._in_survival_mode = True
+                    self.ctx.printer(
+                        f"\n🛡️  SURVIVAL MODE: -{dd_from_peak:.1f}% from peak "
+                        f"(threshold -{self.survival_dd_pct:.0f}%) — "
+                        f"switching to nano bets ({self.min_chance:.3f}% chance, "
+                        f"~{99/self.min_chance:.0f}x) to minimise drain"
+                    )
+                chance = self.min_chance
+                bet_amount = self._calc_bet(chance)
+                width = _width_for_chance(chance)
+                window = self._pick_window(width)
+                return BetSpec(
+                    game="range-dice",
+                    amount=str(bet_amount),
+                    range=window,
+                    is_in=self.is_in,
+                    faucet=self.ctx.faucet,
+                )
+            elif self._in_survival_mode:
+                # Exit survival when recovered halfway back above threshold
+                recover_threshold = self.survival_dd_pct * 0.5
+                if dd_from_peak < recover_threshold:
+                    self._in_survival_mode = False
+                    self.ctx.printer(
+                        f"\n🌱 SURVIVAL MODE lifted: drawdown recovered to -{dd_from_peak:.1f}% "
+                        f"(below {recover_threshold:.0f}% recovery threshold) — resuming normal hunt"
+                    )
 
         # Emergency mode: streak too deep — bypass oscillation, force ceiling chance
         # every bet until a win. At 1.5-5% chance P(≥1 win in 200 bets) > 95%.
