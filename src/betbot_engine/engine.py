@@ -56,6 +56,8 @@ try:
     from betbot_strategies import custom_script  # noqa: F401
     # Low-end jackpot hunter
     from betbot_strategies import low_hunter  # noqa: F401
+    # Volatility spike hunter (quant-grade state machine)
+    from betbot_strategies import volatility_spike_hunter  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass
