@@ -84,6 +84,7 @@ from . import (
     simple_progression_40,  # Simple 40% chance win progression
     adaptive_volatility_hunter,  # Ultra-low chance hunting with volatility adaptation
     nano_range_hunter,           # Range Dice ultra-low chance, rotating target + adaptive chance
+    spike_hunter,                # Rare-spike predator: observation-attack-reset for +100%–500%+ hits
 )
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
