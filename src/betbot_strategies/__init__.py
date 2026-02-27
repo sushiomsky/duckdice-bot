@@ -86,6 +86,7 @@ from . import (
     nano_range_hunter,           # Range Dice ultra-low chance, rotating target + adaptive chance
     spike_hunter,                # Rare-spike predator: observation-attack-reset for +100%–500%+ hits
     regime_hunter,               # Stochastic amplifier: 3-regime Markov chain, 8 state variables
+    dynamic_phase_hunter,        # Tiered profit-target recovery: GREED→RECOVERY→SALVAGE cascade
 )
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
