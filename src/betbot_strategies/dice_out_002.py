@@ -7,23 +7,18 @@ Range Dice sniper targeting an ultra-narrow 0.02% window (2 slots out of 0–999
 Win probability per bet: ~0.02% (2/10,000)
 Expected payout on hit:  ~4,950× bet (at 99% RTP)
 
-The strategy bets a tiny fraction of balance each round, waiting for the rare
-2-slot hit. Three sizing modes are supported:
-
-  flat       — fixed fraction every bet (safest, slowest recovery)
-  martingale — double bet after each loss, reset on win
-  capped     — martingale capped at max_mult× base bet (bounded risk)
+Flat bet sizing only: each bet is bet_frac × current balance, so the absolute
+bet amount scales down naturally as the balance falls and up as it grows.
 
 Window placement per bet:
-  random     — uniform random position in [0, 9998]
+  random     — uniform random position in [0, 9998]  (default)
   sequential — advance by step_size each bet, wraps at 9999
   fixed      — always use the same start slot (window_start param)
 
 Defaults are tuned for extended survival:
-  bet_frac=0.0002 (0.02% of balance per bet)
-  sizing_mode=flat
+  bet_frac=0.0002 (0.02% of current balance per bet)
   stop_loss_pct=50.0
-  take_profit_pct=0.0 (disabled — run until stop-loss or manual stop)
+  take_profit_pct=0.0 (disabled)
 """
 
 from decimal import Decimal, ROUND_DOWN
@@ -49,7 +44,7 @@ class DiceOut002:
     def describe(cls) -> str:
         return (
             "0.02% Range Dice sniper: bet inside a 2-slot window (out of 0–9999). "
-            "~4,950× payout on hit. Three sizing modes: flat, martingale, capped-martingale."
+            "~4,950× payout on hit. Flat bet_frac of current balance per bet."
         )
 
     @classmethod
@@ -62,28 +57,26 @@ class DiceOut002:
             recommended_for="Advanced",
             pros=[
                 "Massive payout on hit (~4,950× bet)",
+                "Bet scales with balance — smaller bets as bankroll shrinks",
                 "Very low per-bet cost keeps sessions long",
-                "Flat mode has controlled, predictable drawdown",
-                "Martingale mode accelerates recovery after losses",
+                "Predictable, controlled drawdown curve",
                 "Simple mechanics, easy to reason about",
             ],
             cons=[
                 "0.02% win rate — expect ~5,000 bets between wins on average",
                 "Long losing streaks are the norm, not the exception",
-                "Martingale mode can hit max bet quickly",
                 "Negative expected value due to house edge",
-                "A single session can end with zero wins",
+                "A single session can end with zero hits",
             ],
             best_use_case=(
-                "High-risk lottery play. Use flat mode with a small bet_frac "
-                "for maximum longevity, or capped martingale for a balanced approach."
+                "High-risk lottery play. Lower bet_frac for maximum longevity; "
+                "raise it to chase faster hits at the cost of a deeper drawdown."
             ),
             tips=[
                 "Set bet_frac=0.0001 (0.01% of balance) for longer sessions",
-                "Use sizing_mode=flat for the most predictable drawdown",
-                "Set stop_loss_pct=30 to cut losses before full wipeout",
+                "Set stop_loss_pct=30 to exit before full wipeout",
                 "Use window_mode=random for unbiased coverage",
-                "Martingale escalates fast at 0.02% hit rate — use max_mult≤20",
+                "window_mode=sequential scans every slot systematically",
                 "Track hits per session; even one hit is a big win",
             ],
         )
@@ -94,21 +87,7 @@ class DiceOut002:
             "bet_frac": {
                 "type": "float",
                 "default": 0.0002,
-                "desc": "Base bet as fraction of current balance (0.0002 = 0.02%).",
-            },
-            "sizing_mode": {
-                "type": "str",
-                "default": "flat",
-                "desc": (
-                    "Bet sizing: 'flat' = constant bet_frac; "
-                    "'martingale' = double after loss, reset on win; "
-                    "'capped' = martingale capped at max_mult× base bet."
-                ),
-            },
-            "max_mult": {
-                "type": "float",
-                "default": 64.0,
-                "desc": "Max multiplier cap for 'capped' martingale mode (e.g. 64 = 6 doublings).",
+                "desc": "Bet as fraction of current balance per bet (0.0002 = 0.02%).",
             },
             "window_mode": {
                 "type": "str",
@@ -154,13 +133,11 @@ class DiceOut002:
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
         self.ctx = ctx
 
-        self.bet_frac    = float(params.get("bet_frac", 0.0002))
-        self.sizing_mode = str(params.get("sizing_mode", "flat")).lower()
-        self.max_mult    = max(1.0, float(params.get("max_mult", 64.0)))
-        self.window_mode = str(params.get("window_mode", "random")).lower()
+        self.bet_frac     = float(params.get("bet_frac", 0.0002))
+        self.window_mode  = str(params.get("window_mode", "random")).lower()
         self.window_start = max(0, min(_DOMAIN - _WIDTH, int(params.get("window_start", 4999))))
-        self.step_size   = max(1, min(_DOMAIN - _WIDTH, int(params.get("step_size", 1))))
-        self.stop_loss_pct  = float(params.get("stop_loss_pct", 50.0))
+        self.step_size    = max(1, min(_DOMAIN - _WIDTH, int(params.get("step_size", 1))))
+        self.stop_loss_pct   = float(params.get("stop_loss_pct", 50.0))
         self.take_profit_pct = float(params.get("take_profit_pct", 0.0))
 
         raw_min = str(params.get("min_amount", "") or "")
@@ -168,8 +145,6 @@ class DiceOut002:
         self._abs_min: Optional[Decimal] = _safe_dec(raw_min) if raw_min else None
         self._abs_max: Optional[Decimal] = _safe_dec(raw_max) if raw_max else None
 
-        if self.sizing_mode not in ("flat", "martingale", "capped"):
-            self.sizing_mode = "flat"
         if self.window_mode not in ("random", "sequential", "fixed"):
             self.window_mode = "random"
 
@@ -179,12 +154,11 @@ class DiceOut002:
         self._stop_bal:     Decimal = Decimal("0")
         self._target_bal:   Decimal = Decimal("0")
 
-        self._total_bets:   int = 0
-        self._total_wins:   int = 0
-        self._loss_streak:  int = 0
+        self._total_bets:     int = 0
+        self._total_wins:     int = 0
+        self._loss_streak:    int = 0
         self._max_loss_streak: int = 0
-        self._mult:         float = 1.0   # current martingale multiplier
-        self._seq_pos:      int = 0       # sequential window position
+        self._seq_pos:        int = 0
 
     def on_session_start(self) -> None:
         bal = _safe_dec(self.ctx.starting_balance or "0")
@@ -194,7 +168,6 @@ class DiceOut002:
         self._total_wins   = 0
         self._loss_streak  = 0
         self._max_loss_streak = 0
-        self._mult         = 1.0
         self._seq_pos      = 0
 
         self._stop_bal = (
@@ -208,8 +181,7 @@ class DiceOut002:
 
         self.ctx.printer(
             f"[dice-out-002] started  bal={bal:.8f}  "
-            f"sizing={self.sizing_mode}  window={self.window_mode}  "
-            f"bet={self.bet_frac*100:.4f}%"
+            f"window={self.window_mode}  bet={self.bet_frac*100:.4f}% of balance"
             + (f"  stop={self.stop_loss_pct:.1f}%" if self.stop_loss_pct else "")
             + (f"  target=+{self.take_profit_pct:.1f}%" if self.take_profit_pct else "")
         )
@@ -259,7 +231,7 @@ class DiceOut002:
                 f"[dice-out-002] bet#{self._total_bets}  "
                 f"bal={bal:.8f}  PnL={pnl:+.8f}  "
                 f"hits={self._total_wins}  loss_streak={self._loss_streak}  "
-                f"mult={self._mult:.1f}×  window=[{start},{end}]  bet={float(amt):.8f}"
+                f"window=[{start},{end}]  bet={float(amt):.8f}"
             )
 
         return {
@@ -282,25 +254,15 @@ class DiceOut002:
         if won:
             self._total_wins  += 1
             self._loss_streak  = 0
-            self._mult         = 1.0
         else:
             self._loss_streak += 1
             if self._loss_streak > self._max_loss_streak:
                 self._max_loss_streak = self._loss_streak
-            if self.sizing_mode in ("martingale", "capped"):
-                new_mult = self._mult * 2.0
-                if self.sizing_mode == "capped":
-                    new_mult = min(new_mult, self.max_mult)
-                self._mult = new_mult
 
     # ── helpers ───────────────────────────────────────────────────────────
 
     def _size_bet(self, bal: Decimal) -> Decimal:
-        base = bal * Decimal(str(self.bet_frac))
-        if self.sizing_mode == "flat":
-            raw = base
-        else:
-            raw = base * Decimal(str(self._mult))
+        raw = bal * Decimal(str(self.bet_frac))
         return self._clamp(raw, bal)
 
     def _clamp(self, amt: Decimal, bal: Decimal) -> Decimal:
