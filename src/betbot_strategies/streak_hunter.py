@@ -264,28 +264,36 @@ class StreakHunter:
             mult = self.third_multiplier - (self.multiplier_decrease * additional_wins)
             return max(mult, self.min_multiplier)
 
+    def _get_cumulative_multiplier(self, streak: int) -> float:
+        """Cumulative product of per-streak multipliers up to *streak* wins.
+
+        streak=1 → m1
+        streak=2 → m1 * m2
+        streak=3 → m1 * m2 * m3
+        etc.
+        """
+        cum = 1.0
+        for s in range(1, streak + 1):
+            cum *= self._get_multiplier_for_streak(s)
+        return cum
+
     def _calculate_bet_amount(self) -> Decimal:
-        """Calculate bet amount based on streak"""
+        """Calculate bet amount: fresh base bet × cumulative streak multiplier.
+
+        The base bet is always recalculated from the current balance so the
+        adaptive divisor takes effect immediately.  The streak factor is the
+        cumulative product of all individual multipliers, keeping the bet
+        firmly anchored to the current base rather than to the last actual bet.
+        """
+        base = self._calculate_base_bet()
         if self._win_streak == 0:
-            # First bet or after loss - use base bet
-            return self._current_base
-        else:
-            # On a streak - multiply PREVIOUS BET by streak multiplier
-            multiplier = self._get_multiplier_for_streak(self._win_streak)
-            
-            # Use last bet amount if we have one, otherwise base
-            previous_bet = self._last_bet_amount if self._last_bet_amount > 0 else self._current_base
-            amount = previous_bet * Decimal(str(multiplier))
-            
-            return amount
+            return base
+        cumulative = self._get_cumulative_multiplier(self._win_streak)
+        return base * Decimal(str(cumulative))
 
     def next_bet(self) -> Optional[BetSpec]:
         """Generate next bet specification"""
         self._total_bets += 1
-        
-        # Recalculate base bet periodically (every 10 bets)
-        if self._total_bets % 10 == 0:
-            self._current_base = self._calculate_base_bet()
         
         # Check if this should be a lottery bet (ONLY when not on a streak!)
         is_lottery = False
@@ -297,7 +305,7 @@ class StreakHunter:
             lottery_chance = self.ctx.rng.uniform(self.lottery_chance_min, self.lottery_chance_max)
             # Round to 2 decimal places for API compatibility
             lottery_chance = round(lottery_chance, 2)
-            amount = self._current_base
+            amount = self._calculate_base_bet()
             
             # Calculate potential payout
             payout_mult = 99.0 / lottery_chance if lottery_chance > 0 else 0
