@@ -4,7 +4,10 @@ Streak Hunter Strategy - Hunt 14% chance with compounding streak progression
 
 Strategy:
 - Target: 14% win chance (~7x payout)
-- Base bet: max(min_bet, balance/300)
+- Base bet: max(min_bet, balance/divisor) where divisor adapts with profit progress
+  - At session start:  divisor = start_divisor (default 500) → balance/500
+  - At take-profit target: divisor = end_divisor (default 800) → balance/800
+  - Divisor interpolates linearly between the two, shrinking bets as gains grow
 - On first win: Bet 200% of previous bet (2x last bet)
 - On second win: Bet 180% of previous bet (1.8x last bet)
 - On third win: Bet 160% of previous bet (1.6x last bet)
@@ -103,7 +106,17 @@ class StreakHunter:
             "balance_divisor": {
                 "type": "int",
                 "default": 300,
-                "desc": "Divide balance by this for base bet (default 300)"
+                "desc": "Divide balance by this for base bet (legacy; overridden by start_divisor/end_divisor)"
+            },
+            "start_divisor": {
+                "type": "int",
+                "default": 500,
+                "desc": "Balance divisor at session start (fraction = balance/start_divisor)"
+            },
+            "end_divisor": {
+                "type": "int",
+                "default": 800,
+                "desc": "Balance divisor when near take-profit target (fraction = balance/end_divisor)"
             },
             "first_multiplier": {
                 "type": "float",
@@ -158,6 +171,8 @@ class StreakHunter:
         self.is_high = bool(params.get("is_high", True))
         self.min_bet = Decimal(str(params.get("min_bet", "0.00000100")))
         self.balance_divisor = int(params.get("balance_divisor", 300))
+        self.start_divisor = int(params.get("start_divisor", 500))
+        self.end_divisor = int(params.get("end_divisor", 800))
         self.first_multiplier = float(params.get("first_multiplier", 2.0))
         self.second_multiplier = float(params.get("second_multiplier", 1.8))
         self.third_multiplier = float(params.get("third_multiplier", 1.6))
@@ -196,15 +211,36 @@ class StreakHunter:
         print(f"\n🎯 Streak Hunter Strategy Started")
         print(f"   Target chance: {self.chance}%")
         print(f"   Base bet: {self._current_base:.8f}")
+        print(f"   Bet sizing: balance/{self.start_divisor} → balance/{self.end_divisor} (adaptive toward take-profit)")
         print(f"   Win multipliers: {self.first_multiplier}x → {self.second_multiplier}x → {self.third_multiplier}x → ...")
         if self.lottery_enabled:
             print(f"   🎰 Lottery: Every {self.lottery_frequency} bets @ {self.lottery_chance_min}-{self.lottery_chance_max}%")
         print(f"   Reset on: Any loss\n")
 
     def _calculate_base_bet(self) -> Decimal:
-        """Calculate base bet: max(min_bet, balance/divisor)"""
+        """Calculate base bet using an adaptive divisor.
+
+        The divisor interpolates linearly from *start_divisor* (at session
+        start / 0 % progress) to *end_divisor* (when balance has reached the
+        take-profit target).  This makes individual bets smaller as the
+        profit target approaches, protecting accumulated gains.
+        """
         current_balance = Decimal(self.ctx.current_balance_str())
-        balance_based = current_balance / Decimal(str(self.balance_divisor))
+        starting = Decimal(self.ctx.starting_balance)
+
+        # Determine progress toward take-profit (0.0 – 1.0)
+        take_profit = float(self.ctx.limits.take_profit) if self.ctx.limits.take_profit else 0.0
+        if take_profit > 0 and starting > 0:
+            profit_target = starting * Decimal(str(take_profit))
+            gained = current_balance - starting
+            progress = float(gained / profit_target)
+            progress = max(0.0, min(1.0, progress))
+        else:
+            progress = 0.0
+
+        # Linearly interpolate divisor between start and end
+        divisor = self.start_divisor + (self.end_divisor - self.start_divisor) * progress
+        balance_based = current_balance / Decimal(str(divisor))
         return max(self.min_bet, balance_based)
 
     def _get_multiplier_for_streak(self, streak: int) -> float:
