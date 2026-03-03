@@ -90,6 +90,7 @@ from . import (
     dice_out_002,                # 0.02% range sniper: 2-slot window, ~4950× payout
     blaks_runner,                # BlaksRunner 5.0: adaptive chance + loss-recovery auto-tuning
     luck_cascade,                # Luck Cascade: descend lower-chance tiers while luck% > 100%
+    chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
 )
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
