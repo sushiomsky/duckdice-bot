@@ -88,6 +88,7 @@ from . import (
     regime_hunter,               # Stochastic amplifier: 3-regime Markov chain, 8 state variables
     dynamic_phase_hunter,        # Tiered profit-target recovery: GREED→RECOVERY→SALVAGE cascade
     dice_out_002,                # 0.02% range sniper: 2-slot window, ~4950× payout
+    blaks_runner,                # BlaksRunner 5.0: adaptive chance + loss-recovery auto-tuning
 )
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
