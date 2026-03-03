@@ -421,17 +421,33 @@ def run_auto_bet(
     losses_count = 0
     losses_in_row = 0
     current_balance = starting_balance
-    # Pre-populate from probe cache if available (written by `duckdice probe-min-bets`)
+    # Pre-populate from cache; auto-probe if not yet cached (live only)
     try:
-        from betbot_engine.min_bet_cache import get_min_bet as _get_cached_min_bet
-        _cached = _get_cached_min_bet(config.symbol)
-        discovered_api_min_bet: Decimal = _cached if _cached else Decimal("0.00000001")
+        from betbot_engine.min_bet_cache import ensure_probed as _ensure_probed
+        _probe_fn = _ensure_probed if not config.dry_run else None
     except Exception:
-        discovered_api_min_bet: Decimal = Decimal("0.00000001")  # noqa: F841
+        _probe_fn = None
+
+    discovered_api_min_bet: Decimal = Decimal("0.00000001")
 
     def print_line(msg: str) -> None:
         if printer:
             printer(msg)
+
+    # Resolve min-bet: auto-probe live coins, cache-only for dry-run
+    if _probe_fn is not None:
+        try:
+            discovered_api_min_bet = _probe_fn(api, config.symbol, print_line)
+        except Exception:
+            pass
+    else:
+        try:
+            from betbot_engine.min_bet_cache import get_min_bet as _get_cached_min_bet
+            _cached = _get_cached_min_bet(config.symbol)
+            if _cached:
+                discovered_api_min_bet = _cached
+        except Exception:
+            pass
 
     # Start
     strategy.on_session_start()
@@ -604,76 +620,73 @@ def run_auto_bet(
                 except Exception as e:
                     # Handle API errors gracefully
                     error_msg = str(e)
-                    
-                    # Try to extract response body for detailed error parsing
+
+                    # Build full search text from response body if available
                     response_text = ""
                     if hasattr(e, 'response') and hasattr(e.response, 'text'):
                         response_text = e.response.text
-                    
-                    # Try to parse minimum bet from error response
-                    # Error format: "The minimum bet is {{amount}} {{symbol}}"
-                    # Response: {"error":"...","params":{"amount":"0.00001269","symbol":"LTC"}}
-                    
-                    # Check response_text first, fallback to error_msg
                     search_text = response_text if response_text else error_msg
-                    min_bet_match = re.search(r'"amount"\s*:\s*"([0-9.]+)"', search_text)
-                    
-                    if min_bet_match and "minimum bet" in search_text.lower():
-                        # Extract minimum bet from error
+
+                    # Try to parse a new minimum bet from the error
+                    # (covers initial too-small bet AND mid-session min-bet changes)
+                    try:
+                        from betbot_engine.min_bet_cache import (
+                            parse_min_bet_from_error as _parse_min,
+                            set_min_bet as _set_cached_min_bet,
+                        )
+                        api_min_bet = _parse_min(search_text)
+                    except Exception:
+                        api_min_bet = None
+
+                    if api_min_bet is not None:
+                        # Add a tiny buffer (1%) so we never hit the floor again
+                        api_min_bet_buffered = (api_min_bet * Decimal("1.01")).quantize(
+                            Decimal("0.00000001")
+                        )
+                        # Update session floor and persist to cache
+                        discovered_api_min_bet = api_min_bet_buffered
+                        print_line(
+                            f"⚠️  Min bet changed. API minimum: {api_min_bet} "
+                            f"→ using {api_min_bet_buffered} (+1% buffer)"
+                        )
                         try:
-                            api_min_bet = Decimal(min_bet_match.group(1))
-                            # Add a tiny buffer (1%) so we never hit the floor again
-                            api_min_bet_buffered = (api_min_bet * Decimal("1.01")).quantize(
-                                Decimal("0.00000001")
-                            )
-                            # Persist for all future bets this session
-                            discovered_api_min_bet = api_min_bet_buffered
-                            print_line(f"⚠️  Bet too small. API minimum: {api_min_bet} → caching {api_min_bet_buffered} (+1%) for session")
+                            _set_cached_min_bet(config.symbol, api_min_bet_buffered)
+                        except Exception:
+                            pass
 
-                            # Save to persistent cache for future sessions
+                        # Retry with new minimum
+                        if api_min_bet_buffered <= current_balance:
+                            print_line(f"   🔄 Retrying with: {api_min_bet_buffered}")
+                            bet["amount"] = str(api_min_bet_buffered)
+                            amount_dec = api_min_bet_buffered
                             try:
-                                from betbot_engine.min_bet_cache import set_min_bet as _set_cached_min_bet
-                                _set_cached_min_bet(config.symbol, api_min_bet_buffered)
-                            except Exception:
-                                pass
-
-                            # Retry with buffered minimum
-                            if api_min_bet_buffered <= current_balance:
-                                print_line(f"   🔄 Retrying with minimum bet: {api_min_bet_buffered}")
-                                bet["amount"] = str(api_min_bet_buffered)
-                                amount_dec = api_min_bet_buffered
-                                
-                                # Retry the API call
-                                try:
-                                    if bet.get("game") == "dice":
-                                        api_raw = api.play_dice(
-                                            symbol=config.symbol,
-                                            amount=bet["amount"],
-                                            chance=bet["chance"],
-                                            is_high=bool(bet.get("is_high")),
-                                            faucet=bool(bet.get("faucet")),
-                                        )
-                                    else:
-                                        r = bet.get("range") or (0, 0)
-                                        api_raw = api.play_range_dice(
-                                            symbol=config.symbol,
-                                            amount=bet["amount"],
-                                            range_values=[int(r[0]), int(r[1])],
-                                            is_in=bool(bet.get("is_in")),
-                                            faucet=bool(bet.get("faucet")),
-                                        )
-                                except Exception as retry_error:
-                                    print_line(f"⚠️  Retry failed: {retry_error}")
-                                    stopped_reason = "api_error"
-                                    break
-                            else:
-                                print_line(f"⚠️  Insufficient balance ({current_balance}) for minimum bet ({api_min_bet_buffered})")
-                                stopped_reason = "insufficient_balance"
+                                if bet.get("game") == "dice":
+                                    api_raw = api.play_dice(
+                                        symbol=config.symbol,
+                                        amount=bet["amount"],
+                                        chance=bet["chance"],
+                                        is_high=bool(bet.get("is_high")),
+                                        faucet=bool(bet.get("faucet")),
+                                    )
+                                else:
+                                    r = bet.get("range") or (0, 0)
+                                    api_raw = api.play_range_dice(
+                                        symbol=config.symbol,
+                                        amount=bet["amount"],
+                                        range_values=[int(r[0]), int(r[1])],
+                                        is_in=bool(bet.get("is_in")),
+                                        faucet=bool(bet.get("faucet")),
+                                    )
+                            except Exception as retry_error:
+                                print_line(f"⚠️  Retry failed: {retry_error}")
+                                stopped_reason = "api_error"
                                 break
-                        except (ValueError, InvalidOperation) as parse_err:
-                            # Failed to parse minimum bet, fall through to general error handling
-                            print_line(f"⚠️  Failed to parse minimum bet from error: {parse_err}")
-                            stopped_reason = "api_error"
+                        else:
+                            print_line(
+                                f"⚠️  Insufficient balance ({current_balance}) "
+                                f"for minimum bet ({api_min_bet_buffered})"
+                            )
+                            stopped_reason = "insufficient_balance"
                             break
                     elif "insufficient balance" in error_msg.lower():
                         print_line(f"⚠️  API Error: Insufficient balance to place bet of {amount_dec}")

@@ -1134,9 +1134,8 @@ def cmd_probe_min_bets(args):
     extract the actual minimum.  Results are written to data/min_bets.json so
     future sessions skip the initial too-small-bet retry.
     """
-    import re
-    from decimal import Decimal
     from pathlib import Path
+    from betbot_engine.min_bet_cache import probe_coin, load as _load_cache
 
     config_mgr = ConfigManager()
     api_key = getattr(args, "api_key", None) or config_mgr.config.get("api_key", "")
@@ -1147,76 +1146,37 @@ def cmd_probe_min_bets(args):
             return
 
     from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
-    from betbot_engine.min_bet_cache import load as _load_cache, save as _save_cache
-
     api = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
 
-    # Fetch available currencies
     try:
         currencies = api.get_available_currencies()
     except Exception as e:
         print(f"❌  Could not fetch currencies: {e}")
         return
 
-    skip = set(getattr(args, "skip", None) or ["BTC"])
-    probe_amount = "0.00000001"
-    results: dict = _load_cache()  # start from existing cache
+    skip = {s.upper() for s in (getattr(args, "skip", None) or ["BTC"])}
+    cache_path = Path(getattr(args, "output", None) or "data/min_bets.json")
 
-    print(f"\nProbing minimum bets for {len(currencies)} currencies (skip: {', '.join(skip)})\n")
+    print(f"\nProbing minimum bets for {len(currencies)} currencies (skip: {', '.join(sorted(skip))})\n")
     width = max(len(c) for c in currencies)
 
     for symbol in sorted(currencies):
-        if symbol.upper() in {s.upper() for s in skip}:
-            cached = results.get(symbol.upper(), "skipped (BTC)")
-            print(f"  {symbol.upper():<{width}}  —  {cached}")
+        if symbol.upper() in skip:
+            cached = _load_cache(cache_path).get(symbol.upper(), "—")
+            print(f"  {symbol.upper():<{width}}  skipped  (cached: {cached})")
             continue
 
-        try:
-            api.play_dice(
-                symbol=symbol,
-                amount=probe_amount,
-                chance="49.50",
-                is_high=False,
-                faucet=False,
-            )
-            # Bet succeeded — min bet ≤ probe_amount
-            results[symbol.upper()] = probe_amount
-            print(f"  {symbol.upper():<{width}}  ✓  min ≤ {probe_amount}  (bet placed successfully)")
-        except Exception as e:
-            error_msg = str(e)
-            response_text = ""
-            if hasattr(e, "response") and hasattr(e.response, "text"):
-                response_text = e.response.text
+        result = probe_coin(api, symbol, path=cache_path)
+        if result is not None:
+            print(f"  {symbol.upper():<{width}}  min = {result}")
+        else:
+            print(f"  {symbol.upper():<{width}}  ⚠  could not determine min bet")
 
-            search_text = response_text if response_text else error_msg
-            match = re.search(r'"amount"\s*:\s*"([0-9.]+)"', search_text)
-
-            if match and "minimum bet" in search_text.lower():
-                min_bet = match.group(1)
-                results[symbol.upper()] = min_bet
-                print(f"  {symbol.upper():<{width}}  ✓  min = {min_bet}")
-            else:
-                # Try simpler numeric extraction from error message text
-                msg_match = re.search(r"minimum.*?([0-9]+\.?[0-9]*)", search_text, re.IGNORECASE)
-                if msg_match:
-                    min_bet = msg_match.group(1)
-                    results[symbol.upper()] = min_bet
-                    print(f"  {symbol.upper():<{width}}  ✓  min ≈ {min_bet}  (from message)")
-                else:
-                    print(f"  {symbol.upper():<{width}}  ⚠  could not parse min bet — raw: {search_text[:120]}")
-
-    # Persist
-    cache_path = Path(getattr(args, "output", None) or "data/min_bets.json")
-    try:
-        _save_cache(results, cache_path)
-        print(f"\n✅  Saved to {cache_path}")
-    except Exception as e:
-        print(f"\n❌  Failed to save cache: {e}")
-
+    print(f"\n✅  Cache written to {cache_path}")
     print("\nDiscovered minimum bets:")
-    print("-" * (width + 20))
-    for sym in sorted(results):
-        print(f"  {sym:<{width}}  {results[sym]}")
+    print("-" * (width + 22))
+    for sym, val in sorted(_load_cache(cache_path).items()):
+        print(f"  {sym:<{width}}  {val}")
 
 
 def cmd_interactive(args=None):
