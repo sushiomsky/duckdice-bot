@@ -1127,6 +1127,98 @@ def cmd_config(args):
         print(f"✓ Set {key} = {value}")
 
 
+def cmd_probe_min_bets(args):
+    """Probe the API to discover the minimum bet for every coin (except BTC).
+
+    Places a 0.00000001 bet on each currency and reads the API error response to
+    extract the actual minimum.  Results are written to data/min_bets.json so
+    future sessions skip the initial too-small-bet retry.
+    """
+    import re
+    from decimal import Decimal
+    from pathlib import Path
+
+    config_mgr = ConfigManager()
+    api_key = getattr(args, "api_key", None) or config_mgr.config.get("api_key", "")
+    if not api_key:
+        api_key = input("Enter API key: ").strip()
+        if not api_key:
+            print("❌  API key required.")
+            return
+
+    from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
+    from betbot_engine.min_bet_cache import load as _load_cache, save as _save_cache
+
+    api = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+
+    # Fetch available currencies
+    try:
+        currencies = api.get_available_currencies()
+    except Exception as e:
+        print(f"❌  Could not fetch currencies: {e}")
+        return
+
+    skip = set(getattr(args, "skip", None) or ["BTC"])
+    probe_amount = "0.00000001"
+    results: dict = _load_cache()  # start from existing cache
+
+    print(f"\nProbing minimum bets for {len(currencies)} currencies (skip: {', '.join(skip)})\n")
+    width = max(len(c) for c in currencies)
+
+    for symbol in sorted(currencies):
+        if symbol.upper() in {s.upper() for s in skip}:
+            cached = results.get(symbol.upper(), "skipped (BTC)")
+            print(f"  {symbol.upper():<{width}}  —  {cached}")
+            continue
+
+        try:
+            api.play_dice(
+                symbol=symbol,
+                amount=probe_amount,
+                chance="49.50",
+                is_high=False,
+                faucet=False,
+            )
+            # Bet succeeded — min bet ≤ probe_amount
+            results[symbol.upper()] = probe_amount
+            print(f"  {symbol.upper():<{width}}  ✓  min ≤ {probe_amount}  (bet placed successfully)")
+        except Exception as e:
+            error_msg = str(e)
+            response_text = ""
+            if hasattr(e, "response") and hasattr(e.response, "text"):
+                response_text = e.response.text
+
+            search_text = response_text if response_text else error_msg
+            match = re.search(r'"amount"\s*:\s*"([0-9.]+)"', search_text)
+
+            if match and "minimum bet" in search_text.lower():
+                min_bet = match.group(1)
+                results[symbol.upper()] = min_bet
+                print(f"  {symbol.upper():<{width}}  ✓  min = {min_bet}")
+            else:
+                # Try simpler numeric extraction from error message text
+                msg_match = re.search(r"minimum.*?([0-9]+\.?[0-9]*)", search_text, re.IGNORECASE)
+                if msg_match:
+                    min_bet = msg_match.group(1)
+                    results[symbol.upper()] = min_bet
+                    print(f"  {symbol.upper():<{width}}  ✓  min ≈ {min_bet}  (from message)")
+                else:
+                    print(f"  {symbol.upper():<{width}}  ⚠  could not parse min bet — raw: {search_text[:120]}")
+
+    # Persist
+    cache_path = Path(getattr(args, "output", None) or "data/min_bets.json")
+    try:
+        _save_cache(results, cache_path)
+        print(f"\n✅  Saved to {cache_path}")
+    except Exception as e:
+        print(f"\n❌  Failed to save cache: {e}")
+
+    print("\nDiscovered minimum bets:")
+    print("-" * (width + 20))
+    for sym in sorted(results):
+        print(f"  {sym:<{width}}  {results[sym]}")
+
+
 def cmd_interactive(args=None):
     """Full interactive mode - guided betting setup with balance checking"""
     
@@ -1664,6 +1756,24 @@ def main():
     config_parser = subparsers.add_parser('config', help='Configure settings')
     config_parser.add_argument('--set', help='Set config value (key=value)')
     config_parser.set_defaults(func=cmd_config)
+
+    # Probe minimum bets
+    probe_parser = subparsers.add_parser(
+        'probe-min-bets',
+        help='Probe API to discover minimum bet per coin and cache results',
+    )
+    probe_parser.add_argument('-k', '--api-key', dest='api_key', help='API key')
+    probe_parser.add_argument(
+        '--skip', nargs='+', default=['BTC'],
+        metavar='COIN',
+        help='Coins to skip (default: BTC)',
+    )
+    probe_parser.add_argument(
+        '--output', default='data/min_bets.json',
+        metavar='FILE',
+        help='Output cache file (default: data/min_bets.json)',
+    )
+    probe_parser.set_defaults(func=cmd_probe_min_bets)
     
     args = parser.parse_args()
     

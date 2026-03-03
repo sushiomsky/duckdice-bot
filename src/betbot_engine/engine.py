@@ -421,7 +421,13 @@ def run_auto_bet(
     losses_count = 0
     losses_in_row = 0
     current_balance = starting_balance
-    discovered_api_min_bet: Decimal = Decimal("0.00000001")  # updated on first 422
+    # Pre-populate from probe cache if available (written by `duckdice probe-min-bets`)
+    try:
+        from betbot_engine.min_bet_cache import get_min_bet as _get_cached_min_bet
+        _cached = _get_cached_min_bet(config.symbol)
+        discovered_api_min_bet: Decimal = _cached if _cached else Decimal("0.00000001")
+    except Exception:
+        discovered_api_min_bet: Decimal = Decimal("0.00000001")  # noqa: F841
 
     def print_line(msg: str) -> None:
         if printer:
@@ -623,6 +629,13 @@ def run_auto_bet(
                             # Persist for all future bets this session
                             discovered_api_min_bet = api_min_bet_buffered
                             print_line(f"⚠️  Bet too small. API minimum: {api_min_bet} → caching {api_min_bet_buffered} (+1%) for session")
+
+                            # Save to persistent cache for future sessions
+                            try:
+                                from betbot_engine.min_bet_cache import set_min_bet as _set_cached_min_bet
+                                _set_cached_min_bet(config.symbol, api_min_bet_buffered)
+                            except Exception:
+                                pass
 
                             # Retry with buffered minimum
                             if api_min_bet_buffered <= current_balance:
