@@ -116,7 +116,7 @@ class ChanceDescent:
     def _resolve_base_bet(self) -> Decimal:
         if self._base_bet > 0:
             return self._base_bet
-        balance = Decimal(str(self._ctx.balance))
+        balance = Decimal(self._ctx.current_balance_str())
         return (balance * Decimal(str(self._base_bet_pct)) / 100).quantize(
             _QUANT, rounding=ROUND_DOWN
         )
