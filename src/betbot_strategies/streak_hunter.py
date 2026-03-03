@@ -24,10 +24,10 @@ Example with base bet = 1:
 - Bet 6 (streak 5): 9.67 (120% of 8.06) → LOSE (reset)
 - Bet 7 (streak 0): 1.0 (back to base)
 
-With lottery enabled (every 10 bets, only when streak = 0):
-- Bet 10: 1.0 @ 2.5% chance (lottery) → LOSE
-- Bet 11: 1.0 (continue normal betting)
-- Bet 20: 1.0 @ 0.5% chance (lottery) → WIN +200x! 💰
+With lottery enabled (10 bets every 100 bets, only when streak = 0):
+- Bet 100: 10 consecutive lottery bets @ 0.01-4% chance each
+- Bets 101-199: normal streak betting resumes
+- Bet 200: another burst of 10 lottery bets
 Note: Lottery bets ONLY happen when streak = 0 to avoid disrupting progression!
 """
 from decimal import Decimal
@@ -150,8 +150,13 @@ class StreakHunter:
             },
             "lottery_frequency": {
                 "type": "int",
+                "default": 100,
+                "desc": "Trigger lottery burst every N bets (default 100)"
+            },
+            "lottery_count": {
+                "type": "int",
                 "default": 10,
-                "desc": "Place lottery bet every N bets (default 10)"
+                "desc": "Number of lottery bets per burst (default 10)"
             },
             "lottery_chance_min": {
                 "type": "float",
@@ -181,7 +186,8 @@ class StreakHunter:
         
         # Lottery settings
         self.lottery_enabled = bool(params.get("lottery_enabled", False))
-        self.lottery_frequency = int(params.get("lottery_frequency", 10))
+        self.lottery_frequency = int(params.get("lottery_frequency", 100))
+        self.lottery_count = int(params.get("lottery_count", 10))
         self.lottery_chance_min = float(params.get("lottery_chance_min", 0.01))
         self.lottery_chance_max = float(params.get("lottery_chance_max", 4.0))
 
@@ -195,6 +201,7 @@ class StreakHunter:
         self._current_base = self.min_bet
         self._lottery_wins = 0
         self._lottery_attempts = 0
+        self._lottery_bets_remaining = 0
 
     def on_session_start(self) -> None:
         """Called when betting session starts"""
@@ -207,6 +214,7 @@ class StreakHunter:
         self._current_base = self._calculate_base_bet()
         self._lottery_wins = 0
         self._lottery_attempts = 0
+        self._lottery_bets_remaining = 0
         
         print(f"\n🎯 Streak Hunter Strategy Started")
         print(f"   Target chance: {self.chance}%")
@@ -214,7 +222,7 @@ class StreakHunter:
         print(f"   Bet sizing: balance/{self.start_divisor} → balance/{self.end_divisor} (adaptive toward take-profit)")
         print(f"   Win multipliers: {self.first_multiplier}x → {self.second_multiplier}x → {self.third_multiplier}x → ...")
         if self.lottery_enabled:
-            print(f"   🎰 Lottery: Every {self.lottery_frequency} bets @ {self.lottery_chance_min}-{self.lottery_chance_max}%")
+            print(f"   🎰 Lottery: {self.lottery_count} bets every {self.lottery_frequency} bets @ {self.lottery_chance_min}-{self.lottery_chance_max}%")
         print(f"   Reset on: Any loss\n")
 
     def _calculate_base_bet(self) -> Decimal:
@@ -296,31 +304,33 @@ class StreakHunter:
         self._total_bets += 1
         
         # Check if this should be a lottery bet (ONLY when not on a streak!)
-        is_lottery = False
-        if self.lottery_enabled and self._win_streak == 0 and self._total_bets % self.lottery_frequency == 0:
-            is_lottery = True
-            self._lottery_attempts += 1
-            
-            # Random chance between min and max
-            lottery_chance = self.ctx.rng.uniform(self.lottery_chance_min, self.lottery_chance_max)
-            # Round to 2 decimal places for API compatibility
-            lottery_chance = round(lottery_chance, 2)
-            amount = self._calculate_base_bet()
-            
-            # Calculate potential payout
-            payout_mult = 99.0 / lottery_chance if lottery_chance > 0 else 0
-            print(f"\n🎰 LOTTERY BET #{self._lottery_attempts}! Chance: {lottery_chance:.2f}% (up to {payout_mult:.0f}x payout!)")
-            
-            # Store this bet amount
-            self._last_bet_amount = amount
-            
-            return {
-                "game": "dice",
-                "amount": format(amount, 'f'),
-                "chance": f"{lottery_chance:.2f}",  # Format to exactly 2 decimal places
-                "is_high": self.is_high,
-                "faucet": self.ctx.faucet,
-            }
+        if self.lottery_enabled and self._win_streak == 0:
+            # Trigger a new burst when we hit the frequency mark
+            if self._total_bets % self.lottery_frequency == 0:
+                self._lottery_bets_remaining = self.lottery_count
+
+            # Fire one lottery bet from the current burst
+            if self._lottery_bets_remaining > 0:
+                self._lottery_bets_remaining -= 1
+                self._lottery_attempts += 1
+
+                lottery_chance = self.ctx.rng.uniform(self.lottery_chance_min, self.lottery_chance_max)
+                lottery_chance = round(lottery_chance, 2)
+                amount = self._calculate_base_bet()
+
+                payout_mult = 99.0 / lottery_chance if lottery_chance > 0 else 0
+                burst_pos = self.lottery_count - self._lottery_bets_remaining
+                print(f"\n🎰 LOTTERY BET #{self._lottery_attempts} ({burst_pos}/{self.lottery_count})! Chance: {lottery_chance:.2f}% (up to {payout_mult:.0f}x payout!)")
+
+                self._last_bet_amount = amount
+
+                return {
+                    "game": "dice",
+                    "amount": format(amount, 'f'),
+                    "chance": f"{lottery_chance:.2f}",
+                    "is_high": self.is_high,
+                    "faucet": self.ctx.faucet,
+                }
         
         # Normal streak bet
         amount = self._calculate_bet_amount()
