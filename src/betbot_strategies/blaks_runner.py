@@ -82,8 +82,8 @@ class BlaksRunner:
         return {
             "base_amount": {
                 "type": "str",
-                "default": "0.00000001",
-                "desc": "Base (minimum) bet amount",
+                "default": "0.000001",
+                "desc": "Base (minimum) bet amount — set to your coin's minimum bet",
             },
             "base_chance": {
                 "type": "float",
@@ -150,7 +150,7 @@ class BlaksRunner:
         self.ctx = ctx
 
         # --- configurable parameters ---
-        self.base_amount = Decimal(str(params.get("base_amount", "0.00000001")))
+        self.base_amount = Decimal(str(params.get("base_amount", "0.000001")))
         self.base_chance: float = float(params.get("base_chance", 4.4))
         self.chance_inc: float = float(params.get("chance_inc", 0.0001))
         self.house_percent: float = float(params.get("house_percent", 1.0))
@@ -216,14 +216,14 @@ class BlaksRunner:
             self.average_count = (self.average_count + 1) % self.average_max
 
             temp_average = sum(self.high_low_average) / self.average_max
-            self.chance = temp_average
+            self.chance = max(temp_average, 0.01)  # floor: never allow chance=0
 
             cap = self.old_base_chance * self.chance_max
             if self.chance > cap:
                 self.chance = cap
         else:
             # expected payout multiplier at current chance
-            expected_wins = (100.0 - (100.0 * (self.house_percent / 100.0))) / self.chance
+            expected_wins = (100.0 - (100.0 * (self.house_percent / 100.0))) / max(self.chance, 0.001)
             if self.loss_count > expected_wins:
                 self.chance += self.chance_inc
 
@@ -310,7 +310,11 @@ class BlaksRunner:
             # Scale win_mult to current balance
             balance_str = result.get("balance", self.ctx.starting_balance)
             balance_f = float(Decimal(str(balance_str)))
-            temp_mult = max(1.0, (balance_f * 1e8) / self.inc_divisor)
+            # Scale win_mult to current balance as a multiple of base_bet
+            # (currency-agnostic: works for BTC, DOGE, ETH, etc.)
+            # For BTC: (1 BTC / 1e-8) / 10M = 1e8/1e7 = 10  → same as original
+            base_bet_f = float(self._base_bet_d) if float(self._base_bet_d) > 0 else 1e-8
+            temp_mult = max(1.0, (balance_f / base_bet_f) / self.inc_divisor)
             if self.max_win_mult > 0:
                 temp_mult = min(temp_mult, float(self.max_win_mult))
             self.win_mult = temp_mult
