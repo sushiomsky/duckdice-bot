@@ -201,7 +201,7 @@ def _validate_and_adjust_bet(
     current_balance: Decimal,
     min_bet: Decimal = Decimal("0.00000001"),
     max_chance: Decimal = Decimal("98"),
-    min_chance: Decimal = Decimal("1"),
+    min_chance: Decimal = Decimal("0.01"),
     printer: Optional[Callable[[str], None]] = None,
 ) -> Optional[BetSpec]:
     """
