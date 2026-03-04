@@ -91,6 +91,7 @@ from . import (
     blaks_runner,                # BlaksRunner 5.0: adaptive chance + loss-recovery auto-tuning
     luck_cascade,                # Luck Cascade: descend lower-chance tiers while luck% > 100%
     chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
+    gradient_range_hunter,       # Gradient Range Hunter: random 0.01%-1% window, target-gradient sizing
 )
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
