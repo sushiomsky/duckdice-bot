@@ -1638,6 +1638,109 @@ def cmd_interactive(args=None):
         run_strategy(strategy_name, params, config, api_key, is_simulation)
 
 
+def cmd_simulate(args):
+    """Monte Carlo simulation of a strategy without real funds."""
+    import json
+    from src.betbot_engine.monte_carlo import MonteCarloEngine
+    from betbot_engine.visualization import (
+        generate_html_report, plot_equity_curve, plot_comparison_bars,
+        plot_drawdown_analysis, plot_risk_return_scatter
+    )
+    from betbot_strategies import get_strategy
+    
+    # Get strategy name
+    strategy_name = args.strategy
+    if not strategy_name:
+        strategies = [s['name'] for s in list_strategies()]
+        strategy_name = prompt_choice('Select strategy', strategies)
+    
+    # Parse config
+    config = {}
+    if args.config:
+        try:
+            config = json.loads(args.config)
+        except json.JSONDecodeError:
+            print(f"❌ Invalid JSON config: {args.config}")
+            return
+    elif args.interactive_params:
+        print("\n📝 Configure strategy parameters:")
+        try:
+            strat_cls = get_strategy(strategy_name)
+            schema = strat_cls.schema() if hasattr(strat_cls, 'schema') else {}
+            for key, info in schema.items():
+                default = info.get('default', '')
+                val_type = info.get('type', 'str')
+                prompt_str = f"  {key} ({val_type}) [{default}]: "
+                user_val = input(prompt_str).strip()
+                if user_val:
+                    if val_type == 'int':
+                        config[key] = int(user_val)
+                    elif val_type == 'float':
+                        config[key] = float(user_val)
+                    elif val_type == 'bool':
+                        config[key] = user_val.lower() in ('true', 'yes', '1')
+                    else:
+                        config[key] = user_val
+                elif default:
+                    config[key] = default
+        except Exception as e:
+            print(f"⚠️ Error configuring parameters: {e}")
+    
+    # Simulation parameters
+    rounds = args.rounds or 1000
+    balance = float(args.balance or 100.0)
+    
+    print(f"\n🎲 Starting Monte Carlo simulation...")
+    print(f"   Strategy: {strategy_name}")
+    print(f"   Rounds: {rounds:,}")
+    print(f"   Starting Balance: ${balance:.2f}")
+    print(f"   Config: {config}")
+    print()
+    
+    # Run simulation
+    try:
+        engine = MonteCarloEngine()
+        result = engine.simulate(
+            strategy_class=get_strategy(strategy_name),
+            config=config,
+            rounds=rounds,
+            starting_balance=balance,
+            fast_mode=True,
+        )
+        
+        # Display results
+        print(result.summary())
+        print()
+        
+        # Generate report if requested
+        if args.report:
+            try:
+                generate_html_report(
+                    [result],
+                    [strategy_name],
+                    save_path=args.report,
+                )
+                print(f"✅ Report saved to: {args.report}")
+            except ImportError:
+                print("⚠️ matplotlib/seaborn required for reports. Install: pip install matplotlib seaborn")
+        
+        # Generate plots if requested
+        if args.plots:
+            try:
+                plot_equity_curve([result], [strategy_name], 
+                                save_path=f"{args.plots}_equity.png")
+                plot_drawdown_analysis(result, 
+                                      save_path=f"{args.plots}_drawdown.png")
+                print(f"✅ Plots saved to: {args.plots}_*.png")
+            except ImportError:
+                print("⚠️ matplotlib required for plots. Install: pip install matplotlib seaborn")
+        
+    except Exception as e:
+        print(f"❌ Simulation error: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="DuckDice Bot CLI - Automated betting toolkit",
@@ -1716,6 +1819,18 @@ def main():
     config_parser = subparsers.add_parser('config', help='Configure settings')
     config_parser.add_argument('--set', help='Set config value (key=value)')
     config_parser.set_defaults(func=cmd_config)
+    
+    # Monte Carlo simulation
+    sim_parser = subparsers.add_parser('simulate', help='Monte Carlo simulation of a strategy')
+    sim_parser.add_argument('-s', '--strategy', help='Strategy name')
+    sim_parser.add_argument('-c', '--config', help='Strategy config as JSON')
+    sim_parser.add_argument('-r', '--rounds', type=int, help='Number of simulation rounds (default: 1000)')
+    sim_parser.add_argument('-b', '--balance', help='Starting balance (default: 100.0)')
+    sim_parser.add_argument('-I', '--interactive-params', action='store_true',
+                           help='Interactively configure parameters')
+    sim_parser.add_argument('--report', help='Save HTML report to path')
+    sim_parser.add_argument('--plots', help='Save plots to path prefix')
+    sim_parser.set_defaults(func=cmd_simulate)
 
     # Probe minimum bets
     probe_parser = subparsers.add_parser(

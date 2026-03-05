@@ -58,42 +58,46 @@ def list_strategies() -> List[Dict[str, str]]:
 
 # Import all strategy modules to trigger registration
 from . import (
-    classic_martingale,
-    anti_martingale_streak,
-    labouchere,
-    dalembert,
-    fibonacci,
+    # Unified consolidated strategies (replace 12 originals)
+    adaptive_hunter,             # CONSOLIDATED: 12 hunter variants
+    unified_progression,         # CONSOLIDATED: fibonacci, dalembert, labouchere
+    unified_martingale,          # CONSOLIDATED: classic_martingale, anti_martingale_streak
+    unified_exponential,         # CONSOLIDATED: micro_exponential, micro_exponential_safe
+    unified_faucet,              # CONSOLIDATED: faucet_cashout, faucet_grind
+    
+    # Other strategies (non-consolidated)
     paroli,
     oscars_grind,
     one_three_two_six,
     rng_analysis_strategy,
     target_aware,
-    faucet_cashout,
-    faucet_grind,
     kelly_capped,
     max_wager_flow,
     range50_random,
     fib_loss_cluster,
     custom_script,
-    streak_hunter,
-    micro_exponential,
-    micro_exponential_safe,
     progressive_win_scaling,
     streak_multiplier,  # Exponential growth on win streaks
     adaptive_survival,  # Meta-strategy with adaptive pattern detection
     simple_progression_40,  # Simple 40% chance win progression
-    adaptive_volatility_hunter,  # Ultra-low chance hunting with volatility adaptation
-    nano_range_hunter,           # Range Dice ultra-low chance, rotating target + adaptive chance
-    spike_hunter,                # Rare-spike predator: observation-attack-reset for +100%–500%+ hits
-    regime_hunter,               # Stochastic amplifier: 3-regime Markov chain, 8 state variables
-    dynamic_phase_hunter,        # Tiered profit-target recovery: GREED→RECOVERY→SALVAGE cascade
     dice_out_002,                # 0.02% range sniper: 2-slot window, ~4950× payout
     blaks_runner,                # BlaksRunner 5.0: adaptive chance + loss-recovery auto-tuning
     luck_cascade,                # Luck Cascade: descend lower-chance tiers while luck% > 100%
     chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
-    gradient_range_hunter,       # Gradient Range Hunter: random 0.01%-1% window, target-gradient sizing
     ai_strat,                    # AI Strategy: 30+ ML models ensemble
 )
+
+# DEPRECATED (consolidated into unified_* above):
+# - classic_martingale → unified_martingale
+# - anti_martingale_streak → unified_martingale
+# - fibonacci, dalembert, labouchere → unified_progression
+# - micro_exponential, micro_exponential_safe → unified_exponential
+# - faucet_cashout, faucet_grind → unified_faucet
+# - cold_number_hunter, streak_hunter, spike_hunter, volatility_spike_hunter,
+#   nano_hunter, dynamic_phase_hunter, gradient_range_hunter,
+#   adaptive_volatility_hunter, regime_hunter, low_hunter, nano_range_hunter,
+#   streak_pressure_hunter → adaptive_hunter
+# These files are archived in ./deprecated/ for reference
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
 from . import versions
