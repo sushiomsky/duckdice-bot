@@ -92,6 +92,7 @@ from . import (
     luck_cascade,                # Luck Cascade: descend lower-chance tiers while luck% > 100%
     chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
     gradient_range_hunter,       # Gradient Range Hunter: random 0.01%-1% window, target-gradient sizing
+    ai_strat,                    # AI Strategy: 30+ ML models ensemble
 )
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
