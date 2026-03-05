@@ -37,7 +37,11 @@ def register(name: str) -> Callable[[Type], Type]:
 def get_strategy(name: str) -> Type:
     key = (name or "").strip().lower()
     if key not in _registry:
-        raise KeyError(f"Unknown strategy: {name}. Available: {', '.join(sorted(_registry))}")
+        # Fallback for nano-range-hunter (default to @v1)
+        if key == "nano-range-hunter" and "nano-range-hunter@v1" in _registry:
+            key = "nano-range-hunter@v1"
+        else:
+            raise KeyError(f"Unknown strategy: {name}. Available: {', '.join(sorted(_registry))}")
     return _registry[key]
 
 
@@ -84,6 +88,7 @@ from . import (
     blaks_runner,                # BlaksRunner 5.0: adaptive chance + loss-recovery auto-tuning
     luck_cascade,                # Luck Cascade: descend lower-chance tiers while luck% > 100%
     chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
+    nano_range_hunter,           # Range dice multi-variant strategy (versions v1, v3)
     ai_strat,                    # AI Strategy: 30+ ML models ensemble
 )
 
