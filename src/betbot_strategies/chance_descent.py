@@ -52,10 +52,10 @@ class ChanceDescent:
         return {
             "start_chance": {
                 "type": "float",
-                "default": 1.0,
+                "default": 5.0,
                 "min": 0.01,
                 "max": 98.0,
-                "description": "Starting win chance % (default 1%)",
+                "description": "Starting win chance % (default 5%)",
             },
             "min_chance": {
                 "type": "float",
@@ -66,10 +66,10 @@ class ChanceDescent:
             },
             "chance_mult": {
                 "type": "float",
-                "default": 0.90,
+                "default": 0.85,
                 "min": 0.01,
                 "max": 0.9999,
-                "description": "Multiply chance by this factor on each win (default 0.90 = −10%)",
+                "description": "Multiply chance by this factor on each win (default 0.85 = −15%)",
             },
             "base_bet": {
                 "type": "float",
@@ -79,10 +79,10 @@ class ChanceDescent:
             },
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.01,
+                "default": 0.005,
                 "min": 0.0001,
                 "max": 100.0,
-                "description": "Bet as % of balance when base_bet=0 (default 0.01%)",
+                "description": "Bet as % of balance when base_bet=0 (default 0.005%)",
             },
             "loss_mult": {
                 "type": "float",

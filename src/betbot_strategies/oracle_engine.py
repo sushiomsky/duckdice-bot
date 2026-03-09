@@ -240,9 +240,9 @@ class OracleEngine:
                 "help": "Enable random SNIPER mode triggers (1/150 probability)",
             },
             "aggression": {
-                "type": "float", "default": 1.0,
+                "type": "float", "default": 2.0,
                 "min": 0.1, "max": 3.0,
-                "help": "Global bet-size multiplier (1.0 = neutral)",
+                "help": "Global bet-size multiplier (1.0 = neutral, 2.0 = doubled bets)",
             },
             "seed": {
                 "type": "int", "default": None,

@@ -65,17 +65,17 @@ class ProgressiveWinScaling:
         return {
             "base_divisor": {
                 "type": "int",
-                "default": 100,
-                "desc": "Divide balance by this for base bet (default: balance/100)"
+                "default": 200,
+                "desc": "Divide balance by this for base bet (default: balance/200)"
             },
             "base_chance": {
                 "type": "float",
-                "default": 4.0,
+                "default": 6.0,
                 "desc": "Starting win chance percentage"
             },
             "max_chance": {
                 "type": "float",
-                "default": 24.0,
+                "default": 20.0,
                 "desc": "Maximum win chance percentage (safety cap)"
             },
             "is_high": {

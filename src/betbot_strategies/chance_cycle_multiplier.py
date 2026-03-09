@@ -128,12 +128,12 @@ class ChanceCycleMultiplier:
     def schema(cls) -> Dict[str, Any]:
         return {
             "base_bet_pct": {
-                "type": "float", "default": 0.020,
+                "type": "float", "default": 0.010,
                 "min": 0.001, "max": 0.10,
-                "help": "Aggressive phase base bet as fraction of balance (0.02 = 2 %)",
+                "help": "Aggressive phase base bet as fraction of balance (0.01 = 1 %)",
             },
             "aggressive_chance": {
-                "type": "float", "default": 20.0,
+                "type": "float", "default": 25.0,
                 "min": 10.0, "max": 30.0,
                 "help": "Win chance % in Aggressive phase (15–25 recommended)",
             },

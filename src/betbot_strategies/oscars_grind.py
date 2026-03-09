@@ -62,7 +62,7 @@ class OscarsGrind:
     def schema(cls) -> Dict[str, Any]:
         return {
             "base_amount": {"type": "str", "default": "0.000001", "desc": "Base bet (1 unit)"},
-            "chance": {"type": "str", "default": "49.5", "desc": "Win chance percent"},
+            "chance": {"type": "str", "default": "55", "desc": "Win chance percent"},
             "is_high": {"type": "bool", "default": True, "desc": "Bet on High or Low"},
             "profit_target": {"type": "str", "default": "0.000001", "desc": "Profit target per cycle"},
             "max_bet": {"type": "str", "default": "0.0001", "desc": "Maximum bet cap"},

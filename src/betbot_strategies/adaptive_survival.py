@@ -302,8 +302,8 @@ class AdaptiveSurvivalStrategy:
         return {
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.01,
-                "desc": "Base bet as % of balance (1%)",
+                "default": 0.005,
+                "desc": "Base bet as % of balance (0.5%)",
             },
             "max_bet_pct": {
                 "type": "float",

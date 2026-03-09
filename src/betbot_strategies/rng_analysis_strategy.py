@@ -84,7 +84,7 @@ class RNGAnalysisStrategy:
             },
             "chance": {
                 "type": "str", 
-                "default": "50", 
+                "default": "40", 
                 "desc": "Chance percent as string"
             },
             "is_high": {
@@ -99,7 +99,7 @@ class RNGAnalysisStrategy:
             },
             "loss_multiplier": {
                 "type": "float", 
-                "default": 1.5, 
+                "default": 1.2, 
                 "desc": "Multiplier after loss (1.0 = flat betting)"
             },
             "win_multiplier": {
@@ -109,7 +109,7 @@ class RNGAnalysisStrategy:
             },
             "max_multiplier": {
                 "type": "float", 
-                "default": 8.0, 
+                "default": 16.0, 
                 "desc": "Maximum bet multiplier"
             },
             "use_patterns": {

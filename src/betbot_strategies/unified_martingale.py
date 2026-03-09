@@ -88,12 +88,12 @@ class UnifiedMartingale:
             },
             "multiplier": {
                 "type": "float",
-                "default": 2.0,
+                "default": 1.5,
                 "desc": "Multiplier per loss (classic) or win (anti)",
             },
             "max_multiplier": {
                 "type": "float",
-                "default": 64.0,
+                "default": 128.0,
                 "desc": "Hard cap on accumulated multiplier",
             },
             "chance": {

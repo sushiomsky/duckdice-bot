@@ -60,18 +60,18 @@ class StreakMultiplierStrategy:
         return {
             "divisor": {
                 "type": "int",
-                "default": 250,
+                "default": 300,
                 "desc": "Balance divisor for base bet (balance/divisor). Higher = smaller bets."
             },
             "chance": {
                 "type": "float",
-                "default": 5.0,
-                "desc": "Win chance percentage (1-98). Default 5% for high risk/reward."
+                "default": 8.0,
+                "desc": "Win chance percentage (1-98). Default 8% balances risk/reward."
             },
             "win_multiplier": {
                 "type": "float",
-                "default": 3.4,
-                "desc": "Bet multiplier on win (240% increase = 3.4x). Default 3.4."
+                "default": 2.5,
+                "desc": "Bet multiplier on win (150% increase = 2.5x). Default 2.5."
             },
             "is_high": {
                 "type": "bool",

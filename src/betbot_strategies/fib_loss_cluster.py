@@ -62,9 +62,9 @@ class FibLossCluster:
     def schema(cls) -> Dict[str, Any]:
         return {
             "base_amount": {"type": "str", "default": "0.000001", "desc": "Base bet amount (decimal string)"},
-            "chance": {"type": "str", "default": "50", "desc": "Chance percent as string"},
+            "chance": {"type": "str", "default": "40", "desc": "Chance percent as string"},
             "is_high": {"type": "bool", "default": False, "desc": "Bet High if True else Low"},
-            "loss_threshold": {"type": "int", "default": 3, "desc": "Activate Fibonacci when loss streak >= threshold"},
+            "loss_threshold": {"type": "int", "default": 2, "desc": "Activate Fibonacci when loss streak >= threshold"},
             "fib_max_index": {"type": "int", "default": 10, "desc": "Cap Fibonacci index to avoid explosion"},
             "scale": {"type": "float", "default": 1.0, "desc": "Scale factor applied to Fibonacci number"},
         }

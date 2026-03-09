@@ -84,13 +84,13 @@ class SimpleProgression40Strategy:
         return {
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.005,
-                "desc": "Base bet as fraction of current balance (0.5% = 0.005). Recalculated every reset.",
+                "default": 0.003,
+                "desc": "Base bet as fraction of current balance (0.3% = 0.003). Recalculated every reset.",
             },
             "win_chance": {
                 "type": "str",
-                "default": "40",
-                "desc": "Win chance percentage (40%)",
+                "default": "35",
+                "desc": "Win chance percentage (35%)",
             },
             "win_increase_start": {
                 "type": "float",
@@ -109,8 +109,8 @@ class SimpleProgression40Strategy:
             },
             "max_bet_multiplier": {
                 "type": "float",
-                "default": 20.0,
-                "desc": "Hard cap on progression multiplier (20x base ≈ 10% of balance).",
+                "default": 30.0,
+                "desc": "Hard cap on progression multiplier (30x base ≈ 9% of balance).",
             },
             "loss_streak_protection": {
                 "type": "int",

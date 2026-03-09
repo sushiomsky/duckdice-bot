@@ -109,7 +109,7 @@ class AdaptiveHunter:
             },
             "threshold": {
                 "type": "float",
-                "default": 0.5,
+                "default": 0.3,
                 "desc": "Hunt threshold / sensitivity (0.0-1.0 scale, hunt_type dependent)",
             },
             "multiplier": {
@@ -124,13 +124,13 @@ class AdaptiveHunter:
             },
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.01,
-                "desc": "Base bet as % of balance (0.01 = 1%)",
+                "default": 0.005,
+                "desc": "Base bet as % of balance (0.005 = 0.5%)",
             },
             "max_bet_pct": {
                 "type": "float",
-                "default": 0.10,
-                "desc": "Hard cap on bet as % of balance (0.10 = 10%)",
+                "default": 0.08,
+                "desc": "Hard cap on bet as % of balance (0.08 = 8%)",
             },
             "loss_multiplier": {
                 "type": "float",
@@ -159,7 +159,7 @@ class AdaptiveHunter:
             },
             "chance_pct": {
                 "type": "float",
-                "default": 14.0,
+                "default": 49.5,
                 "desc": "Target win chance % (for streak, gradient, etc.)",
             },
             "is_high": {

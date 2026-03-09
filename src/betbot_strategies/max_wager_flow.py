@@ -63,11 +63,11 @@ class MaxWagerFlow:
     @classmethod
     def schema(cls) -> Dict[str, Any]:
         return {
-            "fraction": {"type": "float", "default": 0.15, "desc": "Stake as fraction of balance (e.g., 0.15)"},
+            "fraction": {"type": "float", "default": 0.05, "desc": "Stake as fraction of balance (e.g., 0.05)"},
             "min_amount": {"type": "str", "default": "", "desc": "Absolute minimum bet amount (decimal string)"},
             "max_amount": {"type": "str", "default": "", "desc": "Absolute maximum bet amount (decimal string)"},
             "prefer_game": {"type": "str", "default": "dice", "desc": "dice|range-dice|auto"},
-            "chance": {"type": "float", "default": 50.0, "desc": "Chance percent for dice"},
+            "chance": {"type": "float", "default": 40.0, "desc": "Chance percent for dice"},
         }
 
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:

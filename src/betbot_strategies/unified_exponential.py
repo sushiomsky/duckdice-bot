@@ -85,7 +85,7 @@ class UnifiedExponential:
             },
             "growth_rate": {
                 "type": "float",
-                "default": 1.5,
+                "default": 1.3,
                 "desc": "Multiplier for bet scaling across modes",
             },
             "max_bet_percent": {
@@ -95,12 +95,12 @@ class UnifiedExponential:
             },
             "profit_target_multiplier": {
                 "type": "int",
-                "default": 100,
-                "desc": "Target balance multiplier (100 or 300)",
+                "default": 50,
+                "desc": "Target balance multiplier (50 or 100)",
             },
             "max_drawdown_percent": {
                 "type": "str",
-                "default": "35",
+                "default": "20",
                 "desc": "Max allowed drawdown before emergency brake",
             },
         }

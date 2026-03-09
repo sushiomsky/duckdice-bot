@@ -93,12 +93,12 @@ class LuckCascade:
             },
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.002,
+                "default": 0.001,
                 "desc": "Tier-0 bet as fraction of current balance (0.002 = 0.2%)",
             },
             "profit_bet_pct": {
                 "type": "float",
-                "default": 0.05,
+                "default": 0.02,
                 "desc": "Deeper-tier bet as fraction of session profit (0.05 = 5%)",
             },
             "tiers": {
