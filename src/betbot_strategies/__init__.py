@@ -91,6 +91,7 @@ from . import (
     nano_range_hunter,           # Range dice multi-variant strategy (versions v1, v3)
     ai_strat,                    # AI Strategy: 30+ ML models ensemble
     oracle_engine,               # Oracle Engine: 19-mode adaptive state machine
+    chance_cycle_multiplier,     # Chance-Cycle Multiplier: 2-phase aggressive/recovery cycling
 )
 
 # DEPRECATED (consolidated into unified_* above):
