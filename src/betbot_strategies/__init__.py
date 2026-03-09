@@ -90,6 +90,7 @@ from . import (
     chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
     nano_range_hunter,           # Range dice multi-variant strategy (versions v1, v3)
     ai_strat,                    # AI Strategy: 30+ ML models ensemble
+    oracle_engine,               # Oracle Engine: 19-mode adaptive state machine
 )
 
 # DEPRECATED (consolidated into unified_* above):
