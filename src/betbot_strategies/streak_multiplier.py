@@ -31,8 +31,8 @@ Probability Analysis:
 
 Lottery Bets (Optional):
 - Every N bets a random low-chance "lottery" bet is placed instead
-- Amount: random between lottery_min_pct% and lottery_max_pct% of balance
-- Chance: configurable ultra-low win chance (default 1%)
+- Win chance: random between lottery_min_chance% (x) and lottery_max_chance% (y) each bet
+- Amount: lottery_bet_pct% of current balance (fixed %)
 - Win streak state is preserved through lottery bets
 """
 
@@ -89,20 +89,20 @@ class StreakMultiplierStrategy:
                 "default": 10,
                 "desc": "Place a lottery bet every N bets (z). E.g. 10 = every 10th bet."
             },
-            "lottery_min_pct": {
+            "lottery_min_chance": {
                 "type": "float",
-                "default": 0.5,
-                "desc": "Minimum lottery bet as % of balance (x%). E.g. 0.5 = 0.5% of balance."
+                "default": 0.1,
+                "desc": "Minimum win chance for lottery bets (x%). Low = bigger payout. E.g. 0.1 = 0.1%."
             },
-            "lottery_max_pct": {
-                "type": "float",
-                "default": 2.0,
-                "desc": "Maximum lottery bet as % of balance (y%). E.g. 2.0 = 2% of balance."
-            },
-            "lottery_chance": {
+            "lottery_max_chance": {
                 "type": "float",
                 "default": 1.0,
-                "desc": "Win chance for lottery bets (%). Low = bigger potential payout. Default 1%."
+                "desc": "Maximum win chance for lottery bets (y%). A random chance in [x, y] is picked each time."
+            },
+            "lottery_bet_pct": {
+                "type": "float",
+                "default": 1.0,
+                "desc": "Lottery bet size as % of current balance. E.g. 1.0 = 1% of balance."
             },
         }
     
@@ -118,9 +118,9 @@ class StreakMultiplierStrategy:
         # Lottery parameters
         self.lottery_enabled = bool(params.get("lottery_enabled", False))
         self.lottery_interval = int(params.get("lottery_interval", 10))
-        self.lottery_min_pct = Decimal(str(params.get("lottery_min_pct", 0.5)))
-        self.lottery_max_pct = Decimal(str(params.get("lottery_max_pct", 2.0)))
-        self.lottery_chance = Decimal(str(params.get("lottery_chance", 1.0)))
+        self.lottery_min_chance = Decimal(str(params.get("lottery_min_chance", 0.1)))
+        self.lottery_max_chance = Decimal(str(params.get("lottery_max_chance", 1.0)))
+        self.lottery_bet_pct = Decimal(str(params.get("lottery_bet_pct", 1.0)))
         
         # State
         self.current_balance = Decimal(ctx.starting_balance)
@@ -166,22 +166,26 @@ class StreakMultiplierStrategy:
         if self.lottery_enabled:
             print(f"\nLottery Bets: ENABLED")
             print(f"  Interval: every {self.lottery_interval} bets")
-            print(f"  Bet Size: {self.lottery_min_pct}% – {self.lottery_max_pct}% of balance (random)")
-            print(f"  Win Chance: {self.lottery_chance}%")
-            lottery_payout = float(Decimal("99") / self.lottery_chance)
-            print(f"  Potential Payout: ~{lottery_payout:.2f}x per win")
+            print(f"  Bet Size: {self.lottery_bet_pct}% of balance")
+            print(f"  Win Chance: {self.lottery_min_chance}% – {self.lottery_max_chance}% (random each bet)")
+            min_payout = float(Decimal("99") / self.lottery_max_chance)
+            max_payout = float(Decimal("99") / self.lottery_min_chance)
+            print(f"  Potential Payout: ~{min_payout:.2f}x – {max_payout:.2f}x per win")
         print("="*60 + "\n")
     
-    def _calculate_lottery_bet(self) -> Decimal:
-        """Calculate a random lottery bet amount between min and max % of balance."""
-        min_bet = self.current_balance * self.lottery_min_pct / Decimal("100")
-        max_bet = self.current_balance * self.lottery_max_pct / Decimal("100")
-        if max_bet <= min_bet:
-            return max(min_bet, Decimal("0.00000001"))
-        # Random float in [min_bet, max_bet]
-        rand_fraction = Decimal(str(random.uniform(0.0, 1.0)))
-        amount = min_bet + rand_fraction * (max_bet - min_bet)
-        return max(amount, Decimal("0.00000001"))
+    def _calculate_lottery_bet(self) -> tuple:
+        """Return (amount, chance) for a lottery bet. Chance is random in [min, max]."""
+        amount = self.current_balance * self.lottery_bet_pct / Decimal("100")
+        amount = max(amount, Decimal("0.00000001"))
+
+        # Pick a random win chance between min and max
+        if self.lottery_max_chance <= self.lottery_min_chance:
+            chance = self.lottery_min_chance
+        else:
+            rand = Decimal(str(random.uniform(0.0, 1.0)))
+            chance = self.lottery_min_chance + rand * (self.lottery_max_chance - self.lottery_min_chance)
+
+        return amount, chance
 
     def next_bet(self) -> Optional[BetSpec]:
         """Generate next bet."""
@@ -193,15 +197,16 @@ class StreakMultiplierStrategy:
             self._is_lottery_bet = False
 
         if self._is_lottery_bet:
-            lottery_amount = self._calculate_lottery_bet()
+            lottery_amount, lottery_chance = self._calculate_lottery_bet()
             if lottery_amount > self.current_balance:
                 lottery_amount = self.current_balance
             if lottery_amount <= Decimal("0"):
                 return None
+            self._last_lottery_chance = lottery_chance
             return {
                 "game": "dice",
                 "amount": format(lottery_amount, 'f'),
-                "chance": format(self.lottery_chance, 'f'),
+                "chance": format(lottery_chance, 'f'),
                 "is_high": self.is_high,
                 "faucet": self.ctx.faucet,
             }
@@ -247,13 +252,13 @@ class StreakMultiplierStrategy:
         if self._is_lottery_bet:
             # Lottery bet result — does not affect win streak
             self.lottery_bets += 1
+            chance_used = getattr(self, "_last_lottery_chance", self.lottery_min_chance)
             if result.get("win"):
                 self.lottery_wins += 1
-                payout = Decimal(str(result.get("payout", "0")))
-                print(f"[Bet #{self.total_bets}] 🎰 LOTTERY WIN!")
+                print(f"[Bet #{self.total_bets}] 🎰 LOTTERY WIN! (chance: {chance_used:.4f}%)")
                 print(f"  Profit: {profit:+.8f} | Balance: {self.current_balance:.8f}")
             else:
-                print(f"[Bet #{self.total_bets}] 🎰 lottery miss")
+                print(f"[Bet #{self.total_bets}] 🎰 lottery miss (chance: {chance_used:.4f}%)")
                 print(f"  Profit: {profit:+.8f} | Balance: {self.current_balance:.8f}")
             return
         
@@ -319,5 +324,6 @@ class StreakMultiplierStrategy:
         if self.lottery_enabled and self.lottery_bets > 0:
             print(f"\nLottery Bets: {self.lottery_bets} placed, {self.lottery_wins} won")
             lottery_win_rate = (self.lottery_wins / self.lottery_bets) * 100
-            print(f"Lottery Win Rate: {lottery_win_rate:.2f}% (expected {float(self.lottery_chance):.2f}%)")
+            avg_chance = float((self.lottery_min_chance + self.lottery_max_chance) / 2)
+            print(f"Lottery Win Rate: {lottery_win_rate:.2f}% (avg expected ~{avg_chance:.2f}%)")
         print("="*60 + "\n")
