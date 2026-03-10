@@ -93,6 +93,7 @@ from . import (
     oracle_engine,               # Oracle Engine: 19-mode adaptive state machine
     chance_cycle_multiplier,     # Chance-Cycle Multiplier: 2-phase aggressive/recovery cycling
     profit_cascade,              # Profit Cascade: 12-tier dynamic profit targeting + safe mode
+    master,                      # Master: meta-strategy cycling 19 sub-strategies across 3 tiers
 )
 
 # DEPRECATED (consolidated into unified_* above):
