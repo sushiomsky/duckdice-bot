@@ -94,6 +94,7 @@ from . import (
     chance_cycle_multiplier,     # Chance-Cycle Multiplier: 2-phase aggressive/recovery cycling
     profit_cascade,              # Profit Cascade: 12-tier dynamic profit targeting + safe mode
     master,                      # Master: meta-strategy cycling 19 sub-strategies across 3 tiers
+    ladder_race,                 # Ladder Race: contest hunter 5x→10x→50x→100x with ID-suffix matching
 )
 
 # DEPRECATED (consolidated into unified_* above):
