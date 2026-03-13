@@ -1741,6 +1741,93 @@ def cmd_simulate(args):
         traceback.print_exc()
 
 
+def cmd_simulate_all(args):
+    """Monte Carlo simulation of all strategies → comprehensive HTML report."""
+    import sys
+    from betbot_engine.strategy_simulator import simulate_strategy, default_params
+    from betbot_engine.html_report import build_report
+    from betbot_strategies import list_strategies, get_strategy
+
+    rounds   = args.rounds
+    n_runs   = args.runs
+    balance  = args.balance
+    output   = args.output
+    seed     = args.seed
+    exclude  = {e.lower() for e in (args.exclude or [])}
+
+    all_names = [s["name"] for s in list_strategies()]
+    if args.strategies:
+        names = [n for n in args.strategies if n in all_names]
+        missing = [n for n in args.strategies if n not in all_names]
+        if missing:
+            print(f"⚠️  Unknown strategies (skipped): {', '.join(missing)}")
+    else:
+        names = [n for n in all_names if n.lower() not in exclude]
+
+    if not names:
+        print("❌ No strategies to simulate.")
+        return
+
+    print(f"\n🦆  DuckDice Monte Carlo — All Strategy Report")
+    print(f"   Strategies  : {len(names)}")
+    print(f"   Runs/strategy: {n_runs}")
+    print(f"   Bets/run     : {rounds}")
+    print(f"   Start balance: ${balance:.2f}")
+    print(f"   Seed         : {seed}")
+    print(f"   Output       : {output}\n")
+
+    results = []
+    for idx, name in enumerate(names):
+        try:
+            cls = get_strategy(name)
+            params = default_params(cls)
+        except Exception as e:
+            print(f"  [{idx+1:2d}/{len(names)}] {name:<35s} ⚠️  load error: {e}")
+            continue
+
+        # Progress bar
+        bar_width = 20
+
+        def progress(run_i: int, total: int):
+            filled = int(bar_width * run_i / max(total, 1))
+            bar = "█" * filled + "░" * (bar_width - filled)
+            pct = int(run_i / max(total, 1) * 100)
+            print(f"\r  [{idx+1:2d}/{len(names)}] {name:<35s} [{bar}] {pct:3d}%",
+                  end="", flush=True)
+
+        progress(0, n_runs)
+        try:
+            result = simulate_strategy(
+                cls,
+                params,
+                n_bets=rounds,
+                n_runs=n_runs,
+                starting_balance=balance,
+                base_seed=seed,
+                progress_cb=progress,
+            )
+            results.append(result)
+            roi_str = f"{result.roi_mean:+.2f}%"
+            dd_str  = f"dd={result.max_drawdown_mean:.1%}"
+            print(f"\r  [{idx+1:2d}/{len(names)}] {name:<35s} ✅  roi={roi_str:<10} {dd_str}")
+        except Exception as e:
+            print(f"\r  [{idx+1:2d}/{len(names)}] {name:<35s} ❌  {e}")
+
+    if not results:
+        print("\n❌ All simulations failed — no report generated.")
+        return
+
+    print(f"\n📝 Building HTML report ({len(results)} strategies)…")
+    try:
+        path = build_report(results, output_path=output)
+        print(f"✅  Report saved → {path}")
+        print(f"   Open in browser: file://{os.path.abspath(path)}")
+    except Exception as e:
+        print(f"❌ Report generation failed: {e}")
+        import traceback
+        traceback.print_exc()
+
+
 def main():
     parser = argparse.ArgumentParser(
         description="DuckDice Bot CLI - Automated betting toolkit",
@@ -1831,6 +1918,41 @@ def main():
     sim_parser.add_argument('--report', help='Save HTML report to path')
     sim_parser.add_argument('--plots', help='Save plots to path prefix')
     sim_parser.set_defaults(func=cmd_simulate)
+
+    # Monte Carlo all-strategies report
+    sim_all_parser = subparsers.add_parser(
+        'simulate-all',
+        help='Monte Carlo simulation of ALL strategies — produces HTML report',
+    )
+    sim_all_parser.add_argument(
+        '--rounds', type=int, default=500,
+        help='Bets per simulation run (default: 500)',
+    )
+    sim_all_parser.add_argument(
+        '--runs', type=int, default=30,
+        help='Monte Carlo runs per strategy (default: 30)',
+    )
+    sim_all_parser.add_argument(
+        '--balance', type=float, default=100.0,
+        help='Starting balance (default: 100.0)',
+    )
+    sim_all_parser.add_argument(
+        '--output', default='simulation_report.html',
+        help='Output HTML file path (default: simulation_report.html)',
+    )
+    sim_all_parser.add_argument(
+        '--strategies', nargs='+', metavar='NAME',
+        help='Only simulate these strategies (default: all)',
+    )
+    sim_all_parser.add_argument(
+        '--exclude', nargs='+', metavar='NAME', default=[],
+        help='Strategies to skip',
+    )
+    sim_all_parser.add_argument(
+        '--seed', type=int, default=42,
+        help='Base random seed for reproducibility (default: 42)',
+    )
+    sim_all_parser.set_defaults(func=cmd_simulate_all)
 
     # Probe minimum bets
     probe_parser = subparsers.add_parser(
