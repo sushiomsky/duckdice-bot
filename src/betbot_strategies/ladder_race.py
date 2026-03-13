@@ -2,13 +2,13 @@ from __future__ import annotations
 """
 Multiplier Ladder Race Strategy
 
-Contest strategy that hunts for 4 specific winning bets in order:
-  Stage 1: 5x multiplier  (19.8% chance) — winning bet ID must end in 1
-  Stage 2: 10x multiplier ( 9.9% chance) — winning bet ID must end in 2
-  Stage 3: 50x multiplier ( 1.98% chance) — winning bet ID must end in 3
-  Stage 4: 100x multiplier ( 0.99% chance) — winning bet ID must end in 4
+Contest strategy: win each multiplier once in sequential order.
+  Stage 1: 5x   (19.8% chance) — first win advances to next stage
+  Stage 2: 10x  ( 9.9% chance) — first win advances to next stage
+  Stage 3: 50x  ( 1.98% chance) — first win advances to next stage
+  Stage 4: 100x ( 0.99% chance) — first win completes the ladder
 
-Stops automatically once all 4 winning IDs are collected.
+Stops automatically and prints all 4 winning bet IDs ready to post.
 """
 
 from decimal import ROUND_DOWN, Decimal
@@ -17,19 +17,16 @@ from typing import Any, Dict, List, Optional
 from . import register
 from .base import BetResult, BetSpec, StrategyContext, StrategyMetadata
 
-_HOUSE_EDGE = Decimal("0.99")
-_MIN_BET    = Decimal("0.1")          # Contest minimum
-_QUANT      = Decimal("0.00000001")
+_MIN_BET = Decimal("0.1")       # Contest minimum
+_QUANT   = Decimal("0.00000001")
 
-# (multiplier, chance_str, required_id_suffix)
-_LADDER: List[tuple[int, str, str]] = [
-    (5,   "19.8", "1"),
-    (10,  "9.9",  "2"),
-    (50,  "1.98", "3"),
-    (100, "0.99", "4"),
+# (label, chance_str)
+_LADDER: List[tuple[str, str]] = [
+    ("5x",   "19.8"),
+    ("10x",  "9.9"),
+    ("50x",  "1.98"),
+    ("100x", "0.99"),
 ]
-
-_STAGE_LABELS = ["5x", "10x", "50x", "100x"]
 
 
 def _bet_id(api_raw: Dict[str, Any]) -> Optional[str]:
@@ -42,10 +39,10 @@ def _bet_id(api_raw: Dict[str, Any]) -> Optional[str]:
 @register("ladder-race")
 class LadderRaceStrategy:
     """
-    Contest ladder-race: hunt 5x→10x→50x→100x wins whose IDs end in 1,2,3,4.
+    Contest ladder-race: win 5x → 10x → 50x → 100x in sequential order.
 
-    Stops automatically once the full ladder is collected and prints a
-    ready-to-post message containing all 4 winning bet IDs.
+    Every win at the current stage advances to the next. Stops automatically
+    once all 4 wins are collected and prints a ready-to-post entry message.
     """
 
     @classmethod
@@ -55,8 +52,8 @@ class LadderRaceStrategy:
     @classmethod
     def describe(cls) -> str:
         return (
-            "Contest strategy: collects 4 wins in order (5x, 10x, 50x, 100x) "
-            "whose bet IDs end in 1, 2, 3, 4 respectively. Stops when complete."
+            "Contest strategy: wins 5x, 10x, 50x, 100x in sequential order. "
+            "Any win at each stage advances the ladder. Stops when complete."
         )
 
     @classmethod
@@ -75,13 +72,12 @@ class LadderRaceStrategy:
             ],
             cons=[
                 "100x stage (0.99%) can require many bets",
-                "Each stage only advances on an ID-matched win",
                 "High variance at 50x and 100x stages",
             ],
             best_use_case="DuckDice Multiplier Ladder Race contest participation.",
             tips=[
-                "Ensure your balance can sustain the 50x and 100x stages",
-                "The bot stops automatically — watch for the '🏁 LADDER COMPLETE' message",
+                "Ensure balance can sustain the 50x and 100x stages",
+                "Bot stops automatically — watch for the '🏁 LADDER COMPLETE' message",
                 "All 4 IDs are printed at the end; paste them in ONE message to the contest",
             ],
         )
@@ -111,7 +107,7 @@ class LadderRaceStrategy:
         )
         self._is_high: bool = bool(params.get("is_high", True))
         self._stage: int = 0
-        self._collected: List[str] = []   # winning bet IDs in order
+        self._collected: List[str] = []
         self._done: bool = False
         self._bets_this_stage: int = 0
         self._total_bets: int = 0
@@ -128,13 +124,13 @@ class LadderRaceStrategy:
         if self._done:
             return None
 
-        _, chance_str, _ = _LADDER[self._stage]
+        _, chance_str = _LADDER[self._stage]
         return {
-            "game":     "dice",
-            "amount":   format(self._bet_amount, "f"),
-            "chance":   chance_str,
-            "is_high":  self._is_high,
-            "faucet":   self.ctx.faucet,
+            "game":    "dice",
+            "amount":  format(self._bet_amount, "f"),
+            "chance":  chance_str,
+            "is_high": self._is_high,
+            "faucet":  self.ctx.faucet,
         }
 
     def on_bet_result(self, result: BetResult) -> None:
@@ -148,48 +144,28 @@ class LadderRaceStrategy:
         if not result.get("win"):
             return
 
-        # ── We have a win; check the bet ID suffix ────────────────────────
-        multiplier, _, required_suffix = _LADDER[self._stage]
+        # ── Win — record the bet ID and advance ───────────────────────────
         api_raw = result.get("api_raw") or {}
-        bet_id  = _bet_id(api_raw)
-
         simulated = result.get("simulated", False) or api_raw.get("simulated", False)
+        bet_id = _bet_id(api_raw) if not simulated else f"SIM-{self._total_bets:06d}"
 
-        if simulated:
-            # In simulation mode we can't get a real ID — synthesise a placeholder
-            # that satisfies the suffix so the logic can be tested end-to-end.
-            bet_id = f"SIM-{self._total_bets:06d}{required_suffix}"
+        label, _ = _LADDER[self._stage]
+        display_id = bet_id or "???"
+        self._collected.append(display_id)
 
-        if bet_id is None:
-            self.ctx.printer(
-                f"  ⚠️  Stage {self._stage + 1} ({_STAGE_LABELS[self._stage]}): "
-                "won but couldn't read bet ID — skipping"
-            )
-            return
+        self.ctx.printer(
+            f"  ✅  Stage {self._stage + 1}/{len(_LADDER)} ({label}) — "
+            f"ID {display_id}  (took {self._bets_this_stage} bets)"
+        )
 
-        if bet_id.endswith(required_suffix):
-            self._collected.append(bet_id)
-            self.ctx.printer(
-                f"  ✅  Stage {self._stage + 1}/{len(_LADDER)} "
-                f"({_STAGE_LABELS[self._stage]}) — "
-                f"ID {bet_id}  "
-                f"(took {self._bets_this_stage} bets)"
-            )
-            self._stage += 1
-            self._bets_this_stage = 0
+        self._stage += 1
+        self._bets_this_stage = 0
 
-            if self._stage >= len(_LADDER):
-                self._done = True
-                self._on_complete()
-            else:
-                self._print_stage_banner()
+        if self._stage >= len(_LADDER):
+            self._done = True
+            self._on_complete()
         else:
-            # Win but wrong ID suffix — keep hunting at the same stage
-            self.ctx.printer(
-                f"  🔄  Stage {self._stage + 1} ({_STAGE_LABELS[self._stage]}): "
-                f"won {multiplier}x but ID {bet_id} doesn't end in '{required_suffix}' "
-                "— continuing…"
-            )
+            self._print_stage_banner()
 
     def on_session_end(self, reason: str) -> None:
         if self._collected and not self._done:
@@ -198,18 +174,16 @@ class LadderRaceStrategy:
                 f"   Progress: {len(self._collected)}/{len(_LADDER)} stages done"
             )
             for i, bid in enumerate(self._collected):
-                self.ctx.printer(
-                    f"   Stage {i + 1} ({_STAGE_LABELS[i]}): {bid}"
-                )
+                label, _ = _LADDER[i]
+                self.ctx.printer(f"   Stage {i + 1} ({label}): {bid}")
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
     def _print_stage_banner(self) -> None:
-        multiplier, chance_str, suffix = _LADDER[self._stage]
+        label, chance_str = _LADDER[self._stage]
         self.ctx.printer(
             f"\n🪜  Stage {self._stage + 1}/{len(_LADDER)}: "
-            f"hunting {_STAGE_LABELS[self._stage]} win "
-            f"({chance_str}% chance) — need ID ending in '{suffix}'"
+            f"hunting {label} win ({chance_str}% chance)"
         )
 
     def _on_complete(self) -> None:
@@ -218,13 +192,12 @@ class LadderRaceStrategy:
         self.ctx.printer("=" * 60)
         self.ctx.printer("\nYour winning bet IDs:")
         for i, bid in enumerate(self._collected):
-            self.ctx.printer(f"  {i + 1}. {_STAGE_LABELS[i]:>4s}  →  {bid}")
+            label, _ = _LADDER[i]
+            self.ctx.printer(f"  {i + 1}. {label:>4s}  →  {bid}")
         self.ctx.printer(
             "\n📋  Copy-paste entry (ONE message):\n"
             f"   {self._collected[0]}  {self._collected[1]}  "
             f"{self._collected[2]}  {self._collected[3]}"
         )
-        self.ctx.printer(
-            f"\n📊  Total bets placed: {self._total_bets}"
-        )
+        self.ctx.printer(f"\n📊  Total bets placed: {self._total_bets}")
         self.ctx.printer("=" * 60 + "\n")
