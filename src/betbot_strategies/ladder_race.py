@@ -2,13 +2,14 @@ from __future__ import annotations
 """
 Multiplier Ladder Race Strategy
 
-4 consecutive winning bets with no misses allowed between them:
-  Bet 1: win 5x   (19.8% chance)
-  Bet 2: win 10x  ( 9.9% chance)  — must follow immediately after bet 1
-  Bet 3: win 50x  ( 1.98% chance) — must follow immediately after bet 2
-  Bet 4: win 100x ( 0.99% chance) — must follow immediately after bet 3
+Win each multiplier once, in order. Losing bets between wins are fine —
+the nonces just need to be sequential (each win must come after the previous).
 
-Any loss resets the sequence back to stage 1.
+  Stage 1: 5x   (19.8% chance) — first win here advances to stage 2
+  Stage 2: 10x  ( 9.9% chance) — first win here advances to stage 3
+  Stage 3: 50x  ( 1.98% chance) — first win here advances to stage 4
+  Stage 4: 100x ( 0.99% chance) — first win here completes the ladder
+
 Stops automatically and prints all 4 winning bet IDs ready to post.
 """
 
@@ -39,8 +40,10 @@ def _bet_id(api_raw: Dict[str, Any]) -> Optional[str]:
 @register("ladder-race")
 class LadderRaceStrategy:
     """
-    Contest ladder-race: 4 consecutive wins — 5x → 10x → 50x → 100x.
-    Any loss resets back to stage 1. Stops when all 4 land back-to-back.
+    Contest ladder-race: win 5x → 10x → 50x → 100x in order.
+
+    Losses between wins are fine — each stage just needs its first win.
+    Stops automatically once all 4 wins are collected.
     """
 
     @classmethod
@@ -50,8 +53,8 @@ class LadderRaceStrategy:
     @classmethod
     def describe(cls) -> str:
         return (
-            "Contest strategy: 4 back-to-back wins (5x→10x→50x→100x). "
-            "Any loss resets to stage 1. Stops when all 4 land consecutively."
+            "Contest strategy: wins 5x, 10x, 50x, 100x in order. "
+            "Losses between wins are fine — any win at each stage advances the ladder."
         )
 
     @classmethod
@@ -63,19 +66,19 @@ class LadderRaceStrategy:
             time_to_profit="N/A — contest focused",
             recommended_for="Contest participants",
             pros=[
-                "Fully automated consecutive-win hunt",
-                "Auto-stops when all 4 consecutive targets collected",
+                "Fully automated ladder hunt",
+                "Losses between wins are allowed — no resets",
+                "Auto-stops when all 4 targets collected",
                 "Prints ready-to-post contest entry on completion",
                 "Minimum $0.1 bet per contest rules",
             ],
             cons=[
-                "Any loss resets the entire sequence",
-                "Combined probability ~0.004% per 4-bet attempt",
-                "Can take a very large number of attempts",
+                "100x stage (0.99%) can require many bets",
+                "High variance at 50x and 100x stages",
             ],
             best_use_case="DuckDice Multiplier Ladder Race contest participation.",
             tips=[
-                "Ensure sufficient balance — the 50x/100x resets are costly",
+                "Ensure balance can sustain the 50x and 100x stages",
                 "Bot stops automatically — watch for the '🏁 LADDER COMPLETE' message",
                 "All 4 IDs are printed at the end; paste them in ONE message to the contest",
             ],
@@ -106,17 +109,17 @@ class LadderRaceStrategy:
         )
         self._is_high: bool = bool(params.get("is_high", True))
         self._stage: int = 0
-        self._current_run: List[str] = []   # IDs collected in the current attempt
+        self._collected: List[str] = []
         self._done: bool = False
+        self._bets_this_stage: int = 0
         self._total_bets: int = 0
-        self._attempts: int = 0             # number of times stage 1 was reached
 
     def on_session_start(self) -> None:
         self._stage = 0
-        self._current_run = []
+        self._collected = []
         self._done = False
+        self._bets_this_stage = 0
         self._total_bets = 0
-        self._attempts = 0
         self._print_stage_banner()
 
     def next_bet(self) -> Optional[BetSpec]:
@@ -137,67 +140,65 @@ class LadderRaceStrategy:
             return
 
         self._total_bets += 1
+        self._bets_this_stage += 1
         self.ctx.recent_results.append(result)
 
+        if not result.get("win"):
+            return
+
+        # Any win at the current stage advances the ladder
         api_raw   = result.get("api_raw") or {}
         simulated = result.get("simulated", False) or api_raw.get("simulated", False)
         bet_id    = _bet_id(api_raw) if not simulated else f"SIM-{self._total_bets:06d}"
+
         label, _  = _LADDER[self._stage]
+        display_id = bet_id or "???"
+        self._collected.append(display_id)
 
-        if result.get("win"):
-            display_id = bet_id or "???"
-            self._current_run.append(display_id)
-            self.ctx.printer(
-                f"  ✅  Step {self._stage + 1}/4 ({label}) — ID {display_id}"
-            )
-            self._stage += 1
+        self.ctx.printer(
+            f"  ✅  Stage {self._stage + 1}/4 ({label}) — "
+            f"ID {display_id}  (took {self._bets_this_stage} bets this stage)"
+        )
 
-            if self._stage >= len(_LADDER):
-                self._done = True
-                self._on_complete()
-            else:
-                self._print_stage_banner()
+        self._stage += 1
+        self._bets_this_stage = 0
+
+        if self._stage >= len(_LADDER):
+            self._done = True
+            self._on_complete()
         else:
-            # Any loss resets the whole sequence
-            if self._stage > 0:
-                self.ctx.printer(
-                    f"  ❌  Step {self._stage + 1}/4 ({label}) lost — "
-                    "resetting to step 1"
-                )
-            self._stage = 0
-            self._current_run = []
-            self._attempts += 1
+            self._print_stage_banner()
 
     def on_session_end(self, reason: str) -> None:
-        if self._current_run and not self._done:
-            self.ctx.printer("\n⚠️  Session ended mid-sequence.")
+        if self._collected and not self._done:
+            self.ctx.printer("\n⚠️  Session ended before ladder was complete.")
             self.ctx.printer(
-                f"   Reached step {len(self._current_run) + 1}/4 before stopping."
+                f"   Progress: {len(self._collected)}/4 stages done"
             )
+            for i, bid in enumerate(self._collected):
+                label, _ = _LADDER[i]
+                self.ctx.printer(f"   Stage {i + 1} ({label}): {bid}")
 
     # ── Helpers ────────────────────────────────────────────────────────────
 
     def _print_stage_banner(self) -> None:
         label, chance_str = _LADDER[self._stage]
         self.ctx.printer(
-            f"\n🪜  Step {self._stage + 1}/4: need {label} win ({chance_str}% chance)"
+            f"\n🪜  Stage {self._stage + 1}/4: hunting {label} win ({chance_str}% chance)"
         )
 
     def _on_complete(self) -> None:
         self.ctx.printer("\n" + "=" * 60)
-        self.ctx.printer("🏁  LADDER COMPLETE!  4 consecutive wins!")
+        self.ctx.printer("🏁  LADDER COMPLETE!  All 4 targets collected.")
         self.ctx.printer("=" * 60)
         self.ctx.printer("\nYour winning bet IDs:")
-        for i, bid in enumerate(self._current_run):
+        for i, bid in enumerate(self._collected):
             label, _ = _LADDER[i]
             self.ctx.printer(f"  {i + 1}. {label:>4s}  →  {bid}")
         self.ctx.printer(
             "\n📋  Copy-paste entry (ONE message):\n"
-            f"   {self._current_run[0]}  {self._current_run[1]}  "
-            f"{self._current_run[2]}  {self._current_run[3]}"
+            f"   {self._collected[0]}  {self._collected[1]}  "
+            f"{self._collected[2]}  {self._collected[3]}"
         )
-        self.ctx.printer(
-            f"\n📊  Total bets: {self._total_bets}  |  "
-            f"Attempts: {self._attempts + 1}"
-        )
+        self.ctx.printer(f"\n📊  Total bets placed: {self._total_bets}")
         self.ctx.printer("=" * 60 + "\n")
