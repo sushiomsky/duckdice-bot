@@ -95,6 +95,7 @@ from . import (
     profit_cascade,              # Profit Cascade: 12-tier dynamic profit targeting + safe mode
     master,                      # Master: meta-strategy cycling 19 sub-strategies across 3 tiers
     ladder_race,                 # Ladder Race: contest hunter 5x→10x→50x→100x with ID-suffix matching
+    range_decoy_ramp,            # Range Decoy Ramp: 0.02% sniper with decoy preroll + progressive bet ramp
 )
 
 # DEPRECATED (consolidated into unified_* above):
