@@ -269,6 +269,8 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
         mode = 'Simulation' if dry_run else ('Faucet' if config.faucet else 'Main')
         display.print_info(f"Mode: {mode}")
         display.print_info(f"Currency: {config.symbol}")
+        if config.tle_hash:
+            display.print_info(f"🏆 TLE Mode: {config.tle_hash}")
         if use_parallel:
             display.print_info(f"⚡ Parallel Mode: {max_concurrent} concurrent bets")
         print()
@@ -277,6 +279,8 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
         print(f"Starting strategy: {strategy_name}")
         print(f"Mode: {'Simulation' if dry_run else ('Faucet' if config.faucet else 'Main')}")
         print(f"Currency: {config.symbol}")
+        if config.tle_hash:
+            print(f"🏆 TLE Mode: {config.tle_hash}")
         if use_parallel:
             print(f"⚡ Parallel Mode: {max_concurrent} concurrent bets")
         print(f"{'='*60}\n")
@@ -777,6 +781,25 @@ def cmd_run(args):
     # Parse mode
     is_simulation = (mode == 'simulation')
     use_faucet = (mode == 'live-faucet')
+
+    # Show active TLEs when in live mode (informational, so user knows valid hashes)
+    if not is_simulation and api_key:
+        try:
+            _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+            _info = _api_tmp.get_user_info()
+            _tles = _info.get('tle', [])
+            if _tles:
+                print("\n🏆 Active Time Limited Events (TLEs):")
+                for _t in _tles:
+                    _name   = _t.get('name', 'Unknown')
+                    _status = _t.get('status', '')
+                    _hash   = _t.get('hash', '')
+                    print(f"   • {_name}  [{_status}]  hash: {_hash}")
+                print(f"   Use --tle <hash> to bet in a TLE.\n")
+            elif getattr(args, 'tle_hash', None):
+                print(f"⚠️  No active TLEs found, but --tle was specified. Proceeding anyway.\n")
+        except Exception:
+            pass  # Non-fatal; API may be unavailable at this point
     
     # Get currency
     currency = args.currency or prompt_with_default(
@@ -913,7 +936,8 @@ def cmd_run(args):
         delay_ms=delay_ms,
         jitter_ms=jitter_ms,
         db_log=getattr(args, 'db_log', True),
-        db_path=getattr(args, 'db_path', None)
+        db_path=getattr(args, 'db_path', None),
+        tle_hash=getattr(args, 'tle_hash', None),
     )
     
     # Run strategy (faucet mode uses the auto-reclaim loop)
@@ -1879,6 +1903,9 @@ def main():
     run_parser.add_argument('--faucet-cookie', type=str, dest='faucet_cookie',
                            help='Browser session cookie for faucet auto-claim (live-faucet mode). '
                                 'If omitted, uses cookie saved in ~/.duckdice/faucet_cookies.json')
+    run_parser.add_argument('--tle', type=str, dest='tle_hash', default=None,
+                           help='Time Limited Event hash to participate in (live mode only). '
+                                'Use the hash shown when listing active TLEs on startup.')
     run_parser.set_defaults(func=cmd_run)
     
     # List strategies

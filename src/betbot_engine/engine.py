@@ -80,6 +80,7 @@ class EngineConfig:
     log_dir: str = os.path.join("bet_history", "auto")
     db_log: bool = True  # Enable database logging
     db_path: Optional[str] = None  # Custom database path
+    tle_hash: Optional[str] = None  # Time Limited Event hash for TLE bets
     
     @staticmethod
     def get_speed_preset(preset: str = "fast"):
@@ -607,6 +608,7 @@ def run_auto_bet(
                             chance=bet["chance"],
                             is_high=bool(bet.get("is_high")),
                             faucet=bool(bet.get("faucet")),
+                            tle_hash=config.tle_hash or None,
                         )
                     else:
                         r = bet.get("range") or (0, 0)
@@ -616,6 +618,7 @@ def run_auto_bet(
                             range_values=[int(r[0]), int(r[1])],
                             is_in=bool(bet.get("is_in")),
                             faucet=bool(bet.get("faucet")),
+                            tle_hash=config.tle_hash or None,
                         )
                 except Exception as e:
                     # Handle API errors gracefully
