@@ -266,21 +266,36 @@ def run_strategy(strategy_name: str, params: Dict[str, Any], config: EngineConfi
     # Use rich display if available
     if USE_RICH and display:
         display.print_section(f"Starting Strategy: {strategy_name}")
-        mode = 'Simulation' if dry_run else ('Faucet' if config.faucet else 'Main')
-        display.print_info(f"Mode: {mode}")
+        if dry_run:
+            mode_label = 'Simulation'
+        elif config.tle_hash:
+            mode_label = 'TLE Event'
+        elif config.faucet:
+            mode_label = 'Faucet'
+        else:
+            mode_label = 'Main'
+        display.print_info(f"Mode: {mode_label}")
         display.print_info(f"Currency: {config.symbol}")
         if config.tle_hash:
-            display.print_info(f"🏆 TLE Mode: {config.tle_hash}")
+            display.print_info(f"🏆 TLE Hash: {config.tle_hash}")
         if use_parallel:
             display.print_info(f"⚡ Parallel Mode: {max_concurrent} concurrent bets")
         print()
     else:
         print(f"\n{'='*60}")
         print(f"Starting strategy: {strategy_name}")
-        print(f"Mode: {'Simulation' if dry_run else ('Faucet' if config.faucet else 'Main')}")
+        if dry_run:
+            mode_label = 'Simulation'
+        elif config.tle_hash:
+            mode_label = 'TLE Event'
+        elif config.faucet:
+            mode_label = 'Faucet'
+        else:
+            mode_label = 'Main'
+        print(f"Mode: {mode_label}")
         print(f"Currency: {config.symbol}")
         if config.tle_hash:
-            print(f"🏆 TLE Mode: {config.tle_hash}")
+            print(f"🏆 TLE Hash: {config.tle_hash}")
         if use_parallel:
             print(f"⚡ Parallel Mode: {max_concurrent} concurrent bets")
         print(f"{'='*60}\n")
@@ -774,32 +789,57 @@ def cmd_run(args):
         # No API key - prompt for mode
         mode = prompt_choice(
             "Select betting mode:",
-            ['simulation', 'live-main', 'live-faucet'],
+            ['simulation', 'live-main', 'live-faucet', 'live-tle'],
             config_mgr.config.get('default_mode', 'simulation')
         )
-    
-    # Parse mode
-    is_simulation = (mode == 'simulation')
-    use_faucet = (mode == 'live-faucet')
 
-    # Show active TLEs when in live mode (informational, so user knows valid hashes)
-    if not is_simulation and api_key:
+    # Parse mode flags
+    is_simulation = (mode == 'simulation')
+    use_faucet    = (mode == 'live-faucet')
+    use_tle       = (mode == 'live-tle')
+
+    # TLE mode: resolve hash (CLI flag > interactive selection)
+    tle_hash = getattr(args, 'tle_hash', None)
+    if use_tle and not is_simulation:
+        if not tle_hash:
+            # Fetch available TLEs from API and let user pick
+            try:
+                _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+                _info = _api_tmp.get_user_info()
+                _tles = _info.get('tle', [])
+            except Exception:
+                _tles = []
+            if _tles:
+                print("\n🏆 Active Time Limited Events:")
+                _tle_choices = []
+                for _t in _tles:
+                    _label = f"{_t.get('name', 'Unknown')} [{_t.get('status', '')}]  ({_t.get('hash', '')})"
+                    _tle_choices.append(_label)
+                _choice_idx = prompt_choice("Select TLE to bet in:", _tle_choices)
+                # Extract hash from chosen label
+                tle_hash = _tles[_tle_choices.index(_choice_idx)].get('hash', '')
+            else:
+                print("⚠️  No active TLEs found on your account.")
+                tle_hash = prompt_with_default("Enter TLE hash manually (or leave blank to cancel)", "")
+                if not tle_hash:
+                    print("Cancelled: no TLE hash provided.")
+                    return
+        else:
+            # --tle provided directly; confirm it looks reasonable
+            print(f"🏆 TLE Mode — using hash: {tle_hash}")
+    elif not use_tle and not is_simulation and api_key:
+        # Non-TLE live mode: show available TLEs as info (user may want to switch)
         try:
             _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
             _info = _api_tmp.get_user_info()
             _tles = _info.get('tle', [])
             if _tles:
-                print("\n🏆 Active Time Limited Events (TLEs):")
+                print("\n🏆 Active TLEs available (use -m live-tle to participate):")
                 for _t in _tles:
-                    _name   = _t.get('name', 'Unknown')
-                    _status = _t.get('status', '')
-                    _hash   = _t.get('hash', '')
-                    print(f"   • {_name}  [{_status}]  hash: {_hash}")
-                print(f"   Use --tle <hash> to bet in a TLE.\n")
-            elif getattr(args, 'tle_hash', None):
-                print(f"⚠️  No active TLEs found, but --tle was specified. Proceeding anyway.\n")
+                    print(f"   • {_t.get('name', 'Unknown')} [{_t.get('status', '')}]")
+                print()
         except Exception:
-            pass  # Non-fatal; API may be unavailable at this point
+            pass
     
     # Get currency
     currency = args.currency or prompt_with_default(
@@ -937,7 +977,7 @@ def cmd_run(args):
         jitter_ms=jitter_ms,
         db_log=getattr(args, 'db_log', True),
         db_path=getattr(args, 'db_path', None),
-        tle_hash=getattr(args, 'tle_hash', None),
+        tle_hash=tle_hash or None,
     )
     
     # Run strategy (faucet mode uses the auto-reclaim loop)
@@ -1868,8 +1908,8 @@ def main():
     
     # Run command
     run_parser = subparsers.add_parser('run', help='Run a betting strategy')
-    run_parser.add_argument('-m', '--mode', choices=['simulation', 'live-main', 'live-faucet'],
-                           help='Betting mode')
+    run_parser.add_argument('-m', '--mode', choices=['simulation', 'live-main', 'live-faucet', 'live-tle'],
+                           help='Betting mode (live-tle requires --tle <hash> or interactive TLE selection)')
     run_parser.add_argument('-c', '--currency', help='Currency (btc, doge, etc.)')
     run_parser.add_argument('-s', '--strategy', help='Strategy name')
     run_parser.add_argument('-p', '--profile', help='Load strategy profile')
