@@ -778,46 +778,66 @@ def cmd_run(args):
 
     # Check for API key first (auto-detect live mode)
     api_key = args.api_key or config_mgr.config.get('api_key')
-    
-    # Get mode - skip prompt if API key exists (default to live-main)
+
+    # Pre-fetch TLEs when we have an API key so we can show event names in the
+    # mode menu AND reuse the data for TLE selection without a second round-trip.
+    _prefetched_tles: list = []
+    if api_key and not args.mode:
+        try:
+            _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+            _prefetched_tles = _api_tmp.get_user_info().get('tle', []) or []
+        except Exception:
+            pass
+
+    # Build mode choices — annotate live-tle with event names when available
+    if _prefetched_tles:
+        _tle_names = ', '.join(t.get('name', '?') for t in _prefetched_tles)
+        _tle_label = f"live-tle  [{_tle_names}]"
+    else:
+        _tle_label = "live-tle"
+    _mode_choices = ['simulation', 'live-main', 'live-faucet', _tle_label]
+
+    # Resolve mode: explicit CLI flag > saved default with prompt > prompt
     if args.mode:
         mode = args.mode
-    elif api_key:
-        # API key found - default to live mode
-        mode = config_mgr.config.get('default_mode', 'live-main')
     else:
-        # No API key - prompt for mode
-        mode = prompt_choice(
-            "Select betting mode:",
-            ['simulation', 'live-main', 'live-faucet', 'live-tle'],
-            config_mgr.config.get('default_mode', 'simulation')
-        )
+        _saved_default = config_mgr.config.get('default_mode', 'live-main' if api_key else 'simulation')
+        # Highlight live-tle as default when TLEs are active
+        _default = _tle_label if _prefetched_tles else _saved_default
+        mode = prompt_choice("Select betting mode:", _mode_choices, _default)
+        # Normalise the annotated label back to the bare token
+        if mode.startswith('live-tle'):
+            mode = 'live-tle'
 
     # Parse mode flags
     is_simulation = (mode == 'simulation')
     use_faucet    = (mode == 'live-faucet')
     use_tle       = (mode == 'live-tle')
 
-    # TLE mode: resolve hash (CLI flag > interactive selection)
+    # TLE mode: resolve hash (CLI flag > interactive selection from prefetched list)
     tle_hash = getattr(args, 'tle_hash', None)
     if use_tle and not is_simulation:
         if not tle_hash:
-            # Fetch available TLEs from API and let user pick
-            try:
-                _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
-                _info = _api_tmp.get_user_info()
-                _tles = _info.get('tle', [])
-            except Exception:
-                _tles = []
+            # Use prefetched TLEs (or re-fetch if we skipped above via --mode flag)
+            _tles = _prefetched_tles
+            if not _tles:
+                try:
+                    _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+                    _tles = _api_tmp.get_user_info().get('tle', []) or []
+                except Exception:
+                    _tles = []
             if _tles:
-                print("\n🏆 Active Time Limited Events:")
-                _tle_choices = []
-                for _t in _tles:
-                    _label = f"{_t.get('name', 'Unknown')} [{_t.get('status', '')}]  ({_t.get('hash', '')})"
-                    _tle_choices.append(_label)
-                _choice_idx = prompt_choice("Select TLE to bet in:", _tle_choices)
-                # Extract hash from chosen label
-                tle_hash = _tles[_tle_choices.index(_choice_idx)].get('hash', '')
+                if len(_tles) == 1:
+                    # Only one event — auto-select, no menu needed
+                    tle_hash = _tles[0].get('hash', '')
+                    print(f"🏆 TLE auto-selected: {_tles[0].get('name', '')} (hash: {tle_hash})")
+                else:
+                    _tle_choices = [
+                        f"{t.get('name', 'Unknown')} [{t.get('status', '')}]  (hash: {t.get('hash', '')})"
+                        for t in _tles
+                    ]
+                    _choice = prompt_choice("Select TLE to bet in:", _tle_choices)
+                    tle_hash = _tles[_tle_choices.index(_choice)].get('hash', '')
             else:
                 print("⚠️  No active TLEs found on your account.")
                 tle_hash = prompt_with_default("Enter TLE hash manually (or leave blank to cancel)", "")
@@ -825,21 +845,10 @@ def cmd_run(args):
                     print("Cancelled: no TLE hash provided.")
                     return
         else:
-            # --tle provided directly; confirm it looks reasonable
             print(f"🏆 TLE Mode — using hash: {tle_hash}")
-    elif not use_tle and not is_simulation and api_key:
-        # Non-TLE live mode: show available TLEs as info (user may want to switch)
-        try:
-            _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
-            _info = _api_tmp.get_user_info()
-            _tles = _info.get('tle', [])
-            if _tles:
-                print("\n🏆 Active TLEs available (use -m live-tle to participate):")
-                for _t in _tles:
-                    print(f"   • {_t.get('name', 'Unknown')} [{_t.get('status', '')}]")
-                print()
-        except Exception:
-            pass
+    elif not use_tle and not is_simulation and _prefetched_tles:
+        # Already showed TLE names in the mode menu; no extra output needed
+        pass
     
     # Get currency
     currency = args.currency or prompt_with_default(
