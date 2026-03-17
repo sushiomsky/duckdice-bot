@@ -60,6 +60,8 @@ try:
     from betbot_strategies import volatility_spike_hunter  # noqa: F401
     # Combined High-Roller System (Kelly Hybrid / Streak Harvester / Volatility Breakout)
     from betbot_strategies import combined_high_roller  # noqa: F401
+    # TLE wager farming strategy
+    from betbot_strategies import tle_wager_farming  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass
