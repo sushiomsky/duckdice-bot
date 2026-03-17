@@ -58,6 +58,8 @@ try:
     from betbot_strategies import low_hunter  # noqa: F401
     # Volatility spike hunter (quant-grade state machine)
     from betbot_strategies import volatility_spike_hunter  # noqa: F401
+    # Combined High-Roller System (Kelly Hybrid / Streak Harvester / Volatility Breakout)
+    from betbot_strategies import combined_high_roller  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass
