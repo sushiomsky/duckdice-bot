@@ -11,6 +11,13 @@ Modes
 2. Streak Harvester               — exponential ladder on confirmed streaks
 3. Volatility Breakout            — fixed-tier escalation on high variance windows
 
+Bet type
+--------
+Range Dice (0-9999) — always "is_in".  The range window is chosen as the
+contiguous 5 000-slot block (≈ 50 % chance, payout ≈ ×1.98) whose numbers
+have been rolled least often so far.  With no history the mid-window
+2500-7499 is used as a neutral starting point.
+
 Protection rules
 ----------------
 • Stop-loss  : bankroll ≤ start × (1 − stop_loss)      (default −35 %)
@@ -20,7 +27,7 @@ Protection rules
 
 from collections import deque
 from decimal import Decimal, getcontext
-from typing import Any, Deque, Dict, List, Optional
+from typing import Any, Deque, Dict, List, Optional, Tuple
 
 from . import register
 from .base import BetResult, BetSpec, StrategyContext, StrategyMetadata
@@ -67,8 +74,9 @@ class CombinedHighRollerStrategy:
     @classmethod
     def describe(cls) -> str:
         return (
-            "Three-mode aggressive system: Kelly Hybrid → Streak Harvester → "
-            "Volatility Breakout with auto-switching and 35 % stop-loss."
+            "Three-mode aggressive system (Kelly Hybrid / Streak Harvester / "
+            "Volatility Breakout) on Range Dice — always targets the coldest "
+            "50 % window with 35 % stop-loss."
         )
 
     @classmethod
@@ -103,21 +111,20 @@ class CombinedHighRollerStrategy:
                 "Prefer 'normal' speed so you can watch mode transitions",
                 "Treat each session as a self-contained unit — honour both stop conditions",
                 "volatility_trigger=4 on a 10-roll window fires often; increase to 6 for calmer play",
+                "The cold-range selector needs history — first ~20 bets use the neutral mid-window",
             ],
         )
 
     @classmethod
     def schema(cls) -> Dict[str, Any]:
         return {
-            "chance": {
-                "type": "str",
-                "default": "49.5",
-                "desc": "Win chance percent (49.5 for standard ~50/50 dice)",
-            },
-            "is_high": {
-                "type": "bool",
-                "default": True,
-                "desc": "Bet High if True, Low if False",
+            "range_size": {
+                "type": "int",
+                "default": 5000,
+                "desc": (
+                    "Number of slots in the bet window (0-9999 total). "
+                    "5000 = ~50 % chance, payout ≈ ×1.98. Changing this alters win probability."
+                ),
             },
             "base_bet_fraction": {
                 "type": "float",
@@ -178,8 +185,7 @@ class CombinedHighRollerStrategy:
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
         self.ctx = ctx
 
-        self.chance             = str(params.get("chance", "49.5"))
-        self.is_high            = bool(params.get("is_high", True))
+        self.range_size         = max(1, min(9999, int(params.get("range_size", 5000))))
         self.base_bet_fraction  = float(params.get("base_bet_fraction", 0.08))
         self.max_bet_fraction   = float(params.get("max_bet_fraction", 0.20))
         self.multiplier         = float(params.get("multiplier", 2.0))
@@ -203,6 +209,10 @@ class CombinedHighRollerStrategy:
         self._total_bets:      int              = 0
         self._total_wins:      int              = 0
         self._should_stop:     bool             = False
+        # Frequency histogram: number → times rolled (range dice 0-9999)
+        self._number_freq:     Dict[int, int]   = {}
+        # Cached coldest range; recomputed after each roll
+        self._cold_range:      Tuple[int, int]  = self._default_range()
 
     # ------------------------------------------------------------------ #
     #  Session lifecycle                                                   #
@@ -220,13 +230,16 @@ class CombinedHighRollerStrategy:
         self._total_bets     = 0
         self._total_wins     = 0
         self._should_stop    = False
+        self._number_freq    = {}
+        self._cold_range     = self._default_range()
 
         stop_floor  = self._start_bankroll * Decimal(str(1.0 - self.stop_loss))
         profit_ceil = self._start_bankroll * Decimal(str(self.profit_target))
         self.ctx.printer(
             f"[high-roller] session started | "
             f"bankroll={self._start_bankroll:.8f} | "
-            f"stop≤{stop_floor:.8f} | target≥{profit_ceil:.8f}"
+            f"stop≤{stop_floor:.8f} | target≥{profit_ceil:.8f} | "
+            f"range_size={self.range_size} (Range Dice, is_in)"
         )
 
     def on_session_end(self, reason: str) -> None:
@@ -409,18 +422,20 @@ class CombinedHighRollerStrategy:
             amount = self.calculate_breakout_bet()
 
         self._last_bet_amount = amount
+        rng_lo, rng_hi        = self._cold_range
 
         self.ctx.printer(
             f"[high-roller] {self._mode} | "
             f"step={self._ladder_step} streak={self._win_streak} | "
-            f"bet={amount:.8f} bankroll={self._bankroll:.8f}"
+            f"bet={amount:.8f} bankroll={self._bankroll:.8f} | "
+            f"range=[{rng_lo},{rng_hi}]"
         )
 
         return {
-            "game":    "dice",
+            "game":    "range-dice",
             "amount":  format(amount, "f"),
-            "chance":  self.chance,
-            "is_high": self.is_high,
+            "range":   (rng_lo, rng_hi),
+            "is_in":   True,
             "faucet":  self.ctx.faucet,
         }
 
@@ -438,6 +453,19 @@ class CombinedHighRollerStrategy:
                 self._bankroll = Decimal(str(raw_bal))
             except Exception:
                 pass
+
+        # Track rolled number for frequency histogram
+        num = result.get("number")
+        if num is not None:
+            try:
+                n = int(num)
+                if 0 <= n <= 9999:
+                    self._number_freq[n] = self._number_freq.get(n, 0) + 1
+            except (ValueError, TypeError):
+                pass
+
+        # Recompute coldest range after each roll
+        self._cold_range = self._find_coldest_range()
 
         # Update streak counters
         if won:
@@ -479,23 +507,28 @@ class CombinedHighRollerStrategy:
         self._total_bets      = 0
         self._total_wins      = 0
         self._should_stop     = False
+        self._number_freq     = {}
+        self._cold_range      = self._default_range()
 
-    def on_roll_result(self, win: bool) -> None:
+    def on_roll_result(self, win: bool, number: Optional[int] = None) -> None:
         """
         Lightweight wrapper around on_bet_result for callers that don't have
         a full BetResult dict.  Infers balance from the last bet amount.
+        Optionally accepts the rolled number (0-9999) for frequency tracking.
         """
         bet = self._last_bet_amount or self.min_bet
+        # Approximate payout for range-dice at range_size slots
         if win:
-            try:
-                payout_mult = Decimal("99") / Decimal(self.chance)
-                profit = bet * (payout_mult - Decimal("1"))
-            except Exception:
-                profit = bet
+            p = self.range_size / 10000.0
+            payout_mult = Decimal(str(0.99 / p if p > 0 else 2.0))
+            profit = bet * (payout_mult - Decimal("1"))
         else:
             profit = -bet
         new_balance = self._bankroll + profit
-        self.on_bet_result({"win": win, "balance": str(new_balance)})
+        result: dict = {"win": win, "balance": str(new_balance)}
+        if number is not None:
+            result["number"] = number
+        self.on_bet_result(result)
 
     def get_next_bet(self) -> float:
         """
@@ -536,3 +569,38 @@ class CombinedHighRollerStrategy:
         """Apply max_bet_fraction cap and min_bet floor."""
         cap = self._safe_bankroll() * Decimal(str(self.max_bet_fraction))
         return max(min(amount, cap), self.min_bet)
+
+    def _default_range(self) -> Tuple[int, int]:
+        """Return the neutral mid-window used before any history is available."""
+        lo = (10000 - self.range_size) // 2
+        return (lo, lo + self.range_size - 1)
+
+    def _find_coldest_range(self) -> Tuple[int, int]:
+        """
+        Sliding-window O(N) search over 0-9999 for the contiguous block of
+        `range_size` slots with the fewest total hits in the session history.
+
+        Returns (lo, hi) inclusive.  Falls back to the neutral mid-window
+        when no history has been recorded yet.
+        """
+        if not self._number_freq:
+            return self._default_range()
+
+        N    = 10000
+        size = self.range_size
+
+        # Build full frequency array (only hits stored in sparse dict)
+        freq = [self._number_freq.get(i, 0) for i in range(N)]
+
+        # Initialise window sum for [0, size-1]
+        window_sum = sum(freq[:size])
+        min_sum    = window_sum
+        min_start  = 0
+
+        for i in range(1, N - size + 1):
+            window_sum += freq[i + size - 1] - freq[i - 1]
+            if window_sum < min_sum:
+                min_sum   = window_sum
+                min_start = i
+
+        return (min_start, min_start + size - 1)
