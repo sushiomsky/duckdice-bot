@@ -1269,16 +1269,24 @@ def cmd_interactive(args=None):
 
     is_simulation = False
     faucet_cookie: Optional[str] = None
+    tle_hash: Optional[str] = None
 
-    # ── Ask: main balance or faucet balance? ────────────────────────────
+    # ── Ask: main balance, faucet balance, or TLE event? ───────────────
     print("\n⚙️  Choose balance type:")
-    balance_type_choice = prompt_choice("", ["main", "faucet"], "main")
+    balance_type_choice = prompt_choice("", ["main", "faucet", "tle"], "main")
     use_faucet = (balance_type_choice == "faucet")
+    use_tle = (balance_type_choice == "tle")
 
     if USE_RICH and display:
-        display.print_info(f"Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)")
+        if use_tle:
+            display.print_info("Mode: Live (TLE Event)")
+        else:
+            display.print_info(f"Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)")
     else:
-        print(f"ℹ️  Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)\n")
+        if use_tle:
+            print("ℹ️  Mode: Live (TLE Event)\n")
+        else:
+            print(f"ℹ️  Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)\n")
 
     # ── If faucet: load or prompt for browser cookie (needed for claiming) ─
     if use_faucet:
@@ -1376,6 +1384,26 @@ def cmd_interactive(args=None):
     try:
         user_info = api.get_user_info()
         balances = user_info.get('balances', [])
+        active_tles = user_info.get('tle', []) or []
+
+        if use_tle:
+            if active_tles:
+                if len(active_tles) == 1:
+                    tle_hash = active_tles[0].get('hash', '')
+                    print(f"🏆 Active TLE detected: {active_tles[0].get('name', '')} (hash: {tle_hash})")
+                else:
+                    tle_choices = [
+                        f"{t.get('name', 'Unknown')} [{t.get('status', '')}]  (hash: {t.get('hash', '')})"
+                        for t in active_tles
+                    ]
+                    chosen_tle = prompt_choice("Select TLE to bet in:", tle_choices, tle_choices[0])
+                    tle_hash = active_tles[tle_choices.index(chosen_tle)].get('hash', '')
+            else:
+                print("⚠️  No active TLEs found on your account.")
+                tle_hash = input("Enter TLE hash manually (or press Enter to cancel): ").strip() or None
+                if not tle_hash:
+                    print("✗ No TLE selected. Cancelled.")
+                    return
         
         # Minimum bet amounts (approximate)
         min_bets = {
@@ -1625,7 +1653,7 @@ def cmd_interactive(args=None):
         print("📋 SESSION SUMMARY")
         print("="*60)
         # Nested f-strings not supported in Python 3.9
-        mode_str = 'Simulation' if is_simulation else ('Live (Faucet)' if use_faucet else 'Live (Main)')
+        mode_str = 'Simulation' if is_simulation else ('Live (TLE)' if use_tle else ('Live (Faucet)' if use_faucet else 'Live (Main)'))
         print(f"Mode:             {mode_str}")
         print(f"Currency:         {currency.upper()}")
         print(f"Current Balance:  {initial_balance:.8f}")
@@ -1644,13 +1672,15 @@ def cmd_interactive(args=None):
     print("-" * 60)
     
     # Build the command
-    mode = 'live-main' if not is_simulation else ('live-faucet' if use_faucet else 'simulation')
+    mode = 'simulation' if is_simulation else ('live-tle' if use_tle else ('live-faucet' if use_faucet else 'live-main'))
     cmd_parts = [
         "duckdice run",
         f"-m {mode}",
         f"-c {currency}",
         f"-s {strategy_name}"
     ]
+    if tle_hash:
+        cmd_parts.append(f"--tle {tle_hash}")
     
     # Add take profit if set
     if target_balance > 0:
@@ -1697,7 +1727,8 @@ def cmd_interactive(args=None):
         max_bets=None,  # Run until target or strategy exits
         max_losses=None,
         delay_ms=50,    # Ultra-fast betting: 50ms delay
-        jitter_ms=25    # Minimal jitter: 25ms
+        jitter_ms=25,   # Minimal jitter: 25ms
+        tle_hash=tle_hash,
     )
     
     # Run strategy (faucet mode uses the auto-reclaim loop)
