@@ -62,6 +62,8 @@ try:
     from betbot_strategies import combined_high_roller  # noqa: F401
     # TLE wager farming strategy
     from betbot_strategies import tle_wager_farming  # noqa: F401
+    # Wager Loop Stabilizer V2 strategy
+    from betbot_strategies import wager_loop_stabilizer_v2  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none
     pass
