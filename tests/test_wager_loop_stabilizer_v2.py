@@ -107,22 +107,13 @@ class TestLadderBehavior:
 
 
 class TestProtections:
-    def test_hard_stop(self):
+    def test_stops_only_when_no_balance_left(self):
         s = _strat()
-        s.on_bet_result(_result(False, "39"))
+        s.on_bet_result(_result(False, "39"))  # no longer a hard stop
+        assert s.should_stop() is False
+        s.on_bet_result(_result(False, "0"))
         assert s.should_stop() is True
         assert s.next_bet() is None
-
-    def test_soft_protection_reduces_bet(self):
-        s = _strat()
-        s.on_bet_result(_result(False, "69"))  # below 0.7*start
-        spec = s.next_bet()
-        amt = Decimal(spec["amount"])
-        # Compare to same settings without soft-reduction for same bankroll in LOW zone.
-        s2 = _strat({"soft_reduction": 1.0})
-        s2.on_bet_result(_result(False, "69"))
-        amt2 = Decimal(s2.next_bet()["amount"])
-        assert amt < amt2
 
     def test_low_zone_loss_streak_reduction(self):
         s = _strat()
@@ -163,6 +154,33 @@ class TestAntiVolatility:
             s2._roll_history.append(w)
         amt2 = Decimal(s2.next_bet()["amount"])
         assert amt < amt2
+
+
+class TestLottery:
+    def test_lottery_chance_bounds(self):
+        s = _strat({"lottery_min_gap": 1, "lottery_max_gap": 1})
+        # first bet is normal, after one result lottery should trigger
+        normal = s.next_bet()
+        s.on_bet_result(_result(False, "95"))
+        lotto = s.next_bet()
+        c = Decimal(lotto["chance"])
+        assert Decimal("0.01") <= c <= Decimal("1.0")
+        assert c != Decimal(normal["chance"])
+
+    def test_lottery_uses_same_amount_as_normal(self):
+        s1 = _strat({"lottery_min_gap": 999, "lottery_max_gap": 999})
+        s2 = _strat({"lottery_min_gap": 1, "lottery_max_gap": 1})
+        # synchronize both strategies to same pre-state
+        s1.on_bet_result(_result(False, "95"))
+        s2.on_bet_result(_result(False, "95"))
+        n = s1.next_bet()  # normal turn for s1
+        l = s2.next_bet()  # lottery turn for s2
+        assert Decimal(n["amount"]) == Decimal(l["amount"])
+
+    def test_lottery_gap_counter_rolls_between_10_and_50(self):
+        s = _strat()
+        # default range should be within requested bounds
+        assert 10 <= s._next_lottery_in <= 50
 
 
 class TestMetricsAndInterface:
@@ -206,7 +224,6 @@ class TestMetricsAndInterface:
         s = _strat()
         spec = s.next_bet()
         assert spec["game"] == "dice"
-        assert spec["chance"] == "49.5"
+        assert Decimal("0.01") <= Decimal(spec["chance"]) <= Decimal("49.5")
         assert "amount" in spec
         assert "is_high" in spec
-

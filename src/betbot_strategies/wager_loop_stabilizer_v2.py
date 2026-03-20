@@ -163,20 +163,25 @@ class WagerLoopStabilizerV2:
                 "default": 1.12,
                 "desc": "Recovery multiplier (1.10-1.15 recommended)",
             },
-            "soft_protection_ratio": {
-                "type": "float",
-                "default": 0.7,
-                "desc": "Soft protection trigger ratio",
+            "lottery_min_gap": {
+                "type": "int",
+                "default": 10,
+                "desc": "Minimum number of bets between lottery shots",
             },
-            "soft_reduction": {
-                "type": "float",
-                "default": 0.6,
-                "desc": "Soft protection multiplier on all bets",
+            "lottery_max_gap": {
+                "type": "int",
+                "default": 50,
+                "desc": "Maximum number of bets between lottery shots",
             },
-            "hard_stop_ratio": {
+            "lottery_min_chance": {
                 "type": "float",
-                "default": 0.4,
-                "desc": "Hard stop ratio vs start bankroll",
+                "default": 0.01,
+                "desc": "Minimum lottery chance percent",
+            },
+            "lottery_max_chance": {
+                "type": "float",
+                "default": 1.0,
+                "desc": "Maximum lottery chance percent",
             },
             "history_window": {
                 "type": "int",
@@ -215,9 +220,10 @@ class WagerLoopStabilizerV2:
         self.recovery_trigger_ratio = float(params.get("recovery_trigger_ratio", 0.9))
         self.recovery_boost = float(params.get("recovery_boost", 1.12))
 
-        self.soft_protection_ratio = float(params.get("soft_protection_ratio", 0.7))
-        self.soft_reduction = float(params.get("soft_reduction", 0.6))
-        self.hard_stop_ratio = float(params.get("hard_stop_ratio", 0.4))
+        self.lottery_min_gap = max(1, int(params.get("lottery_min_gap", 10)))
+        self.lottery_max_gap = max(self.lottery_min_gap, int(params.get("lottery_max_gap", 50)))
+        self.lottery_min_chance = float(params.get("lottery_min_chance", 0.01))
+        self.lottery_max_chance = float(params.get("lottery_max_chance", 1.0))
         self.history_window = max(4, int(params.get("history_window", 10)))
         self.min_amount = Decimal(str(params.get("min_amount", "0.000001")))
 
@@ -233,12 +239,16 @@ class WagerLoopStabilizerV2:
         self._last_bet_amount = Decimal("0")
         self._session_started_at = 0.0
         self._should_stop = False
+        self._next_lottery_in = 0
+        self._last_lottery = False
+        self._last_lottery_chance = Decimal("0")
 
     def on_session_start(self) -> None:
         self.initialize(float(self._current_bankroll()))
         self.ctx.printer(
             "[wls-v2] session started | "
-            f"bankroll={self._bankroll:.8f} hard_stop={self._hard_stop_floor():.8f}"
+            f"bankroll={self._bankroll:.8f} stop_when_empty=True "
+            f"lottery_gap={self.lottery_min_gap}-{self.lottery_max_gap}"
         )
 
     def on_session_end(self, reason: str) -> None:
@@ -262,6 +272,9 @@ class WagerLoopStabilizerV2:
         self._last_bet_amount = Decimal("0")
         self._session_started_at = time.time()
         self._should_stop = False
+        self._next_lottery_in = self._draw_lottery_gap()
+        self._last_lottery = False
+        self._last_lottery_chance = Decimal("0")
 
     def next_bet(self) -> Optional[BetSpec]:
         if self.should_stop():
@@ -284,21 +297,30 @@ class WagerLoopStabilizerV2:
         if bankroll < self._start_bankroll * Decimal(str(self.recovery_trigger_ratio)):
             amount *= Decimal(str(self.recovery_boost))
 
-        if bankroll <= self._start_bankroll * Decimal(str(self.soft_protection_ratio)):
-            amount *= Decimal(str(self.soft_reduction))
-
         amount = self._clamp_bet(amount, bankroll)
         self._last_bet_amount = amount
+        lottery_turn = self._is_lottery_turn()
+        if lottery_turn:
+            chance_dec = self._draw_lottery_chance()
+            chance_str = format(chance_dec, "f")
+            self._last_lottery = True
+            self._last_lottery_chance = chance_dec
+            self._next_lottery_in = self._draw_lottery_gap()
+        else:
+            chance_str = self.win_chance
+            self._last_lottery = False
+            self._last_lottery_chance = Decimal(str(self.win_chance))
         self.ctx.printer(
             "[wls-v2] "
             f"zone={self._zone} bankroll={bankroll:.8f} bet={amount:.8f} "
             f"total_wager={self._total_wager:.8f} win_streak={self._win_streak} "
-            f"loss_streak={self._loss_streak} ladder={self._ladder_step + 1}/{ladder_depth}"
+            f"loss_streak={self._loss_streak} ladder={self._ladder_step + 1}/{ladder_depth} "
+            f"lottery={'yes' if lottery_turn else 'no'} chance={chance_str}"
         )
         return {
             "game": "dice",
             "amount": format(amount, "f"),
-            "chance": self.win_chance,
+            "chance": chance_str,
             "is_high": self.is_high,
             "faucet": self.ctx.faucet,
         }
@@ -335,12 +357,15 @@ class WagerLoopStabilizerV2:
             self._loss_streak += 1
             self._ladder_step = 0
 
-        self._should_stop = self._bankroll <= self._hard_stop_floor()
+        self._should_stop = self._bankroll <= Decimal("0")
+        if self._next_lottery_in > 0:
+            self._next_lottery_in -= 1
 
     def on_roll_result(self, win: bool) -> None:
         bet = self._last_bet_amount if self._last_bet_amount > 0 else self.min_amount
         if win:
-            p = max(0.0001, min(0.9999, float(Decimal(self.win_chance) / Decimal("100"))))
+            active_chance = self._last_lottery_chance if self._last_lottery_chance > 0 else Decimal(str(self.win_chance))
+            p = max(0.0001, min(0.9999, float(active_chance / Decimal("100"))))
             payout = Decimal(str(0.99 / p))
             profit = bet * (payout - Decimal("1"))
         else:
@@ -348,7 +373,7 @@ class WagerLoopStabilizerV2:
         self.on_bet_result({"win": win, "balance": str(self._bankroll + profit)})
 
     def should_stop(self) -> bool:
-        return self._should_stop or self._current_bankroll() <= self._hard_stop_floor()
+        return self._should_stop or self._current_bankroll() <= Decimal("0")
 
     def average_bet_size(self) -> Decimal:
         if self._bets_count <= 0:
@@ -418,12 +443,20 @@ class WagerLoopStabilizerV2:
 
     def _clamp_bet(self, amount: Decimal, bankroll: Decimal) -> Decimal:
         if bankroll <= 0:
-            return self.min_amount
-        capped = max(self.min_amount, amount)
-        if capped > bankroll:
+            return Decimal("0")
+        capped = min(amount, bankroll)
+        if bankroll >= self.min_amount:
+            capped = max(self.min_amount, capped)
+        else:
             capped = bankroll
-        return max(self.min_amount, capped)
+        return capped
 
-    def _hard_stop_floor(self) -> Decimal:
-        return self._start_bankroll * Decimal(str(self.hard_stop_ratio))
+    def _draw_lottery_gap(self) -> int:
+        return int(self.ctx.rng.randint(self.lottery_min_gap, self.lottery_max_gap))
 
+    def _draw_lottery_chance(self) -> Decimal:
+        v = self.ctx.rng.uniform(self.lottery_min_chance, self.lottery_max_chance)
+        return Decimal(str(round(v, 4)))
+
+    def _is_lottery_turn(self) -> bool:
+        return self._bets_count > 0 and self._next_lottery_in <= 0
