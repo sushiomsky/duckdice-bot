@@ -156,33 +156,6 @@ class TestAntiVolatility:
         assert amt < amt2
 
 
-class TestLottery:
-    def test_lottery_chance_bounds(self):
-        s = _strat({"lottery_min_gap": 1, "lottery_max_gap": 1})
-        # first bet is normal, after one result lottery should trigger
-        normal = s.next_bet()
-        s.on_bet_result(_result(False, "95"))
-        lotto = s.next_bet()
-        c = Decimal(lotto["chance"])
-        assert Decimal("0.01") <= c <= Decimal("1.0")
-        assert c != Decimal(normal["chance"])
-
-    def test_lottery_uses_same_amount_as_normal(self):
-        s1 = _strat({"lottery_min_gap": 999, "lottery_max_gap": 999})
-        s2 = _strat({"lottery_min_gap": 1, "lottery_max_gap": 1})
-        # synchronize both strategies to same pre-state
-        s1.on_bet_result(_result(False, "95"))
-        s2.on_bet_result(_result(False, "95"))
-        n = s1.next_bet()  # normal turn for s1
-        l = s2.next_bet()  # lottery turn for s2
-        assert Decimal(n["amount"]) == Decimal(l["amount"])
-
-    def test_lottery_gap_counter_rolls_between_10_and_50(self):
-        s = _strat()
-        # default range should be within requested bounds
-        assert 10 <= s._next_lottery_in <= 50
-
-
 class TestMetricsAndInterface:
     def test_tracks_total_wager(self):
         s = _strat()
@@ -224,6 +197,6 @@ class TestMetricsAndInterface:
         s = _strat()
         spec = s.next_bet()
         assert spec["game"] == "dice"
-        assert Decimal("0.01") <= Decimal(spec["chance"]) <= Decimal("49.5")
+        assert spec["chance"] == "49.5"
         assert "amount" in spec
         assert "is_high" in spec

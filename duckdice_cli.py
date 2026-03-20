@@ -973,6 +973,11 @@ def cmd_run(args):
     max_concurrent = getattr(args, 'max_concurrent', 5)
     
     # Create engine config
+    lottery_gap_min = max(1, int(getattr(args, 'lottery_gap_min', 10)))
+    lottery_gap_max = max(lottery_gap_min, int(getattr(args, 'lottery_gap_max', 50)))
+    lottery_chance_min = max(0.01, float(getattr(args, 'lottery_chance_min', 0.01)))
+    lottery_chance_max = max(lottery_chance_min, float(getattr(args, 'lottery_chance_max', 1.0)))
+
     config = EngineConfig(
         symbol=currency,
         dry_run=is_simulation,
@@ -987,6 +992,11 @@ def cmd_run(args):
         db_log=getattr(args, 'db_log', True),
         db_path=getattr(args, 'db_path', None),
         tle_hash=tle_hash or None,
+        lottery_enabled=bool(getattr(args, 'lottery', False)),
+        lottery_min_gap=lottery_gap_min,
+        lottery_max_gap=lottery_gap_max,
+        lottery_min_chance=lottery_chance_min,
+        lottery_max_chance=lottery_chance_max,
     )
     
     # Run strategy (faucet mode uses the auto-reclaim loop)
@@ -1986,6 +1996,16 @@ def main():
     run_parser.add_argument('--tle', type=str, dest='tle_hash', default=None,
                            help='Time Limited Event hash to participate in (live mode only). '
                                 'Use the hash shown when listing active TLEs on startup.')
+    run_parser.add_argument('--lottery', action='store_true',
+                           help='Enable engine-level lottery shots (0.01%%-1%% chance every 10-50 bets by default)')
+    run_parser.add_argument('--lottery-gap-min', type=int, default=10,
+                           help='Minimum bets between lottery shots (default: 10)')
+    run_parser.add_argument('--lottery-gap-max', type=int, default=50,
+                           help='Maximum bets between lottery shots (default: 50)')
+    run_parser.add_argument('--lottery-chance-min', type=float, default=0.01,
+                           help='Minimum lottery chance percent (default: 0.01)')
+    run_parser.add_argument('--lottery-chance-max', type=float, default=1.0,
+                           help='Maximum lottery chance percent (default: 1.0)')
     run_parser.set_defaults(func=cmd_run)
     
     # List strategies

@@ -87,6 +87,11 @@ class EngineConfig:
     db_log: bool = True  # Enable database logging
     db_path: Optional[str] = None  # Custom database path
     tle_hash: Optional[str] = None  # Time Limited Event hash for TLE bets
+    lottery_enabled: bool = False  # Engine-level lottery shots
+    lottery_min_gap: int = 10  # Minimum bets between lottery shots
+    lottery_max_gap: int = 50  # Maximum bets between lottery shots
+    lottery_min_chance: float = 0.01  # Min lottery chance (%)
+    lottery_max_chance: float = 1.0  # Max lottery chance (%)
     
     @staticmethod
     def get_speed_preset(preset: str = "fast"):
@@ -404,6 +409,13 @@ def run_auto_bet(
     import random
 
     rng = random.Random(config.seed or int(time.time() * 1000) & 0xFFFFFFFF)
+    lottery_min_gap = max(1, int(config.lottery_min_gap))
+    lottery_max_gap = max(lottery_min_gap, int(config.lottery_max_gap))
+    lottery_countdown = (
+        rng.randint(lottery_min_gap, lottery_max_gap)
+        if config.lottery_enabled
+        else -1
+    )
 
     # Strategy
     StrategyCls = get_strategy(strategy_name)
@@ -533,6 +545,9 @@ def run_auto_bet(
 
             # Enforce symbol and faucet default
             bet.setdefault("faucet", ctx.faucet)
+            original_game = str(bet.get("game", "dice"))
+            lottery_applied = False
+            lottery_chance: Optional[str] = None
 
             # Apply max_bet limit from session limits
             if limits.max_bet is not None:
@@ -543,6 +558,25 @@ def run_auto_bet(
                         print_line(f"   ⚖️  Capped bet to session max_bet: {limits.max_bet}")
                 except (ValueError, InvalidOperation):
                     pass
+
+            # Engine-level lottery feature:
+            # keep bet amount unchanged, but occasionally force a low-chance dice shot.
+            if config.lottery_enabled:
+                if lottery_countdown <= 0:
+                    lottery_applied = True
+                    chance_val = Decimal(
+                        str(round(rng.uniform(config.lottery_min_chance, config.lottery_max_chance), 4))
+                    )
+                    chance_val = max(Decimal("0.01"), min(Decimal("1.00"), chance_val))
+                    bet = dict(bet)
+                    bet["game"] = "dice"
+                    bet["chance"] = format(chance_val, "f")
+                    if "is_high" not in bet:
+                        bet["is_high"] = bool(rng.getrandbits(1))
+                    lottery_chance = bet["chance"]
+                    lottery_countdown = rng.randint(lottery_min_gap, lottery_max_gap)
+                else:
+                    lottery_countdown -= 1
             
             # Comprehensive bet validation and adjustment
             # Use the highest known API minimum (updated when a 422 is received)
@@ -676,6 +710,7 @@ def run_auto_bet(
                                         chance=bet["chance"],
                                         is_high=bool(bet.get("is_high")),
                                         faucet=bool(bet.get("faucet")),
+                                        tle_hash=config.tle_hash or None,
                                     )
                                 else:
                                     r = bet.get("range") or (0, 0)
@@ -685,6 +720,7 @@ def run_auto_bet(
                                         range_values=[int(r[0]), int(r[1])],
                                         is_in=bool(bet.get("is_in")),
                                         faucet=bool(bet.get("faucet")),
+                                        tle_hash=config.tle_hash or None,
                                     )
                             except Exception as retry_error:
                                 print_line(f"⚠️  Retry failed: {retry_error}")
@@ -749,6 +785,11 @@ def run_auto_bet(
                 "balance": format(current_balance, 'f'),
                 "loss_streak": losses_in_row,
                 "bets_done": bets_done + 1,
+                "lottery": {
+                    "applied": lottery_applied,
+                    "chance": lottery_chance,
+                    "original_game": original_game,
+                },
             })
             
             # Log to database

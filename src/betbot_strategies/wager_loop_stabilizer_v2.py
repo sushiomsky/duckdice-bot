@@ -32,7 +32,7 @@ class WagerLoopStabilizerV2:
     def describe(cls) -> str:
         return (
             "Zone-based survival wager strategy: dynamic sizing by bankroll zone, "
-            "anti-volatility dampening, recovery boost, and hard floor stop."
+            "anti-volatility dampening and recovery boost."
         )
 
     @classmethod
@@ -47,7 +47,7 @@ class WagerLoopStabilizerV2:
                 "Balances wager throughput with longevity focus",
                 "Adaptive zone sizing responds to bankroll regime changes",
                 "Alternating-pattern dampener reduces churn volatility",
-                "Layered soft/hard protections reduce rapid bust risk",
+                "No internal lottery logic; works cleanly with engine-level lottery mode",
                 "Detailed wager and streak logging for session tuning",
             ],
             cons=[
@@ -67,6 +67,7 @@ class WagerLoopStabilizerV2:
                 "Monitor average bet vs bankroll to avoid creeping risk",
                 "If sessions end too quickly, lower low-zone factor ceiling",
                 "If wagering is too slow, increase mid-zone factor modestly",
+                "Enable --lottery at engine level for periodic low-chance shots",
             ],
         )
 
@@ -163,26 +164,6 @@ class WagerLoopStabilizerV2:
                 "default": 1.12,
                 "desc": "Recovery multiplier (1.10-1.15 recommended)",
             },
-            "lottery_min_gap": {
-                "type": "int",
-                "default": 10,
-                "desc": "Minimum number of bets between lottery shots",
-            },
-            "lottery_max_gap": {
-                "type": "int",
-                "default": 50,
-                "desc": "Maximum number of bets between lottery shots",
-            },
-            "lottery_min_chance": {
-                "type": "float",
-                "default": 0.01,
-                "desc": "Minimum lottery chance percent",
-            },
-            "lottery_max_chance": {
-                "type": "float",
-                "default": 1.0,
-                "desc": "Maximum lottery chance percent",
-            },
             "history_window": {
                 "type": "int",
                 "default": 10,
@@ -220,10 +201,6 @@ class WagerLoopStabilizerV2:
         self.recovery_trigger_ratio = float(params.get("recovery_trigger_ratio", 0.9))
         self.recovery_boost = float(params.get("recovery_boost", 1.12))
 
-        self.lottery_min_gap = max(1, int(params.get("lottery_min_gap", 10)))
-        self.lottery_max_gap = max(self.lottery_min_gap, int(params.get("lottery_max_gap", 50)))
-        self.lottery_min_chance = float(params.get("lottery_min_chance", 0.01))
-        self.lottery_max_chance = float(params.get("lottery_max_chance", 1.0))
         self.history_window = max(4, int(params.get("history_window", 10)))
         self.min_amount = Decimal(str(params.get("min_amount", "0.000001")))
 
@@ -239,16 +216,12 @@ class WagerLoopStabilizerV2:
         self._last_bet_amount = Decimal("0")
         self._session_started_at = 0.0
         self._should_stop = False
-        self._next_lottery_in = 0
-        self._last_lottery = False
-        self._last_lottery_chance = Decimal("0")
 
     def on_session_start(self) -> None:
         self.initialize(float(self._current_bankroll()))
         self.ctx.printer(
             "[wls-v2] session started | "
-            f"bankroll={self._bankroll:.8f} stop_when_empty=True "
-            f"lottery_gap={self.lottery_min_gap}-{self.lottery_max_gap}"
+            f"bankroll={self._bankroll:.8f} stop_when_empty=True"
         )
 
     def on_session_end(self, reason: str) -> None:
@@ -272,9 +245,6 @@ class WagerLoopStabilizerV2:
         self._last_bet_amount = Decimal("0")
         self._session_started_at = time.time()
         self._should_stop = False
-        self._next_lottery_in = self._draw_lottery_gap()
-        self._last_lottery = False
-        self._last_lottery_chance = Decimal("0")
 
     def next_bet(self) -> Optional[BetSpec]:
         if self.should_stop():
@@ -299,28 +269,16 @@ class WagerLoopStabilizerV2:
 
         amount = self._clamp_bet(amount, bankroll)
         self._last_bet_amount = amount
-        lottery_turn = self._is_lottery_turn()
-        if lottery_turn:
-            chance_dec = self._draw_lottery_chance()
-            chance_str = format(chance_dec, "f")
-            self._last_lottery = True
-            self._last_lottery_chance = chance_dec
-            self._next_lottery_in = self._draw_lottery_gap()
-        else:
-            chance_str = self.win_chance
-            self._last_lottery = False
-            self._last_lottery_chance = Decimal(str(self.win_chance))
         self.ctx.printer(
             "[wls-v2] "
             f"zone={self._zone} bankroll={bankroll:.8f} bet={amount:.8f} "
             f"total_wager={self._total_wager:.8f} win_streak={self._win_streak} "
-            f"loss_streak={self._loss_streak} ladder={self._ladder_step + 1}/{ladder_depth} "
-            f"lottery={'yes' if lottery_turn else 'no'} chance={chance_str}"
+            f"loss_streak={self._loss_streak} ladder={self._ladder_step + 1}/{ladder_depth}"
         )
         return {
             "game": "dice",
             "amount": format(amount, "f"),
-            "chance": chance_str,
+            "chance": self.win_chance,
             "is_high": self.is_high,
             "faucet": self.ctx.faucet,
         }
@@ -358,14 +316,11 @@ class WagerLoopStabilizerV2:
             self._ladder_step = 0
 
         self._should_stop = self._bankroll <= Decimal("0")
-        if self._next_lottery_in > 0:
-            self._next_lottery_in -= 1
 
     def on_roll_result(self, win: bool) -> None:
         bet = self._last_bet_amount if self._last_bet_amount > 0 else self.min_amount
         if win:
-            active_chance = self._last_lottery_chance if self._last_lottery_chance > 0 else Decimal(str(self.win_chance))
-            p = max(0.0001, min(0.9999, float(active_chance / Decimal("100"))))
+            p = max(0.0001, min(0.9999, float(Decimal(self.win_chance) / Decimal("100"))))
             payout = Decimal(str(0.99 / p))
             profit = bet * (payout - Decimal("1"))
         else:
@@ -450,13 +405,3 @@ class WagerLoopStabilizerV2:
         else:
             capped = bankroll
         return capped
-
-    def _draw_lottery_gap(self) -> int:
-        return int(self.ctx.rng.randint(self.lottery_min_gap, self.lottery_max_gap))
-
-    def _draw_lottery_chance(self) -> Decimal:
-        v = self.ctx.rng.uniform(self.lottery_min_chance, self.lottery_max_chance)
-        return Decimal(str(round(v, 4)))
-
-    def _is_lottery_turn(self) -> bool:
-        return self._bets_count > 0 and self._next_lottery_in <= 0
