@@ -21,6 +21,7 @@ Features:
 from typing import Any, Dict, Optional
 from decimal import Decimal, getcontext
 from enum import Enum
+import logging
 
 from . import register
 from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
@@ -31,6 +32,8 @@ getcontext().prec = 28
 HOUSE_EDGE = Decimal("0.01")  # 1% house edge
 MIN_CHANCE = Decimal("0.01")  # 0.01%
 MAX_CHANCE = Decimal("98")     # 98%
+
+logger = logging.getLogger(__name__)
 
 
 class BettingState(Enum):
@@ -244,16 +247,15 @@ class TargetAwareStrategy:
         self.current_state = BettingState.SAFE
         self.stop_requested = False
         self.bet_count = 0
-        
-        print(f"\n{'='*60}")
-        print(f"TARGET-AWARE STRATEGY INITIALIZED")
-        print(f"{'='*60}")
-        print(f"Currency: {self.ctx.symbol}")
-        print(f"Starting Balance: {self.starting_balance}")
-        print(f"Target Balance: {self.target}")
-        print(f"Minimum Bet: {self.min_bet}")
-        print(f"Required Gain: {self.target - self.starting_balance}")
-        print(f"{'='*60}\n")
+
+        logger.info(
+            "TARGET-AWARE STRATEGY INITIALIZED | currency=%s start=%s target=%s min_bet=%s required_gain=%s",
+            self.ctx.symbol,
+            self.starting_balance,
+            self.target,
+            self.min_bet,
+            self.target - self.starting_balance,
+        )
 
     def _get_current_balance(self) -> Decimal:
         """Get current balance from most recent result or starting balance."""
@@ -512,18 +514,18 @@ class TargetAwareStrategy:
         # Hard invariant: balance must be >= minBet
         if balance < self.min_bet:
             self.stop_requested = True
-            print(f"\n⛔ STOP: Balance ({balance}) < minBet ({self.min_bet})")
+            logger.warning("STOP: Balance (%s) < minBet (%s)", balance, self.min_bet)
             return None
         
         # Stop condition: target reached
         if balance >= self.target:
             self.stop_requested = True
-            print(f"\n🎯 TARGET REACHED! Balance: {balance} ≥ Target: {self.target}")
+            logger.info("TARGET REACHED: balance=%s target=%s", balance, self.target)
             return None
         
         # Stop if requested by drawdown
         if self.stop_requested:
-            print(f"\n⛔ STOP: Drawdown protection triggered")
+            logger.warning("STOP: Drawdown protection triggered")
             return None
         
         # Update peak
@@ -540,9 +542,16 @@ class TargetAwareStrategy:
         # Log state transitions
         if old_state != self.current_state or self.bet_count % 10 == 0:
             progress = float(balance / self.target * 100) if self.target > 0 else 0
-            print(f"\n[Bet #{self.bet_count + 1}] State: {self.current_state.value}")
-            print(f"  Balance: {balance} | Target: {self.target} | Progress: {progress:.1f}%")
-            print(f"  Peak: {self.peak_balance} | Drawdown: {drawdown * 100:.2f}%")
+            logger.info(
+                "[Bet #%s] state=%s balance=%s target=%s progress=%.1f%% peak=%s drawdown=%.2f%%",
+                self.bet_count + 1,
+                self.current_state.value,
+                balance,
+                self.target,
+                progress,
+                self.peak_balance,
+                drawdown * 100,
+            )
         
         # Create bet based on state
         if self.current_state == BettingState.FINISH:
@@ -576,34 +585,41 @@ class TargetAwareStrategy:
                 self.peak_balance = balance
             
             # Log result
-            symbol = "✅" if win else "❌"
-            print(f"  {symbol} Profit: {profit:+.8f} | New Balance: {balance:.8f}")
+            logger.info(
+                "result=%s profit=%+.8f new_balance=%.8f",
+                "win" if win else "loss",
+                float(profit),
+                float(balance),
+            )
             
         except Exception as e:
-            print(f"  ⚠️ Error processing result: {e}")
+            logger.warning("Error processing result: %s", e)
 
     def on_session_end(self, reason: str) -> None:
         """Report final session statistics."""
         final_balance = self._get_current_balance()
         total_profit = final_balance - self.starting_balance
-        
-        print(f"\n{'='*60}")
-        print(f"SESSION ENDED: {reason}")
-        print(f"{'='*60}")
-        print(f"Currency: {self.ctx.symbol}")
-        print(f"Starting Balance: {self.starting_balance}")
-        print(f"Final Balance: {final_balance}")
-        print(f"Target Balance: {self.target}")
-        print(f"Peak Balance: {self.peak_balance}")
-        print(f"Total Profit: {total_profit:+.8f}")
-        print(f"Total Bets: {self.bet_count}")
+
+        logger.info(
+            "SESSION ENDED: reason=%s currency=%s start=%s final=%s target=%s peak=%s total_profit=%+.8f total_bets=%s",
+            reason,
+            self.ctx.symbol,
+            self.starting_balance,
+            final_balance,
+            self.target,
+            self.peak_balance,
+            float(total_profit),
+            self.bet_count,
+        )
         
         if final_balance >= self.target:
             shortfall = final_balance - self.target
-            print(f"\n🎉 SUCCESS! Target reached with surplus: {shortfall:+.8f}")
+            logger.info("SUCCESS: target reached with surplus=%+.8f", float(shortfall))
         else:
             shortfall = self.target - final_balance
             progress = float(final_balance / self.target * 100) if self.target > 0 else 0
-            print(f"\n❌ Target not reached. Short by: {shortfall:.8f} ({100 - progress:.1f}% remaining)")
-        
-        print(f"{'='*60}\n")
+            logger.info(
+                "Target not reached: short_by=%.8f remaining=%.1f%%",
+                float(shortfall),
+                100 - progress,
+            )

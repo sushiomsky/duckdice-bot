@@ -8,9 +8,24 @@ Supports both modern Textual and classic ncurses interfaces.
 
 import argparse
 import sys
+from pathlib import Path
+from src.common.logging_config import configure_logging
+
+
+def _project_version() -> str:
+    try:
+        import tomllib  # Python 3.11+
+    except ImportError:  # pragma: no cover
+        import tomli as tomllib  # type: ignore
+
+    pyproject = Path(__file__).resolve().parent / "pyproject.toml"
+    with pyproject.open("rb") as f:
+        data = tomllib.load(f)
+    return str(data["project"]["version"])
 
 
 def main():
+    configure_logging()
     parser = argparse.ArgumentParser(
         description="🎲 DuckDice Bot - Terminal User Interface",
         formatter_class=argparse.RawDescriptionHelpFormatter,
@@ -50,7 +65,7 @@ Keyboard Controls:
     parser.add_argument(
         '--version',
         action='version',
-        version='DuckDice Bot v4.9.2'
+        version=f"DuckDice Bot v{_project_version()}"
     )
     
     args = parser.parse_args()

@@ -19,7 +19,7 @@ class BetDatabase:
     Stores complete bet data for debugging, analysis, and strategy improvement.
     """
     
-    def __init__(self, db_path: Optional[Path] = None):
+    def __init__(self, db_path: Optional[Path] = None, commit_every: int = 50):
         """
         Initialize bet database.
         
@@ -31,8 +31,48 @@ class BetDatabase:
         
         self.db_path = Path(db_path)
         self.db_path.parent.mkdir(parents=True, exist_ok=True)
+        self._commit_every = max(1, int(commit_every))
+        self._write_conn: Optional[sqlite3.Connection] = None
+        self._pending_write_count = 0
         
         self._init_database()
+
+    def _ensure_write_connection(self) -> sqlite3.Connection:
+        """Lazily create a dedicated write connection for batched commits."""
+        if self._write_conn is None:
+            conn = sqlite3.connect(str(self.db_path))
+            conn.row_factory = sqlite3.Row
+            conn.execute("PRAGMA journal_mode=WAL")
+            conn.execute("PRAGMA synchronous=NORMAL")
+            self._write_conn = conn
+        return self._write_conn
+
+    def _commit_if_needed(self, force: bool = False):
+        conn = self._write_conn
+        if not conn:
+            return
+        if force or self._pending_write_count >= self._commit_every:
+            conn.commit()
+            self._pending_write_count = 0
+
+    def flush(self):
+        """Force commit buffered writes."""
+        self._commit_if_needed(force=True)
+
+    def close(self):
+        """Flush and close the dedicated write connection."""
+        if self._write_conn is not None:
+            try:
+                self._commit_if_needed(force=True)
+            finally:
+                self._write_conn.close()
+                self._write_conn = None
+
+    def __del__(self):
+        try:
+            self.close()
+        except Exception:
+            pass
     
     def _init_database(self):
         """Initialize or verify database schema."""
@@ -191,36 +231,35 @@ class BetDatabase:
             limits: Session limits (stop_loss, take_profit, etc.)
             metadata: Additional metadata
         """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            
-            limits = limits or {}
-            
-            cursor.execute("""
+        conn = self._ensure_write_connection()
+        cursor = conn.cursor()
+
+        limits = limits or {}
+
+        cursor.execute("""
                 INSERT OR REPLACE INTO sessions (
                     session_id, strategy_name, symbol, simulation_mode,
                     starting_balance, started_at, strategy_params,
                     stop_loss, take_profit, max_bet, max_bets,
                     max_losses, max_duration_sec, metadata
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                session_id,
-                strategy_name,
-                symbol,
-                1 if simulation_mode else 0,
-                float(starting_balance) if starting_balance else None,
-                datetime.now().isoformat(),
-                json.dumps(strategy_params or {}),
-                limits.get('stop_loss'),
-                limits.get('take_profit'),
-                limits.get('max_bet'),
-                limits.get('max_bets'),
-                limits.get('max_losses'),
-                limits.get('max_duration_sec'),
-                json.dumps(metadata or {})
-            ))
-            
-            conn.commit()
+        """, (
+            session_id,
+            strategy_name,
+            symbol,
+            1 if simulation_mode else 0,
+            float(starting_balance) if starting_balance else None,
+            datetime.now().isoformat(),
+            json.dumps(strategy_params or {}),
+            limits.get('stop_loss'),
+            limits.get('take_profit'),
+            limits.get('max_bet'),
+            limits.get('max_bets'),
+            limits.get('max_losses'),
+            limits.get('max_duration_sec'),
+            json.dumps(metadata or {})
+        ))
+        conn.commit()
     
     def log_bet(
         self,
@@ -246,37 +285,37 @@ class BetDatabase:
             simulation_mode: Whether this is simulated
             strategy_state: Internal strategy state snapshot
         """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Extract bet specification
-            amount = float(bet_data.get('amount', 0))
-            chance = float(bet_data.get('chance', 0)) if bet_data.get('chance') else None
-            is_high = 1 if bet_data.get('is_high') else 0
-            game_type = bet_data.get('game', 'dice')
-            
-            # Extract range for range dice
-            range_vals = bet_data.get('range')
-            range_low = int(range_vals[0]) if range_vals else None
-            range_high = int(range_vals[1]) if range_vals else None
-            is_in = 1 if bet_data.get('is_in') else 0
-            
-            # Extract result
-            win = 1 if result_data.get('win', False) else 0
-            profit = float(result_data.get('profit', 0))
-            roll = float(result_data.get('number', 0)) if result_data.get('number') is not None else None
-            payout = float(result_data.get('payout', 0)) if result_data.get('payout') else None
-            timestamp = result_data.get('timestamp', datetime.now().isoformat())
-            
-            # Calculate target from chance and is_high (for dice)
-            target = None
-            if game_type == 'dice' and chance is not None:
-                if is_high:
-                    target = 100 - chance
-                else:
-                    target = chance
-            
-            cursor.execute("""
+        conn = self._ensure_write_connection()
+        cursor = conn.cursor()
+
+        # Extract bet specification
+        amount = float(bet_data.get('amount', 0))
+        chance = float(bet_data.get('chance', 0)) if bet_data.get('chance') else None
+        is_high = 1 if bet_data.get('is_high') else 0
+        game_type = bet_data.get('game', 'dice')
+
+        # Extract range for range dice
+        range_vals = bet_data.get('range')
+        range_low = int(range_vals[0]) if range_vals else None
+        range_high = int(range_vals[1]) if range_vals else None
+        is_in = 1 if bet_data.get('is_in') else 0
+
+        # Extract result
+        win = 1 if result_data.get('win', False) else 0
+        profit = float(result_data.get('profit', 0))
+        roll = float(result_data.get('number', 0)) if result_data.get('number') is not None else None
+        payout = float(result_data.get('payout', 0)) if result_data.get('payout') else None
+        timestamp = result_data.get('timestamp', datetime.now().isoformat())
+
+        # Calculate target from chance and is_high (for dice)
+        target = None
+        if game_type == 'dice' and chance is not None:
+            if is_high:
+                target = 100 - chance
+            else:
+                target = chance
+
+        cursor.execute("""
                 INSERT INTO bet_history (
                     session_id, timestamp, bet_number,
                     symbol, strategy, amount, chance, target,
@@ -285,32 +324,32 @@ class BetDatabase:
                     balance, loss_streak, simulation_mode,
                     api_raw, strategy_state
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-            """, (
-                session_id,
-                timestamp,
-                bet_number,
-                bet_data.get('symbol', ''),
-                bet_data.get('strategy', ''),
-                amount,
-                chance,
-                target,
-                is_high,
-                range_low,
-                range_high,
-                is_in,
-                game_type,
-                roll,
-                win,
-                profit,
-                payout,
-                float(balance),
-                loss_streak,
-                1 if simulation_mode else 0,
-                json.dumps(result_data.get('api_raw', {})),
-                json.dumps(strategy_state or {})
-            ))
-            
-            conn.commit()
+        """, (
+            session_id,
+            timestamp,
+            bet_number,
+            bet_data.get('symbol', ''),
+            bet_data.get('strategy', ''),
+            amount,
+            chance,
+            target,
+            is_high,
+            range_low,
+            range_high,
+            is_in,
+            game_type,
+            roll,
+            win,
+            profit,
+            payout,
+            float(balance),
+            loss_streak,
+            1 if simulation_mode else 0,
+            json.dumps(result_data.get('api_raw', {})),
+            json.dumps(strategy_state or {})
+        ))
+        self._pending_write_count += 1
+        self._commit_if_needed(force=False)
     
     def end_session(
         self,
@@ -332,29 +371,31 @@ class BetDatabase:
             wins: Number of winning bets
             losses: Number of losing bets
         """
-        with self._get_connection() as conn:
-            cursor = conn.cursor()
-            
-            # Get session start info
-            cursor.execute(
+        conn = self._ensure_write_connection()
+        cursor = conn.cursor()
+
+        self._commit_if_needed(force=True)
+
+        # Get session start info
+        cursor.execute(
                 "SELECT starting_balance, started_at FROM sessions WHERE session_id = ?",
                 (session_id,)
-            )
-            row = cursor.fetchone()
-            if not row:
-                return
-            
-            starting_balance = Decimal(str(row['starting_balance'] or 0))
-            started_at = datetime.fromisoformat(row['started_at'])
-            ended_at = datetime.now()
-            
-            # Calculate statistics
-            profit = ending_balance - starting_balance
-            profit_percent = (profit / starting_balance * 100) if starting_balance > 0 else 0
-            duration = (ended_at - started_at).total_seconds()
-            
-            # Update session
-            cursor.execute("""
+        )
+        row = cursor.fetchone()
+        if not row:
+            return
+
+        starting_balance = Decimal(str(row['starting_balance'] or 0))
+        started_at = datetime.fromisoformat(row['started_at'])
+        ended_at = datetime.now()
+
+        # Calculate statistics
+        profit = ending_balance - starting_balance
+        profit_percent = (profit / starting_balance * 100) if starting_balance > 0 else 0
+        duration = (ended_at - started_at).total_seconds()
+
+        # Update session
+        cursor.execute("""
                 UPDATE sessions SET
                     ending_balance = ?,
                     ended_at = ?,
@@ -366,20 +407,19 @@ class BetDatabase:
                     profit_percent = ?,
                     duration_seconds = ?
                 WHERE session_id = ?
-            """, (
-                float(ending_balance),
-                ended_at.isoformat(),
-                stop_reason,
-                total_bets,
-                wins,
-                losses,
-                float(profit),
-                float(profit_percent),
-                duration,
-                session_id
-            ))
-            
-            conn.commit()
+        """, (
+            float(ending_balance),
+            ended_at.isoformat(),
+            stop_reason,
+            total_bets,
+            wins,
+            losses,
+            float(profit),
+            float(profit_percent),
+            duration,
+            session_id
+        ))
+        conn.commit()
     
     def get_session_bets(
         self,

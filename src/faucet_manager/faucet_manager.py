@@ -6,9 +6,12 @@ Automatic faucet claiming with cooldown management.
 
 import time
 import threading
+import logging
 from dataclasses import dataclass
 from typing import Optional, Callable
 from .cookie_manager import CookieManager
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -129,7 +132,7 @@ class FaucetManager:
                 try:
                     self.claim_now()
                 except Exception as e:
-                    print(f"Auto-claim error: {e}")
+                    logger.error("Auto-claim error: %s", e)
             
             # Check every 5 seconds
             self._stop_event.wait(5.0)

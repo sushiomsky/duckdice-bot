@@ -67,6 +67,13 @@ The core betting engine that orchestrates all operations.
 - Stop condition evaluation
 - Event publishing
 
+### Logging and Observability
+
+- Runtime modules use Python `logging` with shared initialization from `common.logging_config`.
+- Default level is `INFO`; override with `LOG_LEVEL` environment variable.
+- Human-facing CLI/TUI output remains on interface printers, while internal diagnostics
+  (API fallback/retries, headless interface events, history loader, faucet worker) use loggers.
+
 **Example**:
 ```python
 from betbot_engine import BettingEngine
@@ -138,9 +145,9 @@ class MyStrategy:
 Robust API client with automatic fallback and retry logic.
 
 **Key Files**:
-- `api.py` - Main API client class
-- `config.py` - Configuration and domain management
-- `exceptions.py` - Custom exception types
+- `api.py` - Canonical runtime API client (`DuckDiceAPI`, `DuckDiceConfig`)
+- `client.py` - Deprecated compatibility shim (legacy imports only)
+- `endpoints/history.py` - Local history helper utilities
 
 **Features**:
 - ✅ **Multi-domain fallback**: `.io` → `.live` → `.net`
@@ -166,19 +173,10 @@ DOMAIN_ORDER = [
 
 **Example**:
 ```python
-from duckdice_api import DuckDiceAPI
+from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
 
-api = DuckDiceAPI(api_key="your-key")
-
-# Automatic domain fallback
-result = api.place_bet(
-    amount=0.01,
-    chance=50.0,
-    bet_high=True
-)
-
-# Manual domain selection
-api.config.current_domain = "duckdice.live"
+api = DuckDiceAPI(DuckDiceConfig(api_key="your-key"))
+user = api.get_user_info()
 ```
 
 **See**: [API Fallback Documentation](../API_FALLBACK.md)
@@ -205,7 +203,7 @@ User
   │   ├─ Chance: 0.01% - 98.00%
   │   └─ ✓ Valid
   │
-  ├─► API Client: place_bet(0.01, 50.0, True)
+  ├─► API Client: play_dice(symbol="BTC", amount="0.01", chance="50.0", is_high=True)
   │   ├─► Try duckdice.io
   │   ├─ ✓ Success
   │   └─ Return result
@@ -493,11 +491,15 @@ pytest tests/test_engine.py -v
 
 # With coverage
 pytest tests/ --cov=src --cov-report=html
+
+# CI-equivalent minimum gate
+pytest tests/ --cov=src --cov-report=term-missing --cov-fail-under=25
 ```
 
 **Test Philosophy**:
 - Tests MUST pass before merging to main
 - CI runs tests on Python 3.9-3.12 × 3 OS
+- CI enforces a minimum 25% `src/` coverage floor to prevent regressions while allowing incremental improvement.
 - Broken tests block releases (per DEVELOPMENT_GUARDRAILS.md)
 
 ---

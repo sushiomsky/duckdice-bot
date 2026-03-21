@@ -5,7 +5,10 @@ Provides interfaces and base classes for creating different UI/interface impleme
 """
 from abc import ABC, abstractmethod
 from typing import List, Callable
+import logging
 from .events import BettingEvent, EventType
+
+logger = logging.getLogger(__name__)
 
 
 class EventObserver(ABC):
@@ -105,7 +108,7 @@ class EventEmitter:
                     observer.on_event(event)
                 except Exception as e:
                     # Don't let observer errors crash the engine
-                    print(f"Error in observer {observer.__class__.__name__}: {e}")
+                    logger.error("Error in observer %s: %s", observer.__class__.__name__, e)
         
         # Notify callbacks
         for callback in self._event_callbacks:
@@ -113,7 +116,7 @@ class EventEmitter:
                 callback(event)
             except Exception as e:
                 # Don't let callback errors crash the engine
-                print(f"Error in event callback: {e}")
+                logger.error("Error in event callback: %s", e)
     
     def clear(self) -> None:
         """Remove all observers and callbacks"""

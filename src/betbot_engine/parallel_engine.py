@@ -69,10 +69,87 @@ class ParallelBettingEngine:
         # Tracking
         self.next_bet_id = 0
         self.pending_bets = {}  # bet_id -> BetRequest
-        self.completed_bets = set()  # bet_ids processed
+        self.pending_results = {}  # bet_id -> BetResult (out-of-order buffer)
+        self.next_expected_result_id = 0
         
         # RNG for simulation
         self.rng = random.Random(int(time.time() * 1000) & 0xFFFFFFFF)
+
+    def _collect_results(self, block_timeout: float = 0.0) -> int:
+        """Move finished worker results into the in-memory order buffer."""
+        collected = 0
+
+        if block_timeout > 0:
+            try:
+                first = self.result_queue.get(timeout=block_timeout)
+                self.pending_results[first.bet_id] = first
+                collected += 1
+            except Empty:
+                return 0
+
+        while True:
+            try:
+                result = self.result_queue.get_nowait()
+                self.pending_results[result.bet_id] = result
+                collected += 1
+            except Empty:
+                break
+
+        return collected
+
+    @staticmethod
+    def _format_strategy_result(result: BetResult) -> Dict[str, Any]:
+        """Normalize API payload for strategy callback."""
+        data = result.data or {}
+        bet_data = data.get("bet", {}) if isinstance(data, dict) else {}
+        user_data = data.get("user", {}) if isinstance(data, dict) else {}
+        return {
+            "win": bet_data.get("result", False),
+            "profit": bet_data.get("profit", 0),
+            "balance": user_data.get("balance", 0),
+            "amount": bet_data.get("amount", 0),
+            "chance": bet_data.get("chance", 0),
+            "multiplier": bet_data.get("multiplier", 0),
+        }
+
+    def _process_ordered_results(
+        self,
+        strategy,
+        printer: Optional[Callable],
+        json_sink: Optional[Callable],
+        stop_reason: str,
+    ) -> tuple[int, str]:
+        """
+        Apply buffered results strictly in bet-id order.
+        Returns (processed_count, updated_stop_reason).
+        """
+        processed = 0
+        current_stop_reason = stop_reason
+
+        while self.next_expected_result_id in self.pending_results:
+            bet_id = self.next_expected_result_id
+            result = self.pending_results.pop(bet_id)
+            self.pending_bets.pop(bet_id, None)
+
+            with self.strategy_lock:
+                if result.success:
+                    bet_result = self._format_strategy_result(result)
+                    strategy.on_bet_result(bet_result)
+                    if json_sink:
+                        json_sink(bet_result)
+                else:
+                    if printer:
+                        printer(f"❌ Bet #{result.bet_id} failed: {result.error}")
+                    if "insufficient" in str(result.error).lower() or "422" in str(result.error):
+                        current_stop_reason = "insufficient_balance"
+
+            processed += 1
+            self.next_expected_result_id += 1
+
+            if current_stop_reason == "insufficient_balance":
+                break
+
+        return processed, current_stop_reason
         
     def submit_bet_worker(self):
         """Worker thread: Submit bets to API or simulate"""
@@ -228,128 +305,83 @@ class ParallelBettingEngine:
             
             bets_submitted = 0
             bets_processed = 0
+            strategy_done = False
             
             while True:
-                # Check stop conditions
-                if stop_checker and stop_checker():
-                    stop_reason = "user_stop"
+                # Always drain + apply available results first
+                self._collect_results()
+                processed_now, stop_reason = self._process_ordered_results(
+                    strategy, printer, json_sink, stop_reason
+                )
+                bets_processed += processed_now
+
+                if stop_reason == "insufficient_balance":
                     break
-                if self.stop_event.is_set():
-                    stop_reason = "stopped"
-                    break
-                
-                # Check session limits
-                if limits:
-                    if limits.max_bets is not None and bets_processed >= limits.max_bets:
-                        stop_reason = "max_bets"
+
+                # Stop checks (do not enqueue new bets after these triggers)
+                if not strategy_done:
+                    if stop_checker and stop_checker():
+                        stop_reason = "user_stop"
                         break
-                    if limits.max_duration_sec and (time.time() - start_ts) >= limits.max_duration_sec:
-                        stop_reason = "max_duration"
+                    if self.stop_event.is_set():
+                        stop_reason = "stopped"
                         break
-                
+
+                    if limits:
+                        if limits.max_bets is not None and bets_submitted >= limits.max_bets:
+                            stop_reason = "max_bets"
+                            strategy_done = True
+                        elif limits.max_duration_sec and (time.time() - start_ts) >= limits.max_duration_sec:
+                            stop_reason = "max_duration"
+                            strategy_done = True
+
+                # Strategy exhausted submission path: just wait for remaining in-order results
+                if strategy_done:
+                    if not self.pending_bets:
+                        break
+                    self._collect_results(block_timeout=0.05)
+                    continue
+
+                # Bound inflight work to avoid unbounded queue growth
+                if len(self.pending_bets) >= self.max_concurrent:
+                    self._collect_results(block_timeout=0.05)
+                    continue
+
                 # Generate next bet (LOCKED - strategy state)
                 with self.strategy_lock:
                     bet_spec = strategy.next_bet()
-                    
                     if bet_spec is None:
-                        # Strategy done, wait for pending results
                         stop_reason = "strategy_complete"
-                        break
-                    
-                    # Queue bet for parallel submission
+                        strategy_done = True
+                        continue
+
                     bet_id = self.next_bet_id
                     self.next_bet_id += 1
-                    
+
                     request = BetRequest(
                         bet_id=bet_id,
                         spec=bet_spec,
                         timestamp=time.time()
                     )
-                    
+
                     self.pending_bets[bet_id] = request
                     self.bet_queue.put(request)
                     bets_submitted += 1
-                
-                # Process results in order (LOCKED - strategy state)
-                while bets_processed < bets_submitted:
-                    try:
-                        result = self.result_queue.get(timeout=0.01)
-                    except Empty:
-                        # No result yet, continue submitting
-                        break
-                    
-                    # Process result in order
-                    if result.bet_id == bets_processed:
-                        with self.strategy_lock:
-                            if result.success:
-                                # Update strategy with result
-                                bet_data = result.data.get("bet", {})
-                                
-                                # Prepare bet result dict
-                                bet_result = {
-                                    "win": bet_data.get("result", False),
-                                    "profit": bet_data.get("profit", 0),
-                                    "balance": result.data.get("user", {}).get("balance", 0),
-                                    "amount": bet_data.get("amount", 0),
-                                    "chance": bet_data.get("chance", 0),
-                                    "multiplier": bet_data.get("multiplier", 0)
-                                }
-                                
-                                strategy.on_bet_result(bet_result)
-                                
-                                # Call json_sink with formatted data
-                                if json_sink:
-                                    json_sink(bet_result)
-                                    
-                            else:
-                                # Error handling
-                                if printer:
-                                    printer(f"❌ Bet #{result.bet_id} failed: {result.error}")
-                                # Check if it's an insufficient balance error
-                                if "insufficient" in str(result.error).lower() or "422" in str(result.error):
-                                    stop_reason = "insufficient_balance"
-                                    break
-                        
-                        bets_processed += 1
-                        self.completed_bets.add(result.bet_id)
-                        del self.pending_bets[result.bet_id]
-                    else:
-                        # Result out of order, put back and wait
-                        self.result_queue.put(result)
-                        break
-                
-                # Check if we should stop due to error
-                if stop_reason != "completed":
-                    break
-                
+
                 # Rate limiting (optional)
                 if self.config.delay_ms > 0:
                     time.sleep(self.config.delay_ms / 1000.0)
-            
-            # Wait for all pending results
-            timeout_counter = 0
-            while self.pending_bets and timeout_counter < 10:
-                try:
-                    result = self.result_queue.get(timeout=1.0)
-                    if result.bet_id in self.pending_bets:
-                        with self.strategy_lock:
-                            if result.success:
-                                bet_data = result.data.get("bet", {})
-                                bet_result = {
-                                    "win": bet_data.get("result", False),
-                                    "profit": bet_data.get("profit", 0),
-                                    "balance": result.data.get("user", {}).get("balance", 0),
-                                    "amount": bet_data.get("amount", 0),
-                                    "chance": bet_data.get("chance", 0),
-                                    "multiplier": bet_data.get("multiplier", 0)
-                                }
-                                strategy.on_bet_result(bet_result)
-                                if json_sink:
-                                    json_sink(bet_result)
-                        del self.pending_bets[result.bet_id]
-                        bets_processed += 1
-                except Empty:
-                    timeout_counter += 1
+
+            # Final bounded drain for already-submitted bets
+            drain_deadline = time.time() + 5.0
+            while self.pending_bets and time.time() < drain_deadline:
+                self._collect_results(block_timeout=0.1)
+                processed_now, stop_reason = self._process_ordered_results(
+                    strategy, printer, json_sink, stop_reason
+                )
+                bets_processed += processed_now
+                if stop_reason == "insufficient_balance":
+                    break
             
         except KeyboardInterrupt:
             stop_reason = "user_stop"

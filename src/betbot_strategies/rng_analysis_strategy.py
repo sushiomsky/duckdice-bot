@@ -14,9 +14,12 @@ from typing import Any, Dict, Optional
 from decimal import Decimal
 import json
 from pathlib import Path
+import logging
 
 from . import register
 from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
+
+logger = logging.getLogger(__name__)
 
 # Pattern detection thresholds
 PATTERN_HIGH_NUMBER_THRESHOLD = 0.52  # > 52% high numbers suggests high betting bias
@@ -171,12 +174,21 @@ class RNGAnalysisStrategy:
                 elif pattern_insights.get('low_number_frequency', 0.5) > PATTERN_LOW_NUMBER_THRESHOLD:
                     self.is_high = False
                     
-                print(f"📊 Loaded RNG analysis config from {config_path}")
-                print(f"   ML improvement: {ml_summary.get('improvement_over_baseline', 0):.2f}%")
-                print(f"   Predictive power: {ml_summary.get('predictive_power', 'unknown')}")
-                print(f"   Configured betting: {'HIGH' if self.is_high else 'LOW'}")
+                logger.info("Loaded RNG analysis config from %s", config_path)
+                logger.info(
+                    "ML improvement: %.2f%%",
+                    ml_summary.get('improvement_over_baseline', 0),
+                )
+                logger.info(
+                    "Predictive power: %s",
+                    ml_summary.get('predictive_power', 'unknown'),
+                )
+                logger.info(
+                    "Configured betting direction: %s",
+                    'HIGH' if self.is_high else 'LOW',
+                )
         except Exception as e:
-            print(f"⚠️  Could not load analysis config from {config_path}: {e}")
+            logger.warning("Could not load analysis config from %s: %s", config_path, e)
 
     def on_session_start(self) -> None:
         """Called when betting session starts"""
@@ -187,10 +199,9 @@ class RNGAnalysisStrategy:
         
         if self._analysis_config:
             warnings = self._analysis_config.get('risk_assessment', {}).get('warnings', [])
-            print("\n⚠️  STRATEGY WARNINGS:")
+            logger.warning("RNG analysis strategy warnings:")
             for warning in warnings[:3]:
-                print(f"   - {warning}")
-            print()
+                logger.warning("- %s", warning)
 
     def _detect_pattern(self) -> Optional[str]:
         """
@@ -262,7 +273,11 @@ class RNGAnalysisStrategy:
         
         # Log pattern detection
         if pattern and self._total_bets % 10 == 0:
-            print(f"📊 Pattern detected: {pattern} (multiplier: {self._current_multiplier:.2f}x)")
+            logger.info(
+                "Pattern detected: %s (multiplier: %.2fx)",
+                pattern,
+                self._current_multiplier,
+            )
         
         return {
             "game": "dice",
@@ -315,18 +330,21 @@ class RNGAnalysisStrategy:
             wins = sum(1 for r in self.ctx.recent_results if r.get('win', False))
             win_rate = wins / self._total_bets if self._total_bets > 0 else 0
             
-            print(f"\n📊 RNG Analysis Strategy Session Summary:")
-            print(f"   Total bets: {self._total_bets}")
-            print(f"   Win rate: {win_rate:.2%}")
-            print(f"   Longest win streak: {self._win_streak}")
-            print(f"   Longest loss streak: {self._loss_streak}")
-            print(f"   Final multiplier: {self._current_multiplier:.2f}x")
-            print(f"   Reason: {reason}")
+            logger.info("RNG Analysis Strategy Session Summary:")
+            logger.info("Total bets: %s", self._total_bets)
+            logger.info("Win rate: %.2f%%", win_rate * 100)
+            logger.info("Longest win streak: %s", self._win_streak)
+            logger.info("Longest loss streak: %s", self._loss_streak)
+            logger.info("Final multiplier: %.2fx", self._current_multiplier)
+            logger.info("Reason: %s", reason)
             
             if self._analysis_config:
                 expected_exploitability = self._analysis_config.get('risk_assessment', {}).get('exploitability', 'none')
-                print(f"   Analysis predicted exploitability: {expected_exploitability}")
-                print(f"\n   ⚠️  Remember: Past analysis doesn't predict future outcomes!")
+                logger.info(
+                    "Analysis predicted exploitability: %s",
+                    expected_exploitability,
+                )
+                logger.warning("Remember: Past analysis does not predict future outcomes.")
 
 
 # Convenience function to load recommended strategy from config

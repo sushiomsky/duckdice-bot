@@ -36,9 +36,12 @@ from decimal import Decimal
 from typing import Any, Dict, Optional
 import os
 import sys
+import logging
 
 from . import register
 from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
+
+logger = logging.getLogger(__name__)
 
 
 @register("custom-script")
@@ -143,7 +146,7 @@ class CustomScript:
             try:
                 self._script_globals['on_session_start']()
             except Exception as e:
-                print(f"Warning: Script on_session_start() failed: {e}")
+                logger.warning("Script on_session_start() failed: %s", e)
 
     def next_bet(self) -> Optional[BetSpec]:
         try:
@@ -159,14 +162,14 @@ class CustomScript:
             
             return bet  # type: ignore
         except Exception as e:
-            print(f"Error in script next_bet(): {e}")
+            logger.error("Error in script next_bet(): %s", e)
             return None
 
     def on_bet_result(self, result: BetResult) -> None:
         try:
             self._script_globals['on_result'](result)
         except Exception as e:
-            print(f"Error in script on_result(): {e}")
+            logger.error("Error in script on_result(): %s", e)
         
         self.ctx.recent_results.append(result)
 
@@ -176,4 +179,4 @@ class CustomScript:
             try:
                 self._script_globals['on_session_end'](reason)
             except Exception as e:
-                print(f"Warning: Script on_session_end() failed: {e}")
+                logger.warning("Script on_session_end() failed: %s", e)

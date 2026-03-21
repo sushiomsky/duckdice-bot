@@ -39,14 +39,10 @@ Features:
 **Best for**: Custom integrations, advanced automation
 
 ```python
-from duckdice_api import DuckDiceAPI
+from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
 
-api = DuckDiceAPI(api_key="your-key")
-result = api.place_bet(
-    amount=0.01,
-    chance=50.0,
-    bet_high=True
-)
+api = DuckDiceAPI(DuckDiceConfig(api_key="your-key"))
+result = api.get_user_info()
 ```
 
 📖 **[API Documentation](../API_REFERENCE.md)**
@@ -90,19 +86,14 @@ duckdice list-strategies
 
 ### API Common Patterns
 ```python
-# Auto-retry with fallback domains
-api = DuckDiceAPI(api_key="key", auto_retry=True)
+# Canonical runtime client path
+from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
 
-# Place bet with validation
-result = api.place_bet(
-    amount=0.01,
-    chance=50.0,
-    bet_high=True,
-    validate=True  # Checks min/max limits
-)
+api = DuckDiceAPI(DuckDiceConfig(api_key="key"))
+result = api.play_dice(symbol="BTC", amount="0.00000001", chance="49.5", is_high=True)
 
 # Get balance
-balance = api.get_balance()
+balance = api.get_main_balance("BTC")
 ```
 
 ---

@@ -245,6 +245,9 @@ DUCKDICE_API_KEY=your-api-key
 LOG_LEVEL=INFO
 ```
 
+`LOG_LEVEL` controls unified runtime logging (`DEBUG`, `INFO`, `WARNING`, `ERROR`).
+CLI/TUI user output remains readable while subsystem diagnostics are emitted via Python logging.
+
 ### Config Files
 - `pyproject.toml`: Python project metadata
 - `requirements.txt`: Python dependencies
@@ -316,8 +319,8 @@ mypy src/
 
 ```python
 # Absolute imports for src modules
-from src.api import DuckDiceAPI
-from src.strategies.martingale import MartingaleStrategy
+from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
+from betbot_strategies import get_strategy
 
 # Relative imports within packages
 from .base import BaseStrategy

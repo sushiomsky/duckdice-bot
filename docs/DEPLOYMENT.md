@@ -154,6 +154,9 @@ DEFAULT_BALANCE=0.001
 LOG_LEVEL=INFO
 ```
 
+`LOG_LEVEL` controls runtime logging verbosity (`DEBUG`, `INFO`, `WARNING`, `ERROR`).
+Use `DEBUG` for troubleshooting API fallback/session internals and `INFO` for normal operation.
+
 ### 2. API Key Setup
 
 **Get API Key**:

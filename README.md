@@ -8,13 +8,13 @@
 [![PyPI](https://img.shields.io/pypi/v/duckdice-betbot)](https://pypi.org/project/duckdice-betbot/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/sushiomsky/duckdice-bot)
 
-Automate betting strategies, analyze results, and manage your gaming with a powerful CLI/TUI toolkit. Features 25 built-in strategies, DiceBot compatibility, and comprehensive risk management.
+Automate betting strategies, analyze results, and manage your gaming with a powerful CLI/TUI toolkit. Features 36 built-in strategies, DiceBot compatibility, and comprehensive risk management.
 
 ---
 
 ## ✨ Features
 
-### 🎯 **25 Built-in Strategies**
+### 🎯 **36 Built-in Strategies**
 From conservative (D'Alembert, Oscar's Grind) to aggressive (Martingale, Streak Hunter) to experimental (Adaptive Volatility Hunter, Micro Exponential)
 
 ### 🖥️ **Three Interfaces**
@@ -27,6 +27,11 @@ From conservative (D'Alembert, Oscar's Grind) to aggressive (Martingale, Streak 
 - Automatic domain fallback (.io → .live → .net)
 - Stop conditions (max bets, profit/loss targets, time limits)
 - Comprehensive logging and audit trails
+
+### 🧾 **Runtime Logging**
+- Unified Python logging across API/engine/runtime modules
+- Configure verbosity with `LOG_LEVEL` (`DEBUG`, `INFO`, `WARNING`, `ERROR`)
+- CLI/TUI keep user-facing output readable while internals emit structured logs
 
 ### 🔌 **DiceBot Compatible**
 Import Lua strategies from original DiceBot - works without modification
@@ -133,7 +138,7 @@ duckdice interactive
 
 ## 🎯 Strategies Overview
 
-**25 Strategies Organized by Risk Level:**
+**36 Strategies Organized by Risk Level:**
 
 ### 🟢 Conservative (Low Risk)
 Perfect for beginners or risk-averse players
@@ -341,33 +346,20 @@ LIMIT 10;
 Use as a library in your own scripts:
 
 ```python
-from duckdice_api import DuckDiceAPI
-from betbot_engine import BettingEngine
+from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
+from betbot_engine import AutoBetEngine, EngineConfig
 
 # Initialize API
-api = DuckDiceAPI(api_key="your-key")
-
-# Manual betting
-result = api.place_bet(
-    amount=0.01,
-    chance=50.0,
-    bet_high=True
-)
+api = DuckDiceAPI(DuckDiceConfig(api_key="your-key"))
+result = api.play_dice(symbol="BTC", amount="0.00000001", chance="49.5", is_high=True)
 print(f"Win: {result['win']}, Profit: {result['profit']}")
 
 # Or use the engine
-engine = BettingEngine(
+engine = AutoBetEngine(
     api=api,
-    strategy="classic-martingale",
-    max_bets=100
+    config=EngineConfig(symbol="BTC", dry_run=True, max_bets=100)
 )
-
-# Subscribe to events
-def on_bet(event_data):
-    print(f"Bet #{event_data['bet_number']}: {event_data['profit']}")
-
-engine.event_bus.subscribe('bet_placed', on_bet)
-engine.run()
+engine.run(strategy_name="classic-martingale", params={})
 ```
 
 **📖 [API Documentation](docs/API_REFERENCE.md)**
@@ -471,6 +463,9 @@ pip install -r requirements-build.txt
 # Run tests
 pytest tests/ -v
 
+# Run tests with CI coverage gate (minimum 25%)
+pytest tests/ --cov=src --cov-report=term-missing --cov-fail-under=25
+
 # Run linter
 flake8 src/ tests/
 ```
@@ -531,7 +526,7 @@ Contributions welcome! Please read [CONTRIBUTING.md](CONTRIBUTING.md) first.
 1. Fork the repository
 2. Create feature branch (`git checkout -b feature/amazing-feature`)
 3. Make changes
-4. Run tests (`pytest tests/`)
+4. Run tests (`pytest tests/ --cov=src --cov-report=term-missing --cov-fail-under=25`)
 5. Commit (`git commit -m 'Add amazing feature'`)
 6. Push (`git push origin feature/amazing-feature`)
 7. Open Pull Request

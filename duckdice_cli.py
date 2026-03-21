@@ -14,6 +14,7 @@ from pathlib import Path
 from datetime import datetime
 from decimal import Decimal
 from typing import Dict, Any, Optional, List
+from common.logging_config import configure_logging
 
 from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
 from betbot_engine.engine import AutoBetEngine, EngineConfig
@@ -714,121 +715,133 @@ def _run_faucet_auto_loop(strategy_name: str, params: Dict[str, Any],
     print(f"{'='*60}\n")
 
 
-def cmd_run(args):
-    """Run a betting strategy"""
-    config_mgr = ConfigManager()
+def _load_resume_state(args) -> Optional[Dict[str, Any]]:
+    """Load and apply --continue session defaults to args."""
+    if not getattr(args, 'resume', False):
+        return None
 
-    # ------------------------------------------------------------------
-    # --continue: load last cancelled session and pre-fill defaults
-    # ------------------------------------------------------------------
-    _resume_state: Optional[Dict[str, Any]] = None
-    if getattr(args, 'resume', False):
-        db_path = getattr(args, 'db_path', None) or 'data/duckdice_bot.db'
-        try:
-            from betbot_engine.bet_database import BetDatabase
-            from pathlib import Path
-            _db = BetDatabase(Path(db_path))
-            _last = _db.get_last_cancelled_session()
-            if not _last:
-                print("⚠️  No cancelled session found in DB. Starting fresh.")
-            else:
-                import json as _json
-                _tail = _db.get_session_tail_state(_last['session_id'])
-                # Pre-fill args (only if not already explicitly set)
-                if not args.strategy:
-                    args.strategy = _last['strategy_name']
-                if not args.currency:
-                    args.currency = _last['symbol']
-                if not args.mode and _last.get('simulation_mode') is not None:
-                    args.mode = 'simulation' if _last['simulation_mode'] else 'live-main'
-                # Load saved strategy params (CLI --param overrides apply later)
-                if not args.profile and not args.params:
-                    _saved_params = _last.get('strategy_params')
-                    if _saved_params:
-                        try:
-                            _parsed = _json.loads(_saved_params) if isinstance(_saved_params, str) else _saved_params
-                            args._resume_params = _parsed
-                        except Exception:
-                            args._resume_params = None
-                # Restore limits (only if not explicitly provided)
-                if args.stop_loss is None and _last.get('stop_loss') is not None:
-                    args.stop_loss = _last['stop_loss']
-                if args.take_profit is None and _last.get('take_profit') is not None:
-                    args.take_profit = _last['take_profit']
-                if args.max_bets is None and _last.get('max_bets') is not None:
-                    args.max_bets = _last['max_bets']
-                if args.max_losses is None and _last.get('max_losses') is not None:
-                    args.max_losses = _last['max_losses']
-                if args.max_duration is None and _last.get('max_duration_sec') is not None:
-                    args.max_duration = _last['max_duration_sec']
-                _resume_state = {
-                    'resumed_from': _last['session_id'],
-                    **_tail,
-                }
-                _ended_bal = _last.get('ending_balance') or _tail.get('last_balance', 0)
-                print(f"\n♻️  Continuing cancelled session: {_last['session_id']}")
-                print(f"   Strategy : {_last['strategy_name']}")
-                print(f"   Currency : {_last['symbol']}")
-                print(f"   Bal when stopped : {_ended_bal:.8f}")
-                print(f"   Loss streak      : {_tail.get('loss_streak', '?')} (will restore)")
-                print(f"   Bets done        : {_last.get('total_bets', '?')}")
-                print()
-        except Exception as _e:
-            print(f"⚠️  Could not load last session ({_e}). Starting fresh.")
+    db_path = getattr(args, 'db_path', None) or 'data/duckdice_bot.db'
+    try:
+        from betbot_engine.bet_database import BetDatabase
+        _db = BetDatabase(Path(db_path))
+        _last = _db.get_last_cancelled_session()
+        if not _last:
+            print("⚠️  No cancelled session found in DB. Starting fresh.")
+            return None
 
-    # Check for API key first (auto-detect live mode)
-    api_key = args.api_key or config_mgr.config.get('api_key')
+        _tail = _db.get_session_tail_state(_last['session_id'])
 
-    # Pre-fetch TLEs when we have an API key so we can show event names in the
-    # mode menu AND reuse the data for TLE selection without a second round-trip.
-    _prefetched_tles: list = []
-    if api_key and not args.mode:
-        try:
-            _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
-            _prefetched_tles = _api_tmp.get_user_info().get('tle', []) or []
-        except Exception:
-            pass
+        # Pre-fill args (only if not already explicitly set)
+        if not args.strategy:
+            args.strategy = _last['strategy_name']
+        if not args.currency:
+            args.currency = _last['symbol']
+        if not args.mode and _last.get('simulation_mode') is not None:
+            args.mode = 'simulation' if _last['simulation_mode'] else 'live-main'
 
-    # Build mode choices — annotate live-tle with event names when available
-    if _prefetched_tles:
-        _tle_names = ', '.join(t.get('name', '?') for t in _prefetched_tles)
-        _tle_label = f"live-tle  [{_tle_names}]"
+        # Load saved strategy params (CLI --param overrides apply later)
+        if not args.profile and not args.params:
+            _saved_params = _last.get('strategy_params')
+            if _saved_params:
+                try:
+                    _parsed = json.loads(_saved_params) if isinstance(_saved_params, str) else _saved_params
+                    args._resume_params = _parsed
+                except Exception:
+                    args._resume_params = None
+
+        # Restore limits (only if not explicitly provided)
+        if args.stop_loss is None and _last.get('stop_loss') is not None:
+            args.stop_loss = _last['stop_loss']
+        if args.take_profit is None and _last.get('take_profit') is not None:
+            args.take_profit = _last['take_profit']
+        if args.max_bets is None and _last.get('max_bets') is not None:
+            args.max_bets = _last['max_bets']
+        if args.max_losses is None and _last.get('max_losses') is not None:
+            args.max_losses = _last['max_losses']
+        if args.max_duration is None and _last.get('max_duration_sec') is not None:
+            args.max_duration = _last['max_duration_sec']
+
+        _resume_state = {
+            'resumed_from': _last['session_id'],
+            **_tail,
+        }
+        _ended_bal = _last.get('ending_balance') or _tail.get('last_balance', 0)
+        print(f"\n♻️  Continuing cancelled session: {_last['session_id']}")
+        print(f"   Strategy : {_last['strategy_name']}")
+        print(f"   Currency : {_last['symbol']}")
+        print(f"   Bal when stopped : {_ended_bal:.8f}")
+        print(f"   Loss streak      : {_tail.get('loss_streak', '?')} (will restore)")
+        print(f"   Bets done        : {_last.get('total_bets', '?')}")
+        print()
+        return _resume_state
+    except Exception as _e:
+        print(f"⚠️  Could not load last session ({_e}). Starting fresh.")
+        return None
+
+
+def _prefetch_tles(api_key: Optional[str], mode: Optional[str]) -> List[Dict[str, Any]]:
+    """Pre-fetch active TLE events for mode menu annotation."""
+    if not api_key or mode:
+        return []
+
+    try:
+        _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
+        return _api_tmp.get_user_info().get('tle', []) or []
+    except Exception:
+        return []
+
+
+def _build_mode_choices(prefetched_tles: List[Dict[str, Any]]) -> tuple:
+    """Build mode options with optional TLE name annotation."""
+    if prefetched_tles:
+        _tle_names = ', '.join(t.get('name', '?') for t in prefetched_tles)
+        tle_label = f"live-tle  [{_tle_names}]"
     else:
-        _tle_label = "live-tle"
-    _mode_choices = ['simulation', 'live-main', 'live-faucet', _tle_label]
+        tle_label = "live-tle"
 
-    # Resolve mode: explicit CLI flag > saved default with prompt > prompt
+    mode_choices = ['simulation', 'live-main', 'live-faucet', tle_label]
+    return mode_choices, tle_label
+
+
+def _resolve_mode(args, config_mgr: ConfigManager, api_key: Optional[str], prefetched_tles: List[Dict[str, Any]]) -> str:
+    """Resolve CLI mode from flag or prompt."""
+    _mode_choices, _tle_label = _build_mode_choices(prefetched_tles)
+
     if args.mode:
-        mode = args.mode
-    else:
-        _saved_default = config_mgr.config.get('default_mode', 'live-main' if api_key else 'simulation')
-        # Highlight live-tle as default when TLEs are active
-        _default = _tle_label if _prefetched_tles else _saved_default
-        mode = prompt_choice("Select betting mode:", _mode_choices, _default)
-        # Normalise the annotated label back to the bare token
-        if mode.startswith('live-tle'):
-            mode = 'live-tle'
+        return args.mode
 
-    # Parse mode flags
-    is_simulation = (mode == 'simulation')
-    use_faucet    = (mode == 'live-faucet')
-    use_tle       = (mode == 'live-tle')
+    _saved_default = config_mgr.config.get('default_mode', 'live-main' if api_key else 'simulation')
+    _default = _tle_label if prefetched_tles else _saved_default
+    mode = prompt_choice("Select betting mode:", _mode_choices, _default)
 
-    # TLE mode: resolve hash (CLI flag > interactive selection from prefetched list)
-    tle_hash = getattr(args, 'tle_hash', None)
+    if mode.startswith('live-tle'):
+        mode = 'live-tle'
+    return mode
+
+
+def _resolve_tle_hash_for_run(
+    use_tle: bool,
+    is_simulation: bool,
+    tle_hash_arg: Optional[str],
+    prefetched_tles: List[Dict[str, Any]],
+    api_key: Optional[str],
+) -> tuple:
+    """Resolve TLE hash from CLI arg, active events, or manual input."""
+    tle_hash = tle_hash_arg
+    cancelled = False
+
     if use_tle and not is_simulation:
         if not tle_hash:
-            # Use prefetched TLEs (or re-fetch if we skipped above via --mode flag)
-            _tles = _prefetched_tles
+            _tles = prefetched_tles
             if not _tles:
                 try:
                     _api_tmp = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
                     _tles = _api_tmp.get_user_info().get('tle', []) or []
                 except Exception:
                     _tles = []
+
             if _tles:
                 if len(_tles) == 1:
-                    # Only one event — auto-select, no menu needed
                     tle_hash = _tles[0].get('hash', '')
                     print(f"🏆 TLE auto-selected: {_tles[0].get('name', '')} (hash: {tle_hash})")
                 else:
@@ -843,19 +856,130 @@ def cmd_run(args):
                 tle_hash = prompt_with_default("Enter TLE hash manually (or leave blank to cancel)", "")
                 if not tle_hash:
                     print("Cancelled: no TLE hash provided.")
-                    return
+                    cancelled = True
         else:
             print(f"🏆 TLE Mode — using hash: {tle_hash}")
-    elif not use_tle and not is_simulation and _prefetched_tles:
-        # Already showed TLE names in the mode menu; no extra output needed
-        pass
-    
+
+    return tle_hash, cancelled
+
+
+def _resolve_strategy_params(args, config_mgr: ConfigManager, strategy_name: str) -> Dict[str, Any]:
+    """Load profile/resume/default strategy params and apply interactive overrides."""
+    params: Dict[str, Any] = {}
+
+    if args.profile:
+        profile = config_mgr.get_profile(args.profile)
+        if profile:
+            params = profile['parameters']
+            print(f"Loaded profile: {args.profile}")
+        else:
+            print(f"Warning: Profile '{args.profile}' not found, using defaults")
+    elif hasattr(args, '_resume_params') and args._resume_params:
+        params = dict(args._resume_params)
+        print("Restored strategy parameters from previous session")
+
+    try:
+        strategy_class = get_strategy(strategy_name)
+        if hasattr(strategy_class, 'schema'):
+            schema = strategy_class.schema()
+            print(f"\nStrategy: {strategy_name}")
+            if hasattr(strategy_class, 'describe'):
+                print(f"Description: {strategy_class.describe()}")
+
+            if not params:
+                for param_name, param_info in schema.items():
+                    params[param_name] = param_info.get('default')
+
+                if args.params:
+                    print("Applying custom parameters...")
+                    for param_str in args.params:
+                        if '=' in param_str:
+                            key, value = param_str.split('=', 1)
+                            if key in schema:
+                                param_type = schema[key].get('type', 'str')
+                                try:
+                                    if param_type == 'int':
+                                        params[key] = int(value)
+                                    elif param_type == 'float':
+                                        params[key] = float(value)
+                                    elif param_type == 'bool':
+                                        params[key] = value.lower() in ('true', '1', 'yes', 'on')
+                                    else:
+                                        params[key] = value
+                                    print(f"  {key} = {params[key]}")
+                                except ValueError as e:
+                                    print(f"  Warning: Invalid value for {key}: {e}")
+                            else:
+                                print(f"  Warning: Unknown parameter '{key}' for strategy '{strategy_name}'")
+                else:
+                    print("Using default parameters")
+
+                if args.interactive_params:
+                    print("\nConfigure parameters (press Enter for current value):")
+                    for param_name, param_info in schema.items():
+                        current = params.get(param_name, param_info.get('default'))
+                        desc = param_info.get('desc', '')
+                        new_value = prompt_with_default(f"{param_name} ({desc})", current)
+
+                        param_type = param_info.get('type', 'str')
+                        try:
+                            if param_type == 'int':
+                                params[param_name] = int(new_value)
+                            elif param_type == 'float':
+                                params[param_name] = float(new_value)
+                            elif param_type == 'bool':
+                                if isinstance(new_value, bool):
+                                    params[param_name] = new_value
+                                else:
+                                    params[param_name] = str(new_value).lower() in ('true', '1', 'yes', 'on')
+                            else:
+                                params[param_name] = str(new_value)
+                        except ValueError:
+                            print("    Warning: Invalid value, using default")
+                            params[param_name] = param_info.get('default')
+    except Exception as e:
+        print(f"Warning: Could not load strategy schema: {e}")
+
+    return params
+
+
+def cmd_run(args):
+    """Run a betting strategy"""
+    config_mgr = ConfigManager()
+
+    _resume_state = _load_resume_state(args)
+
+    # Check for API key first (auto-detect live mode)
+    api_key = args.api_key or config_mgr.config.get('api_key')
+
+    # Pre-fetch TLEs when we have an API key so we can show event names in the
+    # mode menu AND reuse the data for TLE selection without a second round-trip.
+    _prefetched_tles = _prefetch_tles(api_key, args.mode)
+
+    mode = _resolve_mode(args, config_mgr, api_key, _prefetched_tles)
+
+    # Parse mode flags
+    is_simulation = (mode == 'simulation')
+    use_faucet = (mode == 'live-faucet')
+    use_tle = (mode == 'live-tle')
+
+    # TLE mode: resolve hash (CLI flag > interactive selection from prefetched list)
+    tle_hash, cancelled = _resolve_tle_hash_for_run(
+        use_tle=use_tle,
+        is_simulation=is_simulation,
+        tle_hash_arg=getattr(args, 'tle_hash', None),
+        prefetched_tles=_prefetched_tles,
+        api_key=api_key,
+    )
+    if cancelled:
+        return
+
     # Get currency
     currency = args.currency or prompt_with_default(
         "Currency",
         config_mgr.config.get('default_currency', 'btc')
     )
-    
+
     # Get available strategies
     available_strategies_raw = list_strategies()
     available_strategies = [s['name'] if isinstance(s, dict) else s for s in available_strategies_raw]
@@ -874,104 +998,24 @@ def cmd_run(args):
         print(f"Error: Unknown strategy '{strategy_name}'")
         print(f"Available strategies: {', '.join(available_strategies)}")
         return
-    
-    # Load profile or use defaults
-    params = {}
-    if args.profile:
-        profile = config_mgr.get_profile(args.profile)
-        if profile:
-            params = profile['parameters']
-            print(f"Loaded profile: {args.profile}")
-        else:
-            print(f"Warning: Profile '{args.profile}' not found, using defaults")
-    elif hasattr(args, '_resume_params') and args._resume_params:
-        # Restored from cancelled session DB record
-        params = dict(args._resume_params)
-        print(f"Restored strategy parameters from previous session")
-    
-    # Get strategy class for schema
-    try:
-        strategy_class = get_strategy(strategy_name)
-        if hasattr(strategy_class, 'schema'):
-            schema = strategy_class.schema()
-            print(f"\nStrategy: {strategy_name}")
-            if hasattr(strategy_class, 'describe'):
-                print(f"Description: {strategy_class.describe()}")
-            
-            # Use defaults from schema if no profile
-            if not params:
-                for param_name, param_info in schema.items():
-                    params[param_name] = param_info.get('default')
-                
-                # Override with command-line parameters if provided
-                if args.params:
-                    print(f"Applying custom parameters...")
-                    for param_str in args.params:
-                        if '=' in param_str:
-                            key, value = param_str.split('=', 1)
-                            # Type conversion based on schema
-                            if key in schema:
-                                param_type = schema[key].get('type', 'str')
-                                try:
-                                    if param_type == 'int':
-                                        params[key] = int(value)
-                                    elif param_type == 'float':
-                                        params[key] = float(value)
-                                    elif param_type == 'bool':
-                                        params[key] = value.lower() in ('true', '1', 'yes', 'on')
-                                    else:
-                                        params[key] = value
-                                    print(f"  {key} = {params[key]}")
-                                except ValueError as e:
-                                    print(f"  Warning: Invalid value for {key}: {e}")
-                            else:
-                                print(f"  Warning: Unknown parameter '{key}' for strategy '{strategy_name}'")
-                else:
-                    print(f"Using default parameters")
-                
-                # Interactive parameter configuration if requested
-                if args.interactive_params:
-                    print("\nConfigure parameters (press Enter for current value):")
-                    for param_name, param_info in schema.items():
-                        current = params.get(param_name, param_info.get('default'))
-                        desc = param_info.get('desc', '')
-                        new_value = prompt_with_default(f"{param_name} ({desc})", current)
-                        
-                        # Type conversion
-                        param_type = param_info.get('type', 'str')
-                        try:
-                            if param_type == 'int':
-                                params[param_name] = int(new_value)
-                            elif param_type == 'float':
-                                params[param_name] = float(new_value)
-                            elif param_type == 'bool':
-                                if isinstance(new_value, bool):
-                                    params[param_name] = new_value
-                                else:
-                                    params[param_name] = str(new_value).lower() in ('true', '1', 'yes', 'on')
-                            else:
-                                params[param_name] = str(new_value)
-                        except ValueError:
-                            print(f"    Warning: Invalid value, using default")
-                            params[param_name] = param_info.get('default')
-    except Exception as e:
-        print(f"Warning: Could not load strategy schema: {e}")
-    
+
+    params = _resolve_strategy_params(args, config_mgr, strategy_name)
+
     # Get API key for live mode (already fetched above, but prompt if missing)
     if not is_simulation and not api_key:
         api_key = input("Enter API key: ").strip()
         if input("Save API key? (y/n): ").lower() == 'y':
             config_mgr.config['api_key'] = api_key
             config_mgr.save_config()
-    
+
     # Get speed preset
     speed = getattr(args, 'speed', 'fast')
     delay_ms, jitter_ms = EngineConfig.get_speed_preset(speed)
-    
+
     # Get parallel settings
     use_parallel = getattr(args, 'parallel', False)
     max_concurrent = getattr(args, 'max_concurrent', 5)
-    
+
     # Create engine config
     lottery_gap_min = max(1, int(getattr(args, 'lottery_gap_min', 10)))
     lottery_gap_max = max(lottery_gap_min, int(getattr(args, 'lottery_gap_max', 50)))
@@ -998,7 +1042,7 @@ def cmd_run(args):
         lottery_min_chance=lottery_chance_min,
         lottery_max_chance=lottery_chance_max,
     )
-    
+
     # Run strategy (faucet mode uses the auto-reclaim loop)
     if use_faucet and not is_simulation:
         # Resolve cookie: CLI arg → saved file → None
@@ -1018,9 +1062,16 @@ def cmd_run(args):
             take_profit_target=args.take_profit if args.take_profit is not None else 1.0,
         )
     else:
-        run_strategy(strategy_name, params, config, api_key, is_simulation,
-                     use_parallel=use_parallel, max_concurrent=max_concurrent,
-                     resume_state=_resume_state)
+        run_strategy(
+            strategy_name,
+            params,
+            config,
+            api_key,
+            is_simulation,
+            use_parallel=use_parallel,
+            max_concurrent=max_concurrent,
+            resume_state=_resume_state,
+        )
 
 
 def cmd_list_strategies(args):
@@ -1262,26 +1313,10 @@ def cmd_probe_min_bets(args):
         print(f"  {sym:<{width}}  {val}")
 
 
-def cmd_interactive(args=None):
-    """Full interactive mode - guided betting setup with balance checking"""
-    
-    if USE_RICH and display:
-        display.print_banner()
-        display.print_section("Interactive Setup")
-        print("Welcome! Let's set up your betting session.\n")
-    else:
-        print("\n" + "="*60)
-        print("🎲 DuckDice Bot - Interactive Mode")
-        print("="*60)
-        print("\nWelcome! Let's set up your betting session.\n")
-    
-    config_mgr = ConfigManager()
-
+def _interactive_select_balance_mode() -> tuple:
+    """Prompt for live balance mode."""
     is_simulation = False
-    faucet_cookie: Optional[str] = None
-    tle_hash: Optional[str] = None
 
-    # ── Ask: main balance, faucet balance, or TLE event? ───────────────
     print("\n⚙️  Choose balance type:")
     balance_type_choice = prompt_choice("", ["main", "faucet", "tle"], "main")
     use_faucet = (balance_type_choice == "faucet")
@@ -1298,91 +1333,101 @@ def cmd_interactive(args=None):
         else:
             print(f"ℹ️  Mode: Live ({'Faucet' if use_faucet else 'Main'} Balance)\n")
 
-    # ── If faucet: load or prompt for browser cookie (needed for claiming) ─
-    if use_faucet:
-        try:
-            from faucet_manager.cookie_manager import CookieManager as _CM
-            _cm = _CM()
-            faucet_cookie = _cm.get_cookie()
-        except Exception:
-            faucet_cookie = None
+    return is_simulation, use_faucet, use_tle
 
-        if faucet_cookie:
-            print(f"🍪  Faucet cookie loaded from saved config.\n")
-        else:
-            print("\n🍪  Auto-claiming requires your DuckDice browser session cookie.")
-            print("    Log in at duckdice.io, then copy the full Cookie header value.")
-            faucet_cookie = input("    Paste cookie (or press Enter to skip auto-claim): ").strip() or None
-            if faucet_cookie:
-                try:
-                    from faucet_manager.cookie_manager import CookieManager as _CM2
-                    _cm2 = _CM2()
-                    save_cookie = input("    Save cookie for future sessions? (y/n) [y]: ").strip().lower()
-                    if save_cookie != 'n':
-                        _cm2.set_cookie(faucet_cookie)
-                        _cm2.save()
-                        print("    ✓ Cookie saved\n")
-                except Exception:
-                    pass
-            else:
-                print("    ⚠️  No cookie — faucet will NOT be auto-reclaimed on bust.\n")
-    
-    # Step 1: API Key (auto-detect, don't prompt if found)
+
+def _interactive_resolve_faucet_cookie(use_faucet: bool) -> Optional[str]:
+    """Load or prompt for faucet cookie when needed."""
+    if not use_faucet:
+        return None
+
+    try:
+        from faucet_manager.cookie_manager import CookieManager as _CM
+        _cm = _CM()
+        faucet_cookie = _cm.get_cookie()
+    except Exception:
+        faucet_cookie = None
+
+    if faucet_cookie:
+        print("🍪  Faucet cookie loaded from saved config.\n")
+        return faucet_cookie
+
+    print("\n🍪  Auto-claiming requires your DuckDice browser session cookie.")
+    print("    Log in at duckdice.io, then copy the full Cookie header value.")
+    faucet_cookie = input("    Paste cookie (or press Enter to skip auto-claim): ").strip() or None
+    if faucet_cookie:
+        try:
+            from faucet_manager.cookie_manager import CookieManager as _CM2
+            _cm2 = _CM2()
+            save_cookie = input("    Save cookie for future sessions? (y/n) [y]: ").strip().lower()
+            if save_cookie != 'n':
+                _cm2.set_cookie(faucet_cookie)
+                _cm2.save()
+                print("    ✓ Cookie saved\n")
+        except Exception:
+            pass
+    else:
+        print("    ⚠️  No cookie — faucet will NOT be auto-reclaimed on bust.\n")
+
+    return faucet_cookie
+
+
+def _interactive_resolve_api_key(config_mgr: ConfigManager) -> Optional[str]:
+    """Resolve API key from config or prompt."""
     api_key = config_mgr.config.get('api_key')
-    api = None
-    
+
     if api_key:
-        # API key found - use it silently
         if USE_RICH and display:
             display.print_success(f"API key detected: {api_key[:12]}...")
         else:
             print(f"✓ API key detected: {api_key[:12]}...\n")
+        return api_key
+
+    if USE_RICH and display:
+        display.print_step(1, "API Key Required", 5)
     else:
-        # No API key - must prompt
+        print("Step 1: API Key Required")
+        print("-" * 40)
+
+    api_key = input("Enter your DuckDice API key: ").strip()
+    if not api_key:
         if USE_RICH and display:
-            display.print_step(1, "API Key Required", 5)
+            display.print_error("API key required for live mode")
         else:
-            print("Step 1: API Key Required")
-            print("-" * 40)
-        
-        api_key = input("Enter your DuckDice API key: ").strip()
-        if not api_key:
-            if USE_RICH and display:
-                display.print_error("API key required for live mode")
-            else:
-                print("✗ API key required for live mode")
-            return
-        
-        # Save for future use
-        save_key = input("Save this key? (y/n) [y]: ").strip().lower()
-        if save_key != 'n':
-            config_mgr.config['api_key'] = api_key
-            config_mgr.save_config()
-            if USE_RICH and display:
-                display.print_success("API key saved")
-            else:
-                print("✓ API key saved")
-    
-    # Connect to API
+            print("✗ API key required for live mode")
+        return None
+
+    save_key = input("Save this key? (y/n) [y]: ").strip().lower()
+    if save_key != 'n':
+        config_mgr.config['api_key'] = api_key
+        config_mgr.save_config()
+        if USE_RICH and display:
+            display.print_success("API key saved")
+        else:
+            print("✓ API key saved")
+
+    return api_key
+
+
+def _interactive_connect_api(api_key: str):
+    """Create API client for live mode."""
     try:
-        from duckdice_api.api import DuckDiceAPI, DuckDiceConfig
         api = DuckDiceAPI(DuckDiceConfig(api_key=api_key))
         if USE_RICH and display:
             display.print_success("Connected to DuckDice")
         else:
             print("✓ Connected to DuckDice\n")
+        return api
     except Exception as e:
         if USE_RICH and display:
             display.print_error(f"Failed to connect: {e}")
         else:
             print(f"✗ Failed to connect: {e}")
-        return
-    
-    # Step 2: Get balances and filter currencies
-    available_currencies = []
-    balances_dict = {}
-    
-    # Live mode - fetch balances and filter
+        return None
+
+
+def _interactive_select_currency_and_tle(api, use_faucet: bool, use_tle: bool) -> tuple:
+    """Fetch balances and choose currency, resolving TLE hash when needed."""
     if USE_RICH and display:
         display.print_step(2, "Select Currency", 5)
         display.print_info("Fetching your balances...")
@@ -1390,7 +1435,11 @@ def cmd_interactive(args=None):
         print("\nStep 2: Select Currency")
         print("-" * 40)
         print("Fetching your balances...")
-    
+
+    available_currencies: List[str] = []
+    balances_dict: Dict[str, float] = {}
+    tle_hash: Optional[str] = None
+
     try:
         user_info = api.get_user_info()
         balances = user_info.get('balances', [])
@@ -1413,73 +1462,71 @@ def cmd_interactive(args=None):
                 tle_hash = input("Enter TLE hash manually (or press Enter to cancel): ").strip() or None
                 if not tle_hash:
                     print("✗ No TLE selected. Cancelled.")
-                    return
-        
-        # Minimum bet amounts (approximate)
+                    return None, None, None
+
         min_bets = {
             'btc': 0.00000001,
             'eth': 0.000001,
             'ltc': 0.0001,
             'doge': 0.1,
             'bch': 0.00001,
-            'trx': 1.0
+            'trx': 1.0,
         }
-        
-        # Filter currencies with sufficient balance
+
         balance_type = 'faucet' if use_faucet else 'main'
         for bal in balances:
             curr = bal['currency'].lower()
             amount = float(bal.get(balance_type, 0))
             min_bet = min_bets.get(curr, 0)
-            
+
             if amount > min_bet:
                 available_currencies.append(curr)
                 balances_dict[curr] = amount
-        
+
         if not available_currencies:
             if USE_RICH and display:
                 display.print_error(f"No currencies with sufficient {balance_type} balance")
             else:
                 print(f"✗ No currencies with sufficient {balance_type} balance")
-            return
-        
+            return None, None, None
+
         print(f"\nAvailable currencies ({balance_type} balance):")
         for i, curr in enumerate(available_currencies, 1):
             balance = balances_dict[curr]
             print(f"  {i}. {curr.upper():<6} - Balance: {balance:.8f}")
-        
+
         currency = prompt_choice("", available_currencies, available_currencies[0])
         initial_balance = balances_dict[currency]
-        
+
         if USE_RICH and display:
             display.print_success(f"Selected: {currency.upper()} (Balance: {initial_balance:.8f})")
         else:
             print(f"✓ Selected: {currency.upper()} (Balance: {initial_balance:.8f})\n")
-        
+
+        return currency, initial_balance, tle_hash
     except Exception as e:
         if USE_RICH and display:
             display.print_error(f"Failed to fetch balances: {e}")
         else:
             print(f"✗ Failed to fetch balances: {e}")
-        return
-    
-    
-    # Step 3: Choose strategy
+        return None, None, None
+
+
+def _interactive_select_strategy_name() -> str:
+    """Show grouped strategy list and prompt for selection."""
     if USE_RICH and display:
         display.print_step(3, "Select Strategy", 5)
     else:
-        print(f"\nStep 3: Select Strategy")
+        print("\nStep 3: Select Strategy")
         print("-" * 40)
 
     available_strategies_raw = list_strategies()
     all_names = [s['name'] for s in available_strategies_raw]
-    # Show only base names (no @vN variants) in the grouped/numbered list
     base_strategy_names = sorted(set(n.split('@')[0] for n in all_names))
 
     if USE_RICH and display:
         display.print_strategy_list(base_strategy_names)
     else:
-        # Group strategies by risk level
         print("\n🟢 Conservative (Low Risk):")
         conservative = ['dalembert', 'oscars-grind', 'one-three-two-six']
         for s in [s for s in base_strategy_names if s in conservative]:
@@ -1496,8 +1543,10 @@ def cmd_interactive(args=None):
             print(f"  • {s}")
 
         print("\n🔵 Specialized:")
-        specialized = ['faucet-grind', 'faucet-cashout', 'kelly-capped', 'target-aware',
-                       'rng-analysis-strategy', 'range-50-random', 'max-wager-flow', 'custom-script']
+        specialized = [
+            'faucet-grind', 'faucet-cashout', 'kelly-capped', 'target-aware',
+            'rng-analysis-strategy', 'range-50-random', 'max-wager-flow', 'custom-script',
+        ]
         for s in [s for s in base_strategy_names if s in specialized]:
             print(f"  • {s}")
 
@@ -1517,23 +1566,29 @@ def cmd_interactive(args=None):
         display.print_success(f"Selected: {strategy_name}")
     else:
         print(f"✓ Selected: {strategy_name}\n")
-    
-    # Step 4: Set target balance
+
+    return strategy_name
+
+
+def _interactive_resolve_target(initial_balance: float, currency: str) -> tuple:
+    """Prompt for target balance and compute profit metrics."""
     if USE_RICH and display:
         display.print_step(4, "Set Target", 5)
     else:
-        print(f"\nStep 4: Set Target")
+        print("\nStep 4: Set Target")
         print("-" * 40)
-    
+
     print(f"Current balance: {initial_balance:.8f} {currency.upper()}")
     print("Set your target balance to reach (or 0 to bet until strategy exits)\n")
-    
+
     target_balance = prompt_with_default(
         "Target balance",
-        str(initial_balance * 2),  # Default: double your balance
-        float
+        str(initial_balance * 2),
+        float,
     )
-    
+
+    profit_needed = None
+    profit_percent = None
     if target_balance > 0:
         profit_needed = target_balance - initial_balance
         profit_percent = (profit_needed / initial_balance) * 100
@@ -1549,23 +1604,27 @@ def cmd_interactive(args=None):
             display.print_info("No target set - will run until strategy exits")
         else:
             print("✓ No target set - will run until strategy exits\n")
-    
-    # Step 5: Configure strategy parameters
+
+    return target_balance, profit_needed, profit_percent
+
+
+def _interactive_resolve_strategy_params(config_mgr: ConfigManager, strategy_name: str) -> Dict[str, Any]:
+    """Load optional profile or interactively configure strategy params."""
     if USE_RICH and display:
         display.print_step(5, "Configure Strategy", 5)
     else:
-        print(f"\nStep 5: Configure Strategy")
+        print("\nStep 5: Configure Strategy")
         print("-" * 40)
-    
-    params = {}
+
+    params: Dict[str, Any] = {}
     profiles = config_mgr.list_profiles()
-    
+
     if profiles:
         print("Available profiles:")
         for i, profile in enumerate(profiles, 1):
             p = config_mgr.get_profile(profile)
             print(f"  {i}. {profile} ({p['strategy']})")
-        
+
         use_profile = input("\nUse a saved profile? (y/n) [n]: ").strip().lower()
         if use_profile == 'y':
             profile_name = prompt_choice("Select profile:", profiles)
@@ -1575,138 +1634,216 @@ def cmd_interactive(args=None):
                 display.print_success(f"Loaded profile: {profile_name}")
             else:
                 print(f"✓ Loaded profile: {profile_name}\n")
-    
-    # Configure parameters if not from profile
-    if not params:
-        try:
-            strategy_class = get_strategy(strategy_name)
-            if hasattr(strategy_class, 'schema'):
-                schema = strategy_class.schema()
-                
-                # Ask if user wants to configure parameters
-                configure = input("\nConfigure strategy parameters? (y/n) [n]: ").strip().lower()
-                
-                if configure == 'y':
-                    print(f"Configure {strategy_name} parameters:")
-                    print("(Press Enter to use default values)\n")
-                    
-                    for param_name, param_info in schema.items():
-                        default = param_info.get('default')
-                        desc = param_info.get('desc', '')
-                        param_type = param_info.get('type', 'str')
-                        
-                        # Get type conversion function
-                        type_func = str
-                        if param_type == 'int':
-                            type_func = int
-                        elif param_type == 'float':
-                            type_func = float
-                        elif param_type == 'bool':
-                            type_func = bool
-                        
-                        value = prompt_with_default(f"  {param_name} ({desc})", default, type_func)
-                        
-                        # Special handling for bool
-                        if param_type == 'bool' and not isinstance(value, bool):
-                            params[param_name] = str(value).lower() in ('true', '1', 'yes', 'on')
-                        else:
-                            params[param_name] = value
-                    
-                    print()
-                    
-                    # Ask if user wants to save as profile
-                    save_profile = input("Save these settings as a profile? (y/n) [n]: ").strip().lower()
-                    if save_profile == 'y':
-                        profile_name = input("Profile name: ").strip()
-                        if profile_name:
-                            config_mgr.save_profile(profile_name, strategy_name, params)
-                            if USE_RICH and display:
-                                display.print_success(f"Saved profile: {profile_name}")
-                            else:
-                                print(f"✓ Saved profile: {profile_name}\n")
-                else:
-                    # Use all defaults
-                    params = {}
-                    if USE_RICH and display:
-                        display.print_info("Using default parameters")
+
+    if params:
+        return params
+
+    try:
+        strategy_class = get_strategy(strategy_name)
+        if hasattr(strategy_class, 'schema'):
+            schema = strategy_class.schema()
+
+            configure = input("\nConfigure strategy parameters? (y/n) [n]: ").strip().lower()
+            if configure == 'y':
+                print(f"Configure {strategy_name} parameters:")
+                print("(Press Enter to use default values)\n")
+
+                for param_name, param_info in schema.items():
+                    default = param_info.get('default')
+                    desc = param_info.get('desc', '')
+                    param_type = param_info.get('type', 'str')
+
+                    type_func = str
+                    if param_type == 'int':
+                        type_func = int
+                    elif param_type == 'float':
+                        type_func = float
+                    elif param_type == 'bool':
+                        type_func = bool
+
+                    value = prompt_with_default(f"  {param_name} ({desc})", default, type_func)
+
+                    if param_type == 'bool' and not isinstance(value, bool):
+                        params[param_name] = str(value).lower() in ('true', '1', 'yes', 'on')
                     else:
-                        print("✓ Using default parameters\n")
+                        params[param_name] = value
+
+                print()
+
+                save_profile = input("Save these settings as a profile? (y/n) [n]: ").strip().lower()
+                if save_profile == 'y':
+                    profile_name = input("Profile name: ").strip()
+                    if profile_name:
+                        config_mgr.save_profile(profile_name, strategy_name, params)
+                        if USE_RICH and display:
+                            display.print_success(f"Saved profile: {profile_name}")
+                        else:
+                            print(f"✓ Saved profile: {profile_name}\n")
             else:
-                # Use defaults
                 params = {}
-        except Exception as e:
-            print(f"Warning: Could not load strategy schema: {e}")
+                if USE_RICH and display:
+                    display.print_info("Using default parameters")
+                else:
+                    print("✓ Using default parameters\n")
+        else:
             params = {}
-    
-    # Summary
+    except Exception as e:
+        print(f"Warning: Could not load strategy schema: {e}")
+        params = {}
+
+    return params
+
+
+def _interactive_print_summary(
+    is_simulation: bool,
+    use_faucet: bool,
+    use_tle: bool,
+    currency: str,
+    initial_balance: float,
+    strategy_name: str,
+    target_balance: float,
+    profit_needed: Optional[float],
+    profit_percent: Optional[float],
+    params: Dict[str, Any],
+) -> None:
+    """Print session summary in rich/plain display."""
     if USE_RICH and display:
         print()
+        mode_label = 'Simulation' if is_simulation else ('Live (TLE)' if use_tle else ('Live (Faucet)' if use_faucet else 'Live (Main)'))
         summary_data = {
-            'Mode': 'Simulation' if is_simulation else f"Live ({'Faucet' if use_faucet else 'Main'})",
+            'Mode': mode_label,
             'Currency': currency.upper(),
             'Current Balance': f"{initial_balance:.8f}",
             'Strategy': strategy_name,
         }
-        
+
         if target_balance > 0:
             summary_data['Target Balance'] = f"{target_balance:.8f}"
             summary_data['Profit Needed'] = f"+{profit_needed:.8f} (+{profit_percent:.1f}%)"
         else:
             summary_data['Target'] = 'Run until strategy exits'
-        
+
         if params:
             summary_data['Parameters'] = f"{len(params)} configured"
-        
+
         display.print_session_summary(summary_data)
+        return
+
+    print("\n" + "=" * 60)
+    print("📋 SESSION SUMMARY")
+    print("=" * 60)
+    mode_str = 'Simulation' if is_simulation else ('Live (TLE)' if use_tle else ('Live (Faucet)' if use_faucet else 'Live (Main)'))
+    print(f"Mode:             {mode_str}")
+    print(f"Currency:         {currency.upper()}")
+    print(f"Current Balance:  {initial_balance:.8f}")
+    print(f"Strategy:         {strategy_name}")
+    if target_balance > 0:
+        print(f"Target Balance:   {target_balance:.8f}")
+        print(f"Profit Needed:    +{profit_needed:.8f} (+{profit_percent:.1f}%)")
     else:
-        print("\n" + "="*60)
-        print("📋 SESSION SUMMARY")
-        print("="*60)
-        # Nested f-strings not supported in Python 3.9
-        mode_str = 'Simulation' if is_simulation else ('Live (TLE)' if use_tle else ('Live (Faucet)' if use_faucet else 'Live (Main)'))
-        print(f"Mode:             {mode_str}")
-        print(f"Currency:         {currency.upper()}")
-        print(f"Current Balance:  {initial_balance:.8f}")
-        print(f"Strategy:         {strategy_name}")
-        if target_balance > 0:
-            print(f"Target Balance:   {target_balance:.8f}")
-            print(f"Profit Needed:    +{profit_needed:.8f} (+{profit_percent:.1f}%)")
-        else:
-            print(f"Target:           Run until strategy exits")
-        if params:
-            print(f"Parameters:       {len(params)} configured")
-        print("="*60)
-    
-    # Display equivalent CLI command
+        print("Target:           Run until strategy exits")
+    if params:
+        print(f"Parameters:       {len(params)} configured")
+    print("=" * 60)
+
+
+def _interactive_print_equivalent_cli(
+    is_simulation: bool,
+    use_faucet: bool,
+    use_tle: bool,
+    currency: str,
+    strategy_name: str,
+    tle_hash: Optional[str],
+    target_balance: float,
+    initial_balance: float,
+    params: Dict[str, Any],
+) -> None:
+    """Print equivalent non-interactive CLI command."""
     print("\n💡 Equivalent CLI command:")
     print("-" * 60)
-    
-    # Build the command
+
     mode = 'simulation' if is_simulation else ('live-tle' if use_tle else ('live-faucet' if use_faucet else 'live-main'))
     cmd_parts = [
         "duckdice run",
         f"-m {mode}",
         f"-c {currency}",
-        f"-s {strategy_name}"
+        f"-s {strategy_name}",
     ]
     if tle_hash:
         cmd_parts.append(f"--tle {tle_hash}")
-    
-    # Add take profit if set
+
     if target_balance > 0:
         take_profit_pct = ((target_balance - initial_balance) / initial_balance)
         cmd_parts.append(f"--take-profit {take_profit_pct:.4f}")
-    
-    # Add parameters if configured
+
     if params:
         for key, value in params.items():
             cmd_parts.append(f"-P {key}={value}")
-    
+
     cli_command = " \\\n  ".join(cmd_parts)
     print(f"\n  {cli_command}\n")
     print("-" * 60)
-    
-    # Confirmation
+
+
+def cmd_interactive(args=None):
+    """Full interactive mode - guided betting setup with balance checking"""
+    if USE_RICH and display:
+        display.print_banner()
+        display.print_section("Interactive Setup")
+        print("Welcome! Let's set up your betting session.\n")
+    else:
+        print("\n" + "=" * 60)
+        print("🎲 DuckDice Bot - Interactive Mode")
+        print("=" * 60)
+        print("\nWelcome! Let's set up your betting session.\n")
+
+    config_mgr = ConfigManager()
+
+    is_simulation, use_faucet, use_tle = _interactive_select_balance_mode()
+    faucet_cookie = _interactive_resolve_faucet_cookie(use_faucet)
+
+    api_key = _interactive_resolve_api_key(config_mgr)
+    if not api_key:
+        return
+
+    api = _interactive_connect_api(api_key)
+    if api is None:
+        return
+
+    currency, initial_balance, tle_hash = _interactive_select_currency_and_tle(api, use_faucet, use_tle)
+    if not currency:
+        return
+
+    strategy_name = _interactive_select_strategy_name()
+
+    target_balance, profit_needed, profit_percent = _interactive_resolve_target(initial_balance, currency)
+    params = _interactive_resolve_strategy_params(config_mgr, strategy_name)
+
+    _interactive_print_summary(
+        is_simulation=is_simulation,
+        use_faucet=use_faucet,
+        use_tle=use_tle,
+        currency=currency,
+        initial_balance=initial_balance,
+        strategy_name=strategy_name,
+        target_balance=target_balance,
+        profit_needed=profit_needed,
+        profit_percent=profit_percent,
+        params=params,
+    )
+
+    _interactive_print_equivalent_cli(
+        is_simulation=is_simulation,
+        use_faucet=use_faucet,
+        use_tle=use_tle,
+        currency=currency,
+        strategy_name=strategy_name,
+        tle_hash=tle_hash,
+        target_balance=target_balance,
+        initial_balance=initial_balance,
+        params=params,
+    )
+
     confirm = input("\nReady to start? (y/n) [y]: ").strip().lower()
     if confirm == 'n':
         if USE_RICH and display:
@@ -1714,37 +1851,36 @@ def cmd_interactive(args=None):
         else:
             print("❌ Cancelled")
         return
-    
-    # Calculate take_profit from target
+
     if target_balance > 0:
         take_profit = (target_balance - initial_balance) / initial_balance
     else:
-        take_profit = None  # No profit target
-    
-    # Start live session
+        take_profit = None
+
     if USE_RICH and display:
         display.print_success("Starting LIVE session...")
     else:
         print("\n🚀 Starting LIVE session...\n")
-    
-    # Create engine config for actual run
+
     config = EngineConfig(
         symbol=currency,
         dry_run=is_simulation,
         faucet=use_faucet if not is_simulation else False,
-        stop_loss=-0.99,  # Allow 99% loss before stopping (essentially no stop loss)
+        stop_loss=-0.99,
         take_profit=take_profit,
-        max_bets=None,  # Run until target or strategy exits
+        max_bets=None,
         max_losses=None,
-        delay_ms=50,    # Ultra-fast betting: 50ms delay
-        jitter_ms=25,   # Minimal jitter: 25ms
+        delay_ms=50,
+        jitter_ms=25,
         tle_hash=tle_hash,
     )
-    
-    # Run strategy (faucet mode uses the auto-reclaim loop)
+
     if use_faucet and not is_simulation:
         _run_faucet_auto_loop(
-            strategy_name, params, config, api_key,
+            strategy_name,
+            params,
+            config,
+            api_key,
             cookie=faucet_cookie,
             take_profit_target=take_profit if take_profit else 1.0,
         )
@@ -1943,6 +2079,7 @@ def cmd_simulate_all(args):
 
 
 def main():
+    configure_logging()
     parser = argparse.ArgumentParser(
         description="DuckDice Bot CLI - Automated betting toolkit",
         formatter_class=argparse.RawDescriptionHelpFormatter,

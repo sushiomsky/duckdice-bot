@@ -8,10 +8,11 @@ CLI and engine packages.
 from dataclasses import dataclass
 from typing import Any, Dict, List, Optional
 import json
-import sys
 import time
+import logging
 import requests
 
+logger = logging.getLogger(__name__)
 
 @dataclass
 class DuckDiceConfig:
@@ -91,7 +92,7 @@ class DuckDiceAPI:
                 
                 # Success! Update current base URL if we switched
                 if domain_url != self.current_base_url:
-                    print(f"✓ Switched to {domain_url}", file=sys.stderr)
+                    logger.info("Switched API endpoint to %s", domain_url)
                     self.current_base_url = domain_url
                 
                 return response.json()
@@ -103,27 +104,27 @@ class DuckDiceAPI:
                 
                 # Only log if this is the last domain to try
                 if domain_url == domains_to_try[-1]:
-                    print(f"Request Error: {e}", file=sys.stderr)
+                    logger.error("API request failed on final endpoint: %s", e)
                 else:
                     # Briefly note the failure and try next domain
                     domain_name = domain_url.split('/')[2]
-                    print(f"⚠ {domain_name} unavailable, trying next...", file=sys.stderr)
+                    logger.warning("%s unavailable, trying next endpoint", domain_name)
                 
                 continue
                 
             except requests.exceptions.RequestException as e:
                 last_exception = e
-                print(f"Request Error: {e}", file=sys.stderr)
+                logger.error("API request error: %s", e)
                 raise
                 
             except json.JSONDecodeError as e:
                 last_exception = e
-                print(f"JSON Decode Error: {e}", file=sys.stderr)
+                logger.error("JSON decode error: %s", e)
                 raise
         
         # All domains failed
         if last_exception:
-            print(f"❌ All API endpoints failed", file=sys.stderr)
+            logger.error("All API endpoints failed")
             raise last_exception
         
         raise RuntimeError("No domains to try")
@@ -201,7 +202,7 @@ class DuckDiceAPI:
                 return balances
             return {}
         except Exception as e:
-            print(f"Failed to get balances: {e}", file=sys.stderr)
+            logger.error("Failed to get balances: %s", e)
             return {}
     
     def get_available_currencies(self) -> list[str]:
@@ -213,7 +214,7 @@ class DuckDiceAPI:
                 return sorted(currencies) if currencies else ["BTC", "ETH", "DOGE", "LTC", "TRX", "XRP"]
             return ["BTC", "ETH", "DOGE", "LTC", "TRX", "XRP"]
         except Exception as e:
-            print(f"Failed to fetch currencies: {e}", file=sys.stderr)
+            logger.error("Failed to fetch currencies: %s", e)
             return ["BTC", "ETH", "DOGE", "LTC", "TRX", "XRP"]
     
     def get_main_balance(self, symbol: str) -> float:
@@ -227,7 +228,7 @@ class DuckDiceAPI:
                         return float(main) if main else 0.0
             return 0.0
         except Exception as e:
-            print(f"Failed to get main balance: {e}", file=sys.stderr)
+            logger.error("Failed to get main balance: %s", e)
             return 0.0
     
     def get_faucet_balance(self, symbol: str) -> float:
@@ -242,7 +243,7 @@ class DuckDiceAPI:
                         return float(faucet) if faucet else 0.0
             return 0.0
         except Exception as e:
-            print(f"Failed to get faucet balance: {e}", file=sys.stderr)
+            logger.error("Failed to get faucet balance: %s", e)
             return 0.0
     
     def get_faucet_balance_usd(self, symbol: str) -> float:
@@ -260,7 +261,7 @@ class DuckDiceAPI:
             balance = self.get_faucet_balance(symbol)
             return to_usd(balance, symbol)
         except Exception as e:
-            print(f"Failed to get faucet balance in USD: {e}", file=sys.stderr)
+            logger.error("Failed to get faucet balance in USD: %s", e)
             return 0.0
     
     def claim_faucet(self, symbol: str, cookie: Optional[str] = None) -> Dict[str, Any]:
@@ -320,7 +321,7 @@ class DuckDiceAPI:
                     'error': f"HTTP {response.status_code}"
                 }
         except Exception as e:
-            print(f"Failed to claim faucet: {e}", file=sys.stderr)
+            logger.error("Failed to claim faucet: %s", e)
             return {
                 'success': False,
                 'amount': 0,
@@ -405,7 +406,7 @@ class DuckDiceAPI:
                 }
                 
         except Exception as e:
-            print(f"Failed to cashout faucet: {e}", file=sys.stderr)
+            logger.error("Failed to cashout faucet: %s", e)
             return {
                 'success': False,
                 'amount': 0,

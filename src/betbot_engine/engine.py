@@ -10,6 +10,7 @@ import json
 import os
 import re
 import time
+import random
 from dataclasses import dataclass
 from decimal import Decimal, getcontext, InvalidOperation
 from pathlib import Path
@@ -329,6 +330,185 @@ def _validate_and_adjust_bet(
     return adjusted_bet
 
 
+def _load_starting_balance(
+    api: DuckDiceAPI,
+    symbol: str,
+    printer: Optional[Callable[[str], None]],
+    emitter: Optional['EventEmitter'],
+) -> Decimal:
+    try:
+        user_info = api.get_user_info()
+        return _parse_user_symbol_balance(user_info, symbol)
+    except Exception as e:
+        if printer:
+            printer(f"⚠️  Warning: Failed to fetch balance: {e}")
+        if emitter and _EVENTS_AVAILABLE:
+            emitter.emit(WarningEvent(
+                timestamp=time.time(),
+                message=f"Failed to fetch balance: {e}",
+                details={"exception": str(e)},
+            ))
+        return Decimal(0)
+
+
+def _build_limits(config: EngineConfig) -> SessionLimits:
+    return SessionLimits(
+        symbol=config.symbol,
+        stop_loss=config.stop_loss,
+        take_profit=config.take_profit,
+        max_bet=_decimal(config.max_bet) if config.max_bet else None,
+        max_bets=config.max_bets,
+        max_losses=config.max_losses,
+        max_duration_sec=config.max_duration_sec,
+    )
+
+
+def _init_db_logger(config: EngineConfig, printer: Optional[Callable[[str], None]]):
+    if not config.db_log:
+        return None
+    try:
+        from .bet_database import BetDatabase
+        db_path = Path(config.db_path) if config.db_path else None
+        return BetDatabase(db_path)
+    except Exception as e:
+        if printer:
+            printer(f"⚠️  Database logging disabled: {e}")
+        return None
+
+
+def _build_sink(
+    log_file: str,
+    json_sink: Optional[Callable[[Dict[str, Any]], None]],
+) -> Callable[[Dict[str, Any]], None]:
+    class _BufferedJsonlSink:
+        def __init__(self, path: str, external_sink: Optional[Callable[[Dict[str, Any]], None]], flush_every: int = 50):
+            self._external_sink = external_sink
+            self._flush_every = max(1, int(flush_every))
+            self._count = 0
+            self._fh = open(path, "a", encoding="utf-8")
+
+        def __call__(self, rec: Dict[str, Any]) -> None:
+            if self._external_sink:
+                self._external_sink(rec)
+            self._fh.write(json.dumps(rec, ensure_ascii=False) + "\n")
+            self._count += 1
+            if self._count % self._flush_every == 0 or rec.get("event") == "summary":
+                self._fh.flush()
+
+        def close(self) -> None:
+            if not self._fh.closed:
+                self._fh.flush()
+                self._fh.close()
+
+    return _BufferedJsonlSink(log_file, json_sink)
+
+
+def _init_lottery_state(config: EngineConfig, rng: random.Random) -> tuple[int, int, int]:
+    lottery_min_gap = max(1, int(config.lottery_min_gap))
+    lottery_max_gap = max(lottery_min_gap, int(config.lottery_max_gap))
+    lottery_countdown = (
+        rng.randint(lottery_min_gap, lottery_max_gap)
+        if config.lottery_enabled
+        else -1
+    )
+    return lottery_min_gap, lottery_max_gap, lottery_countdown
+
+
+def _resolve_discovered_min_bet(
+    api: DuckDiceAPI,
+    config: EngineConfig,
+    print_line: Callable[[str], None],
+) -> Decimal:
+    discovered_api_min_bet = Decimal("0.00000001")
+    try:
+        from betbot_engine.min_bet_cache import ensure_probed as _ensure_probed
+        probe_fn = _ensure_probed if not config.dry_run else None
+    except Exception:
+        probe_fn = None
+
+    if probe_fn is not None:
+        try:
+            discovered_api_min_bet = probe_fn(api, config.symbol, print_line)
+        except Exception:
+            pass
+    else:
+        try:
+            from betbot_engine.min_bet_cache import get_min_bet as _get_cached_min_bet
+            cached = _get_cached_min_bet(config.symbol)
+            if cached:
+                discovered_api_min_bet = cached
+        except Exception:
+            pass
+    return discovered_api_min_bet
+
+
+def _prepare_bet_for_execution(
+    bet: BetSpec,
+    *,
+    ctx: StrategyContext,
+    limits: SessionLimits,
+    config: EngineConfig,
+    rng: random.Random,
+    lottery_countdown: int,
+    lottery_min_gap: int,
+    lottery_max_gap: int,
+    current_balance: Decimal,
+    discovered_api_min_bet: Decimal,
+    bet_offset_fn: Optional[Callable[[], 'Decimal']],
+    print_line: Callable[[str], None],
+) -> tuple[Optional[BetSpec], Optional[str], bool, Optional[str], int, str]:
+    if bet_offset_fn is not None:
+        try:
+            offset = bet_offset_fn()
+            if offset and offset > 0:
+                raw = _decimal(bet.get("amount", "0"))
+                bet["amount"] = format(raw + offset, 'f')
+        except Exception:
+            pass
+
+    bet.setdefault("faucet", ctx.faucet)
+    original_game = str(bet.get("game", "dice"))
+    lottery_applied = False
+    lottery_chance: Optional[str] = None
+
+    if limits.max_bet is not None:
+        try:
+            amount_dec = _decimal(bet.get("amount", "0"))
+            if amount_dec > limits.max_bet:
+                bet["amount"] = format(limits.max_bet, 'f')
+                print_line(f"   ⚖️  Capped bet to session max_bet: {limits.max_bet}")
+        except (ValueError, InvalidOperation):
+            pass
+
+    if config.lottery_enabled:
+        if lottery_countdown <= 0:
+            lottery_applied = True
+            chance_val = Decimal(
+                str(round(rng.uniform(config.lottery_min_chance, config.lottery_max_chance), 4))
+            )
+            chance_val = max(Decimal("0.01"), min(Decimal("1.00"), chance_val))
+            bet = dict(bet)
+            bet["game"] = "dice"
+            bet["chance"] = format(chance_val, "f")
+            if "is_high" not in bet:
+                bet["is_high"] = bool(rng.getrandbits(1))
+            lottery_chance = bet["chance"]
+            lottery_countdown = rng.randint(lottery_min_gap, lottery_max_gap)
+        else:
+            lottery_countdown -= 1
+
+    validated_bet = _validate_and_adjust_bet(
+        bet=bet,
+        current_balance=current_balance,
+        min_bet=discovered_api_min_bet,
+        printer=print_line,
+    )
+    if validated_bet is None:
+        return None, "insufficient_balance", lottery_applied, lottery_chance, lottery_countdown, original_game
+
+    return validated_bet, None, lottery_applied, lottery_chance, lottery_countdown, original_game
+
+
 def run_auto_bet(
     api: DuckDiceAPI,
     strategy_name: str,
@@ -353,69 +533,18 @@ def run_auto_bet(
     start_ts = time.time()
     _ensure_dir(config.log_dir)
 
-    # Starting balance
-    try:
-        user_info = api.get_user_info()
-        starting_balance = _parse_user_symbol_balance(user_info, config.symbol)
-    except Exception as e:
-        error_msg = f"⚠️  Warning: Failed to fetch balance: {e}"
-        if printer:
-            printer(error_msg)
-        if emitter and _EVENTS_AVAILABLE:
-            import time as time_module
-            emitter.emit(WarningEvent(
-                timestamp=time_module.time(),
-                message=f"Failed to fetch balance: {e}",
-                details={"exception": str(e)}
-            ))
-        starting_balance = Decimal(0)
-
-    # Limits
-    limits = SessionLimits(
-        symbol=config.symbol,
-        stop_loss=config.stop_loss,
-        take_profit=config.take_profit,
-        max_bet=_decimal(config.max_bet) if config.max_bet else None,
-        max_bets=config.max_bets,
-        max_losses=config.max_losses,
-        max_duration_sec=config.max_duration_sec,
-    )
-
-    # Database logger (optional)
-    db = None
-    if config.db_log:
-        try:
-            from .bet_database import BetDatabase
-            db_path = Path(config.db_path) if config.db_path else None
-            db = BetDatabase(db_path)
-        except Exception as e:
-            if printer:
-                printer(f"⚠️  Database logging disabled: {e}")
+    starting_balance = _load_starting_balance(api, config.symbol, printer, emitter)
+    limits = _build_limits(config)
+    db = _init_db_logger(config, printer)
 
     # Logger
     session_id = time.strftime("%Y%m%d_%H%M%S")
     log_file = os.path.join(config.log_dir, f"{session_id}_{config.symbol}_{strategy_name}.jsonl")
-
-    def file_sink(rec: Dict[str, Any]) -> None:
-        with open(log_file, "a", encoding="utf-8") as f:
-            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-
-    def sink(rec: Dict[str, Any]) -> None:
-        if json_sink:
-            json_sink(rec)
-        file_sink(rec)
+    sink = _build_sink(log_file, json_sink)
 
     # Random
-    import random
-
     rng = random.Random(config.seed or int(time.time() * 1000) & 0xFFFFFFFF)
-    lottery_min_gap = max(1, int(config.lottery_min_gap))
-    lottery_max_gap = max(lottery_min_gap, int(config.lottery_max_gap))
-    lottery_countdown = (
-        rng.randint(lottery_min_gap, lottery_max_gap)
-        if config.lottery_enabled
-        else -1
-    )
+    lottery_min_gap, lottery_max_gap, lottery_countdown = _init_lottery_state(config, rng)
 
     # Strategy
     StrategyCls = get_strategy(strategy_name)
@@ -440,33 +569,11 @@ def run_auto_bet(
     losses_count = 0
     losses_in_row = 0
     current_balance = starting_balance
-    # Pre-populate from cache; auto-probe if not yet cached (live only)
-    try:
-        from betbot_engine.min_bet_cache import ensure_probed as _ensure_probed
-        _probe_fn = _ensure_probed if not config.dry_run else None
-    except Exception:
-        _probe_fn = None
-
-    discovered_api_min_bet: Decimal = Decimal("0.00000001")
-
     def print_line(msg: str) -> None:
         if printer:
             printer(msg)
 
-    # Resolve min-bet: auto-probe live coins, cache-only for dry-run
-    if _probe_fn is not None:
-        try:
-            discovered_api_min_bet = _probe_fn(api, config.symbol, print_line)
-        except Exception:
-            pass
-    else:
-        try:
-            from betbot_engine.min_bet_cache import get_min_bet as _get_cached_min_bet
-            _cached = _get_cached_min_bet(config.symbol)
-            if _cached:
-                discovered_api_min_bet = _cached
-        except Exception:
-            pass
+    discovered_api_min_bet = _resolve_discovered_min_bet(api, config, print_line)
 
     # Start
     strategy.on_session_start()
@@ -533,67 +640,27 @@ def run_auto_bet(
                 stopped_reason = "strategy_stopped"
                 break
 
-            # Apply keypress bet-size offset (+ / - keys)
-            if bet_offset_fn is not None:
-                try:
-                    offset = bet_offset_fn()
-                    if offset and offset > 0:
-                        raw = _decimal(bet.get("amount", "0"))
-                        bet["amount"] = format(raw + offset, 'f')
-                except Exception:
-                    pass
-
-            # Enforce symbol and faucet default
-            bet.setdefault("faucet", ctx.faucet)
-            original_game = str(bet.get("game", "dice"))
-            lottery_applied = False
-            lottery_chance: Optional[str] = None
-
-            # Apply max_bet limit from session limits
-            if limits.max_bet is not None:
-                try:
-                    amount_dec = _decimal(bet.get("amount", "0"))
-                    if amount_dec > limits.max_bet:
-                        bet["amount"] = format(limits.max_bet, 'f')
-                        print_line(f"   ⚖️  Capped bet to session max_bet: {limits.max_bet}")
-                except (ValueError, InvalidOperation):
-                    pass
-
-            # Engine-level lottery feature:
-            # keep bet amount unchanged, but occasionally force a low-chance dice shot.
-            if config.lottery_enabled:
-                if lottery_countdown <= 0:
-                    lottery_applied = True
-                    chance_val = Decimal(
-                        str(round(rng.uniform(config.lottery_min_chance, config.lottery_max_chance), 4))
-                    )
-                    chance_val = max(Decimal("0.01"), min(Decimal("1.00"), chance_val))
-                    bet = dict(bet)
-                    bet["game"] = "dice"
-                    bet["chance"] = format(chance_val, "f")
-                    if "is_high" not in bet:
-                        bet["is_high"] = bool(rng.getrandbits(1))
-                    lottery_chance = bet["chance"]
-                    lottery_countdown = rng.randint(lottery_min_gap, lottery_max_gap)
-                else:
-                    lottery_countdown -= 1
-            
-            # Comprehensive bet validation and adjustment
-            # Use the highest known API minimum (updated when a 422 is received)
-            validated_bet = _validate_and_adjust_bet(
-                bet=bet,
-                current_balance=current_balance,
-                min_bet=discovered_api_min_bet,
-                printer=print_line,
+            prepared_bet, stop_reason, lottery_applied, lottery_chance, lottery_countdown, original_game = (
+                _prepare_bet_for_execution(
+                    bet,
+                    ctx=ctx,
+                    limits=limits,
+                    config=config,
+                    rng=rng,
+                    lottery_countdown=lottery_countdown,
+                    lottery_min_gap=lottery_min_gap,
+                    lottery_max_gap=lottery_max_gap,
+                    current_balance=current_balance,
+                    discovered_api_min_bet=discovered_api_min_bet,
+                    bet_offset_fn=bet_offset_fn,
+                    print_line=print_line,
+                )
             )
-            
-            if validated_bet is None:
-                # Cannot place a valid bet, stop session
-                stopped_reason = "insufficient_balance"
+            if prepared_bet is None:
+                stopped_reason = stop_reason or "insufficient_balance"
                 break
-            
-            # Use validated bet
-            bet = validated_bet
+
+            bet = prepared_bet
             amount_dec = _decimal(bet["amount"])
 
             # Execute bet
@@ -906,6 +973,10 @@ def run_auto_bet(
         "profit": format(current_balance - starting_balance, 'f'),
     }
     sink({"event": "summary", **summary})
+    if db:
+        db.flush()
+    if hasattr(sink, "close"):
+        sink.close()
     print_line(f"[summary] {json.dumps(summary)}")
     
     # Emit session ended event

@@ -5,8 +5,11 @@ Handles storage and retrieval of browser cookies needed for faucet claiming.
 """
 
 import json
+import logging
 from pathlib import Path
 from typing import Optional
+
+logger = logging.getLogger(__name__)
 
 
 class CookieManager:
@@ -30,7 +33,7 @@ class CookieManager:
                 with open(self.config_file, 'r') as f:
                     return json.load(f)
             except Exception as e:
-                print(f"Failed to load cookies: {e}")
+                logger.error("Failed to load cookies: %s", e)
         return {}
     
     def save(self):
@@ -39,7 +42,7 @@ class CookieManager:
             with open(self.config_file, 'w') as f:
                 json.dump(self.cookies, f, indent=2)
         except Exception as e:
-            print(f"Failed to save cookies: {e}")
+            logger.error("Failed to save cookies: %s", e)
     
     def get_cookie(self) -> Optional[str]:
         """Get stored cookie string."""

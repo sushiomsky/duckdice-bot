@@ -6,6 +6,9 @@ All UI implementations (CLI, TUI, GUI, Web) should implement this interface.
 from abc import ABC, abstractmethod
 from typing import Optional, Dict, Any, List
 from decimal import Decimal
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class BettingInterface(ABC):
@@ -202,11 +205,16 @@ class HeadlessInterface(BettingInterface):
     def display_session_start(self, strategy: str, config: Dict[str, Any], 
                              starting_balance: Decimal, currency: str) -> None:
         if self.log_events:
-            print(f"[SESSION_START] Strategy: {strategy}, Balance: {starting_balance} {currency}")
+            logger.info(
+                "[SESSION_START] Strategy: %s, Balance: %s %s",
+                strategy,
+                starting_balance,
+                currency,
+            )
     
     def display_session_end(self, summary: Dict[str, Any]) -> None:
         if self.log_events:
-            print(f"[SESSION_END] {summary}")
+            logger.info("[SESSION_END] %s", summary)
     
     def display_bet_placed(self, bet_number: int, amount: Decimal, chance: float) -> None:
         """Silent"""
@@ -223,11 +231,11 @@ class HeadlessInterface(BettingInterface):
     
     def display_warning(self, message: str) -> None:
         if self.log_events:
-            print(f"[WARNING] {message}")
+            logger.warning("[WARNING] %s", message)
     
     def display_error(self, message: str) -> None:
         if self.log_events:
-            print(f"[ERROR] {message}")
+            logger.error("[ERROR] %s", message)
     
     def display_info(self, message: str) -> None:
         """Silent"""

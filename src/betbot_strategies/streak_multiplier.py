@@ -37,10 +37,13 @@ Lottery Bets (Optional):
 """
 
 import random
+import logging
 from decimal import Decimal
 from typing import Any, Dict, Optional
 from betbot_strategies.base import BetSpec, BetResult, StrategyContext
 from betbot_strategies import register
+
+logger = logging.getLogger(__name__)
 
 
 @register("streak-multiplier")
@@ -148,30 +151,35 @@ class StreakMultiplierStrategy:
     
     def on_session_start(self) -> None:
         """Called when session starts."""
-        print("\n" + "="*60)
-        print("STREAK MULTIPLIER STRATEGY")
-        print("="*60)
-        print(f"Base Bet: balance / {self.divisor}")
-        print(f"Win Chance: {self.chance}%")
-        print(f"Win Multiplier: {self.win_multiplier}x ({(self.win_multiplier - 1) * 100:.0f}% increase)")
-        print(f"Direction: {'HIGH' if self.is_high else 'LOW'}")
-        print(f"Starting Balance: {self.current_balance}")
-        print(f"Initial Base Bet: {self.base_bet}")
-        print("\nExpected Payout: ~{:.2f}x per win".format(float(Decimal("99") / self.chance)))
-        print("\nStreak Probabilities:")
+        logger.info("STREAK MULTIPLIER STRATEGY")
+        logger.info("Base Bet: balance / %s", self.divisor)
+        logger.info("Win Chance: %s%%", self.chance)
+        logger.info(
+            "Win Multiplier: %sx (%.0f%% increase)",
+            self.win_multiplier,
+            (self.win_multiplier - 1) * 100,
+        )
+        logger.info("Direction: %s", 'HIGH' if self.is_high else 'LOW')
+        logger.info("Starting Balance: %s", self.current_balance)
+        logger.info("Initial Base Bet: %s", self.base_bet)
+        logger.info("Expected Payout: ~%.2fx per win", float(Decimal("99") / self.chance))
+        logger.info("Streak Probabilities:")
         prob = float(self.chance / Decimal("100"))
         for i in range(1, 6):
             streak_prob = prob ** i
-            print(f"  {i}-win streak: {streak_prob*100:.4f}% (1 in {int(1/streak_prob):,})")
+            logger.info("  %s-win streak: %.4f%% (1 in %s)", i, streak_prob * 100, int(1 / streak_prob))
         if self.lottery_enabled:
-            print(f"\nLottery Bets: ENABLED")
-            print(f"  Interval: every {self.lottery_interval} bets")
-            print(f"  Bet Size: {self.lottery_bet_pct}% of balance")
-            print(f"  Win Chance: {self.lottery_min_chance}% – {self.lottery_max_chance}% (random each bet)")
+            logger.info("Lottery Bets: ENABLED")
+            logger.info("  Interval: every %s bets", self.lottery_interval)
+            logger.info("  Bet Size: %s%% of balance", self.lottery_bet_pct)
+            logger.info(
+                "  Win Chance: %s%% - %s%% (random each bet)",
+                self.lottery_min_chance,
+                self.lottery_max_chance,
+            )
             min_payout = float(Decimal("99") / self.lottery_max_chance)
             max_payout = float(Decimal("99") / self.lottery_min_chance)
-            print(f"  Potential Payout: ~{min_payout:.2f}x – {max_payout:.2f}x per win")
-        print("="*60 + "\n")
+            logger.info("  Potential Payout: ~%.2fx - %.2fx per win", min_payout, max_payout)
     
     def _calculate_lottery_bet(self) -> tuple:
         """Return (amount, chance) for a lottery bet. Chance is random in [min, max]."""
@@ -255,11 +263,11 @@ class StreakMultiplierStrategy:
             chance_used = getattr(self, "_last_lottery_chance", self.lottery_min_chance)
             if result.get("win"):
                 self.lottery_wins += 1
-                print(f"[Bet #{self.total_bets}] 🎰 LOTTERY WIN! (chance: {chance_used:.4f}%)")
-                print(f"  Profit: {profit:+.8f} | Balance: {self.current_balance:.8f}")
+                logger.info("[Bet #%s] LOTTERY WIN! chance=%.4f%%", self.total_bets, chance_used)
+                logger.info("  Profit: %+.8f | Balance: %.8f", profit, self.current_balance)
             else:
-                print(f"[Bet #{self.total_bets}] 🎰 lottery miss (chance: {chance_used:.4f}%)")
-                print(f"  Profit: {profit:+.8f} | Balance: {self.current_balance:.8f}")
+                logger.info("[Bet #%s] lottery miss chance=%.4f%%", self.total_bets, chance_used)
+                logger.info("  Profit: %+.8f | Balance: %.8f", profit, self.current_balance)
             return
         
         if result.get("win"):
@@ -278,18 +286,18 @@ class StreakMultiplierStrategy:
             
             # Log win
             payout = Decimal(str(result.get("payout", "0")))
-            print(f"[Bet #{self.total_bets}] ✅ WIN (Streak: {self.win_streak})")
-            print(f"  Profit: {profit:+.8f} | Balance: {self.current_balance:.8f}")
-            print(f"  Next bet: {self.current_bet:.8f} ({self.win_multiplier}x increase)")
+            logger.info("[Bet #%s] WIN (Streak: %s)", self.total_bets, self.win_streak)
+            logger.info("  Profit: %+.8f | Balance: %.8f", profit, self.current_balance)
+            logger.info("  Next bet: %.8f (%sx increase)", self.current_bet, self.win_multiplier)
             
         else:
             # LOSS: Reset to base bet
             self.total_losses += 1
             
             # Log loss and reset
-            print(f"[Bet #{self.total_bets}] ❌ LOSS (Streak broken: {self.win_streak})")
-            print(f"  Profit: {profit:+.8f} | Balance: {self.current_balance:.8f}")
-            print(f"  Reset to base: {self.base_bet:.8f}")
+            logger.info("[Bet #%s] LOSS (Streak broken: %s)", self.total_bets, self.win_streak)
+            logger.info("  Profit: %+.8f | Balance: %.8f", profit, self.current_balance)
+            logger.info("  Reset to base: %.8f", self.base_bet)
             
             # Reset
             self.win_streak = 0
@@ -297,33 +305,34 @@ class StreakMultiplierStrategy:
     
     def on_session_end(self, stopped_reason: str = "completed") -> None:
         """Called when session ends."""
-        print("\n" + "="*60)
-        print("STREAK MULTIPLIER STRATEGY - SESSION SUMMARY")
-        print("="*60)
-        print(f"Total Bets: {self.total_bets}")
-        print(f"Wins: {self.total_wins}")
-        print(f"Losses: {self.total_losses}")
+        logger.info("STREAK MULTIPLIER STRATEGY - SESSION SUMMARY")
+        logger.info("Total Bets: %s", self.total_bets)
+        logger.info("Wins: %s", self.total_wins)
+        logger.info("Losses: %s", self.total_losses)
         if self.total_bets > 0:
             win_rate = (self.total_wins / self.total_bets) * 100
-            print(f"Win Rate: {win_rate:.2f}%")
-        print(f"\nFinal Balance: {self.current_balance:.8f}")
-        print(f"Starting Balance: {self.ctx.starting_balance}")
+            logger.info("Win Rate: %.2f%%", win_rate)
+        logger.info("Final Balance: %.8f", self.current_balance)
+        logger.info("Starting Balance: %s", self.ctx.starting_balance)
         
         profit = self.current_balance - Decimal(self.ctx.starting_balance)
         profit_pct = (profit / Decimal(self.ctx.starting_balance)) * 100
-        print(f"Profit: {profit:+.8f} ({profit_pct:+.2f}%)")
+        logger.info("Profit: %+.8f (%+.2f%%)", profit, profit_pct)
         
-        print(f"\nMax Win Streak: {self.max_streak}")
-        print("\nStreak Distribution:")
+        logger.info("Max Win Streak: %s", self.max_streak)
+        logger.info("Streak Distribution:")
         for streak in sorted(self.streak_wins.keys()):
             count = self.streak_wins[streak]
             if count > 0:
                 label = f"{streak}+ wins" if streak == 5 else f"{streak}-win"
-                print(f"  {label}: {count} times")
+                logger.info("  %s: %s times", label, count)
 
         if self.lottery_enabled and self.lottery_bets > 0:
-            print(f"\nLottery Bets: {self.lottery_bets} placed, {self.lottery_wins} won")
+            logger.info("Lottery Bets: %s placed, %s won", self.lottery_bets, self.lottery_wins)
             lottery_win_rate = (self.lottery_wins / self.lottery_bets) * 100
             avg_chance = float((self.lottery_min_chance + self.lottery_max_chance) / 2)
-            print(f"Lottery Win Rate: {lottery_win_rate:.2f}% (avg expected ~{avg_chance:.2f}%)")
-        print("="*60 + "\n")
+            logger.info(
+                "Lottery Win Rate: %.2f%% (avg expected ~%.2f%%)",
+                lottery_win_rate,
+                avg_chance,
+            )

@@ -13,11 +13,13 @@ win_increase_start down to win_increase_floor, then holds steady.
 """
 from typing import Any, Dict, Optional
 from decimal import Decimal, getcontext
+import logging
 
 from . import register
 from .base import StrategyContext, BetSpec, BetResult, StrategyMetadata
 
 getcontext().prec = 28
+logger = logging.getLogger(__name__)
 
 
 @register("simple-progression-40")
@@ -153,11 +155,16 @@ class SimpleProgression40Strategy:
     def on_session_start(self):
         """Called when session starts."""
         prot = f"after {self.loss_streak_protection} losses → 25% base" if self.loss_streak_protection > 0 else "disabled"
-        print(f"\n📈  Simple Progression 40 started")
-        print(f"    Base bet      : {float(self.base_bet_pct)*100:.2f}% of balance")
-        print(f"    Progression   : +{self.win_increase_start*100:.0f}% → +{self.win_increase_floor*100:.0f}% (−{self.win_increase_step*100:.0f}%/win, holds at floor)")
-        print(f"    Max multiplier: {float(self.max_bet_multiplier):.0f}x base")
-        print(f"    Loss protection: {prot}\n")
+        logger.info("Simple Progression 40 started")
+        logger.info("Base bet: %.2f%% of balance", float(self.base_bet_pct) * 100)
+        logger.info(
+            "Progression: +%.0f%% -> +%.0f%% (-%.0f%%/win, holds at floor)",
+            self.win_increase_start * 100,
+            self.win_increase_floor * 100,
+            self.win_increase_step * 100,
+        )
+        logger.info("Max multiplier: %.0fx base", float(self.max_bet_multiplier))
+        logger.info("Loss protection: %s", prot)
     
     def on_bet_result(self, result: BetResult):
         """Called after each bet result."""

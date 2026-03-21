@@ -270,7 +270,7 @@ git push origin feature/fix
 **Validation Jobs**:
 - Syntax check (py_compile)
 - Import verification (21+ strategies)
-- Test suite (pytest with coverage)
+- Test suite (pytest with coverage, minimum 25% enforced)
 - Package build (pip install)
 - CLI functionality test
 

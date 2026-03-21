@@ -8,12 +8,15 @@ This implementation uses local tracking and provides filtering/pagination.
 from typing import Optional, List
 from datetime import datetime
 from decimal import Decimal
+import logging
 import json
 from pathlib import Path
 
 from ..models.bet import BetResult, BetHistoryPage, BetStatistics
 from ..utils.pagination import Paginator
 from ..utils.filters import FilterSet, DateRangeFilter, ValueFilter, BooleanFilter
+
+logger = logging.getLogger(__name__)
 
 
 class BetHistoryManager:
@@ -144,7 +147,7 @@ class BetHistoryManager:
                         bets.append(bet)
         except Exception as e:
             # Log error but don't fail
-            print(f"Error loading from {file_path}: {e}")
+            logger.error("Error loading history from %s: %s", file_path, e)
         
         return bets
     
