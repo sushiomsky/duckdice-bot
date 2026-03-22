@@ -4,6 +4,16 @@ All notable changes to DuckDice Bot will be documented in this file.
 
 ## [Unreleased]
 
+### Notes
+- Documentation references to NiceGUI/Tkinter in older changelog entries are historical context from prior architecture phases.
+- Current active interfaces are CLI/TUI-first (`duckdice_cli.py`, `duckdice_tui.py`).
+
+### Added
+- **New Strategy: multi-strategy-system** - automatic switching between wager grinding, recovery, and adaptive low-chance hunting
+  - Adds a modular `StrategyManager` that tracks bankroll, wager totals, profit percentage, and stop-loss floor
+  - Includes three dedicated components: `adaptive_hunt`, `wager_grinder`, and `recovery`
+  - Preserves the existing engine loop by exposing the system as one registered strategy
+
 ## [4.11.2] - 2026-02-03
 
 ### Fixed

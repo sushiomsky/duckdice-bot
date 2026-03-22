@@ -49,26 +49,22 @@ git checkout -b fix/bug-description
 
 Format your code:
 ```bash
-black duckdice_gui_ultimate.py
+black duckdice_cli.py duckdice_tui.py
 black src/
-black app/
 ```
 
 ### Code Organization
 
 ```
 duckdice-bot/
-├── src/                    # Core library code
-│   ├── strategies/         # Betting strategies
-│   ├── utils/             # Utility functions
-│   └── api.py             # DuckDice API wrapper
-├── app/                    # NiceGUI web interface
-│   ├── ui/                # UI components
-│   ├── services/          # Business logic
-│   └── state/             # State management
-├── duckdice_gui_ultimate.py  # Tkinter desktop GUI
+├── src/                       # Core library code
+│   ├── betbot_engine/         # Runtime engine and orchestration
+│   ├── betbot_strategies/     # Built-in strategy implementations
+│   └── duckdice_api/          # DuckDice API client
+├── duckdice_cli.py            # Primary CLI entrypoint
+├── duckdice_tui.py            # Terminal UI launcher (Textual/ncurses)
 ├── tests/                 # Test files
-└── docs/                  # Documentation
+└── docs/                      # Documentation
 ```
 
 ### Testing
@@ -114,7 +110,7 @@ def test_strategy_calculation():
 ### Medium Priority
 
 - **New Strategies**: Add new betting strategies
-- **UI Improvements**: Enhance desktop or web interface
+- **UI Improvements**: Enhance CLI/TUI workflows and terminal UX
 - **Performance**: Optimize slow operations
 - **Error Handling**: Better error messages
 
@@ -261,16 +257,17 @@ build_windows.bat       # Windows
 dist\DuckDiceBot.exe      # Windows
 ```
 
-### Run NiceGUI Web Interface
+### Run Terminal Interfaces
 
 ```bash
-# Start development server
-python app/main.py
+# Start guided interactive CLI
+python3 duckdice_cli.py interactive
 
-# Or use the shell script
-./run_nicegui.sh
+# Launch modern Textual TUI
+python3 duckdice_tui.py
 
-# Open http://localhost:8080
+# Launch lightweight ncurses TUI
+python3 duckdice_tui.py --ncurses
 ```
 
 ## 📚 Documentation Standards
@@ -332,13 +329,12 @@ def calculate_next_bet(last_bet: float, won: bool, balance: float) -> float:
 - [Python Type Hints](https://docs.python.org/3/library/typing.html)
 - [pytest Documentation](https://docs.pytest.org/)
 
-### Tkinter (Desktop GUI)
-- [Tkinter Documentation](https://docs.python.org/3/library/tkinter.html)
-- [Tkinter Tutorial](https://realpython.com/python-gui-tkinter/)
+### Terminal UI (Textual)
+- [Textual Documentation](https://textual.textualize.io/)
+- [Textual Guide](https://textual.textualize.io/guide/)
 
-### NiceGUI (Web Interface)
-- [NiceGUI Documentation](https://nicegui.io/)
-- [NiceGUI Examples](https://nicegui.io/examples)
+### CLI
+- [argparse Documentation](https://docs.python.org/3/library/argparse.html)
 
 ### DuckDice API
 - [DuckDice Bot API](https://duckdice.io/bot-api)

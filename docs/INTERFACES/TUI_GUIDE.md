@@ -29,8 +29,7 @@ python duckdice_tui.py
 ```
 
 **Keyboard Shortcuts:**
-- `Ctrl+S` - Start/Resume betting
-- `Ctrl+P` - Pause betting
+- `Ctrl+S` - Start betting
 - `Ctrl+X` - Stop betting
 - `Ctrl+Q` - Quit application
 
@@ -39,7 +38,7 @@ python duckdice_tui.py
 ┌─────────────────────────────────────────────────────────────┐
 │  📊 Session Statistics          🎮 Controls                 │
 │  💰 Balance: 0.01000000 BTC     Status: ▶ RUNNING          │
-│  📈 Profit: +0.00012500 BTC     [Start] [Pause] [Stop]     │
+│  📈 Profit: +0.00012500 BTC     [Start] [Stop]             │
 │  🎲 Bets: 125 (W: 63, L: 62)                                │
 │  📊 Win Rate: 50.40%                                        │
 ├─────────────────────────────────────────────────────────────┤
@@ -195,18 +194,29 @@ python src/interfaces/tui/ncurses_interface.py
 - Time, amount, chance, roll, result, profit
 - Color-coded wins (green) and losses (red)
 - Auto-scrolling table
+- Dedicated live event log (warnings/errors/session transitions/stats checkpoints)
 
 ### Interactive Controls
-- Start/resume betting
-- Pause for analysis
+- Start betting with selected strategy
+- Select mode: Simulation, Live (Main), Live (Faucet), Live (TLE)
+- Provide TLE hash for Live (TLE) sessions
+- Select symbol (BTC/ETH/DOGE/LTC/XRP/TRX/SOL)
+- Configure start balance (simulation), max bets, stop loss, and take profit
+- Mode-aware fields: TLE hash enabled only in Live (TLE), start balance enabled only in Simulation
+- Critical controls are locked while a session is running
 - Stop and view summary
 - Quit anytime
 
 ### Visual Feedback
-- Status indicators (Running, Paused, Stopped)
+- Status indicators (Starting, Running, Stop Requested, Complete, Error)
 - Progress bars (Textual only)
 - Color-coded profit/loss
 - Smooth updates
+- Strategy description + schema default preview
+- Live risk panel: drawdown %, PnL %, stop-loss balance, take-profit balance
+- Live analytics line: current/max streaks, average bet, average P/L
+- Session summary line after run completion
+- Engine text output is streamed into the live event log panel
 
 ---
 
@@ -245,7 +255,7 @@ export TERM=xterm-256color
 
 ## Future Enhancements
 
-- [ ] Live strategy switching
+- [ ] Live strategy switching during active session
 - [ ] Real-time charts (Textual)
 - [ ] Configuration persistence
 - [ ] Multiple session tabs

@@ -106,7 +106,7 @@ duckdice-bot/
     ├── CLI_GUIDE.md               # CLI reference
     ├── TUI_GUIDE.md               # TUI reference
     ├── USER_GUIDE.md              # Complete user guide
-    ├── DEPLOYMENT_GUIDE.md        # Deployment instructions
+    ├── docs/DEPLOYMENT.md         # Deployment instructions
     ├── STATUS.md                  # Current project status
     └── docs/PROJECT_STRUCTURE.md  # This file
 ```

@@ -95,3 +95,6 @@ backup/
 *_OLD.*
 *_DEPRECATED.*
 *_BACKUP.*
+
+# Agent runtime data
+data/agents/

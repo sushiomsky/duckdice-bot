@@ -833,6 +833,35 @@ def run_auto_bet(
                 "timestamp": ts,
             }
 
+            # Emit placed-bet event with the actual executed amount/chance payload.
+            if emitter and _EVENTS_AVAILABLE:
+                try:
+                    placed_chance = float(chance) if chance not in (None, "") else float(bet.get("chance", 0.0))
+                except Exception:
+                    placed_chance = 0.0
+                try:
+                    placed_payout = float(payout) if payout not in (None, "") else float(bet.get("payout_multiplier", 0.0))
+                except Exception:
+                    placed_payout = 0.0
+
+                if str(bet.get("game", "dice")) == "range-dice":
+                    rr = bet.get("range") or range_vals or (0, 0)
+                    try:
+                        prediction = f"{'in' if bool(bet.get('is_in')) else 'out'}[{int(rr[0])},{int(rr[1])}]"
+                    except Exception:
+                        prediction = "range"
+                else:
+                    prediction = "high" if bool(bet.get("is_high", True)) else "low"
+
+                emitter.emit(BetPlacedEvent(
+                    timestamp=ts,
+                    bet_number=bets_done + 1,
+                    amount=amount_dec,
+                    chance=placed_chance,
+                    payout_multiplier=placed_payout,
+                    prediction=prediction,
+                ))
+
             # Loss streaks and win/loss tracking
             if win:
                 losses_in_row = 0

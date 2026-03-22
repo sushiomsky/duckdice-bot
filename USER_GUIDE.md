@@ -1,6 +1,6 @@
 # 📘 DuckDice Bot - User Guide
 
-**Version**: 4.0.0 (NiceGUI Complete Edition)  
+**Version**: 4.11.2 (CLI/TUI Edition)  
 **Date**: January 11, 2026  
 **Audience**: End Users
 
@@ -27,17 +27,19 @@ pip install -r requirements.txt
 ### Step 2: Launch the Application
 
 ```bash
-# Make scripts executable (macOS/Linux only)
-chmod +x run_nicegui.sh
+# Start Textual TUI (recommended)
+python3 duckdice_tui.py
 
-# Start the web interface
-./run_nicegui.sh
-# OR: python gui/app.py
+# OR: Classic ncurses TUI
+python3 duckdice_tui.py --ncurses
+
+# OR: CLI interactive mode
+python3 duckdice_cli.py interactive
 ```
 
-### Step 3: Open Browser
+### Step 3: Use the Interface
 
-Navigate to: **http://localhost:8080**
+Textual shortcuts: **Ctrl+S** start, **Ctrl+X** stop, **Ctrl+Q** quit.
 
 ---
 
@@ -233,7 +235,7 @@ Configure application settings and API connection.
 ### Workflow 1: Test a Strategy (Simulation)
 
 ```
-1. Open application (http://localhost:8080)
+1. Launch `python3 duckdice_tui.py`
 2. Go to **Strategies** tab
 3. Select "Martingale"
 4. Set parameters:
@@ -261,10 +263,8 @@ Configure application settings and API connection.
 
 ```
 1. Test strategy in simulation first!
-2. Go to **Settings** tab
-3. Enter API Key
-4. Click **Test Connection** (must be successful)
-5. Set Mode: Live
+2. Set `DUCKDICE_API_KEY` in your shell (or save it in ~/.duckdice/config.json)
+3. Set Mode: Live (Main/Faucet/TLE) in TUI
 6. Set conservative Stop Conditions:
    - Profit Target: 20%
    - Loss Limit: 10%
@@ -273,13 +273,10 @@ Configure application settings and API connection.
 7. Set Bet Delay: 1-2 seconds
 8. Go to **Strategies** tab
 9. Configure strategy with small bets
-10. Go to **Dashboard** tab
-11. Click **Start Bot**
-12. WARNING appears: "Live mode - using real money"
-13. Confirm and proceed
-14. Monitor closely
-15. Stop manually or wait for auto-stop
-16. Review results in Analytics
+10. Press Ctrl+S to start session
+11. Monitor closely
+12. Stop manually with Ctrl+X or wait for auto-stop
+13. Review event log + analytics line
 ```
 
 ### Workflow 3: Save and Reuse Strategies
@@ -461,11 +458,9 @@ Emergency stop button always available during bot operation.
 ### Issue 1: "Port already in use"
 **Solution:**
 ```bash
-# Kill existing process
-lsof -ti:8080 | xargs kill -9
-
-# Or use different port
-python gui/app.py --port 8081
+# Terminal interface does not require web port 8080.
+# Close previous bot session and relaunch:
+python3 duckdice_tui.py
 ```
 
 ### Issue 2: "Module not found"
@@ -493,7 +488,7 @@ pip install -r requirements.txt
 ```bash
 # Close all connections
 # Restart application
-python gui/app.py
+python3 duckdice_tui.py
 ```
 
 ---
@@ -562,7 +557,7 @@ All data automatically saved to SQLite database.
 
 ### Documentation
 - **User Guide**: This file
-- **Deployment Guide**: DEPLOYMENT_GUIDE.md
+- **Deployment Guide**: docs/DEPLOYMENT.md
 - **Technical Details**: IMPLEMENTATION_COMPLETE.md
 - **README**: README.md
 
@@ -582,20 +577,19 @@ All data automatically saved to SQLite database.
 ### Essential Commands
 ```bash
 # Start application
-python gui/app.py
+python3 duckdice_tui.py
 
 # Run tests
-cd tests/gui && python test_gui_components.py
+pytest tests/ -q
 
 # Export database
 sqlite3 data/duckdice_bot.db ".dump" > backup.sql
 
 # Check logs
-tail -f logs/app.log
+tail -f bet_history/auto/*.jsonl
 ```
 
 ### Essential URLs
-- **Web Interface**: http://localhost:8080
 - **DuckDice**: https://duckdice.io
 - **API Settings**: https://duckdice.io/account/settings
 

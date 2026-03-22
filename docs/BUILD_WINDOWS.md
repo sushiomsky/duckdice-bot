@@ -4,6 +4,9 @@
 
 ❌ **No pre-built Windows package available yet**
 
+> Note: This document contains legacy packaging notes and may reference older launcher/spec names.
+> For day-to-day usage, prefer current entrypoints: `python duckdice_cli.py --help` and `python duckdice_tui.py`.
+
 The build system is fully configured but needs to be run **on an actual Windows machine**. You cannot cross-compile Windows .exe files from macOS/Linux.
 
 ## Option 1: Build It Yourself (Recommended)
@@ -54,7 +57,7 @@ pip install -r requirements.txt
 pip install pyinstaller
 
 # Build
-pyinstaller --clean duckdice_gui_ultimate.spec
+pyinstaller --clean duckdice_gui_ultimate.spec  # legacy spec reference
 
 # Output
 dist\DuckDiceBot.exe
@@ -69,19 +72,17 @@ Don't need an .exe? Just run directly:
 pip install -r requirements.txt
 
 # Run anytime
-python duckdice_gui_ultimate.py
+python duckdice_tui.py
 ```
 
 ## Build Configuration
 
-The build uses `duckdice_gui_ultimate.spec` which includes:
+This guide may reference legacy spec-based packaging flows. Current runtime capabilities include:
 
-✅ All 16 betting strategies
-✅ Simulation engine (offline mode)
-✅ Database logging (SQLite)
-✅ Charts (pure Tkinter, no matplotlib needed)
-✅ UX enhancements (toasts, shortcuts, etc.)
-✅ Enhanced strategy info system
+✅ CLI and terminal UI entrypoints  
+✅ Simulation and live modes  
+✅ Database logging (SQLite)  
+✅ Strategy engine and risk controls
 
 ## Troubleshooting
 
@@ -150,9 +151,9 @@ Once built, you can:
    ```cmd
    # Include documentation
    copy dist\DuckDiceBot.exe release\
-   copy QUICK_START_GUIDE.md release\
-   copy COMPLETE_FEATURES.md release\
-   
+   copy GETTING_STARTED.md release\
+   copy README.md release\
+    
    # Zip it
    tar -a -c -f DuckDiceBot-Windows.zip release\*
    ```
@@ -220,12 +221,14 @@ jobs:
 Just run directly with Python (no build needed):
 ```cmd
 pip install -r requirements.txt
-python duckdice_gui_ultimate.py
+python duckdice_tui.py
+# or
+python duckdice_cli.py interactive
 ```
 
 ---
 
 **Questions?** Check:
 - BUILD.md - General build instructions
-- QUICK_START_GUIDE.md - Running without building
-- COMPLETE_FEATURES.md - What's included
+- GETTING_STARTED.md - Running without building
+- README.md - Feature overview

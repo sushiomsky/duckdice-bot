@@ -1,6 +1,6 @@
 # DuckDice Bot Interfaces
 
-DuckDice Bot provides three interfaces for different use cases:
+DuckDice Bot provides four interfaces for different use cases:
 
 ## 🖥️ CLI (Command-Line Interface)
 **Best for**: Automation, scripting, headless servers
@@ -49,12 +49,50 @@ result = api.get_user_info()
 
 ---
 
+## 🌐 Web Interface
+**Best for**: Browser-based monitoring and control
+
+```bash
+python3 duckdice_web.py --host 127.0.0.1 --port 8080
+```
+
+Features:
+- ✅ Runtime start/stop controls
+- ✅ Live event log (SSE with polling fallback)
+- ✅ SSE auto-reconnect with exponential backoff (`0.5s` → `10s` cap)
+- ✅ SSE endpoint is disconnect-aware and cooperatively yields during burst delivery
+- ✅ Recent bets table
+- ✅ Strategy schema-driven param defaults
+- ✅ Risk panel + session timeline + equity curve
+- ✅ Analytics panel (expectancy, profit factor, volatility, bet quantiles)
+- ✅ Strategy param validation endpoint and deterministic bet preview
+- ✅ Log search/filter controls
+
+API endpoints:
+- `GET /api/runtime/dashboard` (aggregated UI payload)
+- `GET /api/runtime/events?since=...` (limit is bounded server-side)
+- `GET /api/runtime/stream` (SSE with `id` frames; supports `Last-Event-ID` resume, with `since` fallback)
+- `GET /api/runtime/timeline` (limit is bounded server-side)
+- `GET /api/runtime/equity` (limit is bounded server-side)
+- `GET /api/runtime/analytics`
+- `POST /api/strategy/{name}/validate` (validates symbol and positive starting_balance)
+- `POST /api/strategy/{name}/preview` (validates symbol and positive starting_balance)
+- `POST /api/runtime/start` (validates mode/symbol/start_balance/max_bets/stop_loss/take_profit; `live-tle` requires `tle_hash`)
+- `POST /api/runtime/stop`
+
+Developer note:
+- `interfaces.web` exports `app` lazily, so importing `interfaces.web.runtime_controller`
+  does not force-load FastAPI server wiring.
+
+---
+
 ## Choosing an Interface
 
 | Interface | Automation | Interactive | Monitoring | Ease of Use |
 |-----------|------------|-------------|------------|-------------|
 | **CLI**   | ✅ Best    | ❌          | ⚠️ Limited | ⭐⭐⭐      |
 | **TUI**   | ❌         | ✅ Best     | ✅ Best    | ⭐⭐⭐⭐    |
+| **Web**   | ⚠️ Basic   | ✅ Good     | ✅ Good    | ⭐⭐⭐⭐    |
 | **API**   | ✅ Best    | ❌          | ✅ Custom  | ⭐⭐        |
 
 ---
@@ -77,12 +115,8 @@ duckdice list-strategies
 ```
 
 ### TUI Keyboard Shortcuts
-- `Space` - Pause/Resume
-- `q` - Quit
-- `s` - Change strategy
-- `↑/↓` - Adjust bet amount
-- `h` - Toggle high/low
-- `?` - Help
+- Textual: `Ctrl+S` start, `Ctrl+X` stop, `Ctrl+Q` quit
+- Ncurses: `S` start/resume, `P` pause, `X` stop, `Q` quit
 
 ### API Common Patterns
 ```python

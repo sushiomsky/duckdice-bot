@@ -37,8 +37,7 @@ Examples:
 
 Keyboard Controls:
   Textual Interface:
-    Ctrl+S - Start/Resume betting
-    Ctrl+P - Pause betting  
+    Ctrl+S - Start betting
     Ctrl+X - Stop betting
     Ctrl+Q - Quit
 

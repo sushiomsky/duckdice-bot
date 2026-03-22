@@ -5,6 +5,8 @@ from decimal import Decimal
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "src"))
 
 from betbot_engine.engine import AutoBetEngine, EngineConfig
+from betbot_engine.events import EventType
+from betbot_engine.observers import EventEmitter
 from betbot_strategies import register
 
 
@@ -111,3 +113,33 @@ class TestEngineLottery:
         assert bets
         for b in bets:
             assert Decimal(str(b["bet"]["amount"])) == Decimal("1.23450000")
+
+    def test_engine_emits_bet_placed_events_with_amounts(self):
+        cfg = EngineConfig(
+            symbol="BTC",
+            dry_run=True,
+            max_bets=5,
+            seed=9876,
+            lottery_enabled=False,
+            take_profit=None,
+            stop_loss=-0.99,
+        )
+        api = DummyAPI()
+        engine = AutoBetEngine(api, cfg)
+        emitter = EventEmitter()
+        captured = []
+        emitter.add_callback(lambda ev: captured.append(ev))
+
+        engine.run(
+            strategy_name="test-static-amount",
+            params={},
+            emitter=emitter,
+        )
+
+        placed = [ev for ev in captured if ev.event_type == EventType.BET_PLACED]
+        assert placed, "Expected BET_PLACED events to be emitted"
+        assert len(placed) == 5
+        for ev in placed:
+            assert Decimal(str(ev.data["amount"])) == Decimal("1.23450000")
+            assert float(ev.data["chance"]) > 0
+            assert ev.data["prediction"] in ("high", "low", "range")

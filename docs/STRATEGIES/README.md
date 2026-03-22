@@ -1,6 +1,6 @@
 # DuckDice Bot - All Strategies
 
-**Total Strategies: 25** | Updated: v4.11.2
+**Runtime strategy catalog** | Updated: v4.11.2
 
 ## 📊 Quick Comparison
 
@@ -11,6 +11,29 @@
 | **Aggressive** | Martingale, Anti-Martingale, Paroli | 🟠 High | Quick profits, experienced users |
 | **High-Risk** | Adaptive Volatility Hunter, Micro Exponential | 🔴 Very High | Thrill-seekers, small stakes |
 | **Specialized** | Faucet Grind, Max Wager Flow, RNG Analysis | 🟣 Varies | Specific use cases |
+
+---
+
+## 🌐 Featured Meta Strategy
+
+### **Multi-Strategy System** 🔀
+**Type**: Auto-Switching Meta Strategy | **Risk**: 🟠 Variable | **Complexity**: ⭐⭐⭐⭐
+
+Manager-driven orchestration that keeps the existing engine loop intact while switching between three internal modes:
+- **Wager Grinder** for 20%-40% chance volume generation
+- **Recovery** for 65%-80% chance bankroll recovery after drawdown
+- **Adaptive Hunt** for 1% → 0.01% low-chance hunting after strong profit expansion
+
+It tracks session profit, wagered volume, and a stop-loss floor from the starting bankroll, then chooses the active mode automatically.
+
+```bash
+duckdice run --strategy multi-strategy-system \
+  --param base_bet_percent=0.001 \
+  --param max_bet_percent=0.03 \
+  --param loss_trigger=0.05 \
+  --param profit_trigger=0.10 \
+  --param wager_focus=true
+```
 
 ---
 

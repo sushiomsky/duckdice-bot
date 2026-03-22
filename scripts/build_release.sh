@@ -52,15 +52,15 @@ mkdir -p releases/v$VERSION
 
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "Building NiceGUI Web Application"
+echo "Building DuckDice CLI/TUI package"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
 
-# Create a simple launcher for NiceGUI
+# Create a simple launcher for Textual TUI
 cat > dist/run_bot.py << 'EOF'
 #!/usr/bin/env python3
 """
-DuckDice Bot v3.9.0 - NiceGUI Web Interface
+DuckDice Bot v3.9.0 - Textual TUI
 Launcher script for standalone distribution
 """
 import sys
@@ -70,26 +70,18 @@ import os
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), 'src'))
 
 # Import and run
-from app.main import ui
+from duckdice_tui import main as run_tui
 
 if __name__ == '__main__':
     print("╔════════════════════════════════════════════════════════════════╗")
     print("║           DuckDice Bot v3.9.0 - Turbo Edition                 ║")
     print("╚════════════════════════════════════════════════════════════════╝")
     print("")
-    print("Starting web server...")
-    print("Access at: http://localhost:8080")
+    print("Starting terminal interface...")
     print("")
     print("Press Ctrl+C to stop")
     print("")
-    
-    ui.run(
-        host='0.0.0.0',
-        port=8080,
-        title='DuckDice Bot',
-        reload=False,
-        show=True
-    )
+    run_tui()
 EOF
 
 chmod +x dist/run_bot.py
@@ -115,8 +107,6 @@ QUICK START
    
    Web Interface (Recommended):
    python3 run_bot.py
-   
-   Then open: http://localhost:8080
 
 4. Go to Settings and enter your DuckDice API key
 5. Start betting!
@@ -137,7 +127,7 @@ SYSTEM REQUIREMENTS
 - Python 3.9 or higher
 - 512 MB RAM minimum
 - Internet connection
-- Modern web browser
+- Terminal emulator
 
 SUPPORT
 -------
@@ -188,7 +178,7 @@ else
         --exclude="build" \
         --exclude="dist" \
         -C . \
-        app/ src/ requirements.txt run_nicegui.sh LICENSE README.md
+        src/ duckdice_cli.py duckdice_tui.py duckdice.py requirements.txt LICENSE README.md
     
     echo -e "${GREEN}✅ Created: releases/v${VERSION}/${ARCHIVE_NAME}.tar.gz${NC}"
 fi

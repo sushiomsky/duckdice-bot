@@ -8,18 +8,19 @@
 [![PyPI](https://img.shields.io/pypi/v/duckdice-betbot)](https://pypi.org/project/duckdice-betbot/)
 [![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20macOS%20%7C%20Linux-lightgrey)](https://github.com/sushiomsky/duckdice-bot)
 
-Automate betting strategies, analyze results, and manage your gaming with a powerful CLI/TUI toolkit. Features 36 built-in strategies, DiceBot compatibility, and comprehensive risk management.
+Automate betting strategies, analyze results, and manage your gaming with a powerful CLI/TUI toolkit. Features 37 built-in strategies, DiceBot compatibility, and comprehensive risk management.
 
 ---
 
 ## ✨ Features
 
-### 🎯 **36 Built-in Strategies**
+### 🎯 **37 Built-in Strategies**
 From conservative (D'Alembert, Oscar's Grind) to aggressive (Martingale, Streak Hunter) to experimental (Adaptive Volatility Hunter, Micro Exponential)
 
-### 🖥️ **Three Interfaces**
+### 🖥️ **Four Interfaces**
 - **CLI** - Automation, scripting, headless servers
 - **TUI** - Interactive terminal with live stats
+- **Web (Phase 7)** - Browser dashboard over runtime API
 - **API** - Python library for custom integrations
 
 ### 🛡️ **Safety Features**
@@ -93,6 +94,33 @@ pip install -r requirements.txt
 # Run
 python duckdice_cli.py --help
 ```
+
+### Option 4: Web Interface
+
+```bash
+# Install dependencies (includes fastapi + uvicorn)
+pip install -r requirements.txt
+
+# Launch web dashboard
+python duckdice_web.py --host 127.0.0.1 --port 8080
+
+# Open in browser:
+# http://127.0.0.1:8080
+```
+
+Available runtime endpoints:
+- `GET /api/runtime/dashboard`
+- `GET /api/runtime/events`
+- `GET /api/runtime/stream` (SSE)
+- `GET /api/runtime/analytics`
+- `POST /api/strategy/{name}/validate`
+- `POST /api/strategy/{name}/preview`
+- `POST /api/runtime/start`
+- `POST /api/runtime/stop`
+
+Web dashboard reliability notes:
+- Event log uses SSE with automatic reconnect (exponential backoff).
+- Polling remains active as a fallback for dashboard state refresh.
 
 ---
 
@@ -197,6 +225,21 @@ duckdice run --strategy target-aware --profit-target 5.0 --currency usdt
 # Run for 30 minutes
 duckdice run --strategy simple-progression-40 --duration 1800
 ```
+
+### Automatic Multi-Strategy Switching
+```bash
+duckdice run --strategy multi-strategy-system \
+  --param base_bet_percent=0.001 \
+  --param max_bet_percent=0.03 \
+  --param loss_trigger=0.05 \
+  --param profit_trigger=0.10 \
+  --param wager_focus=true
+```
+
+This strategy keeps the existing engine loop intact while automatically switching between:
+- `wager-grinder` for neutral, wager-focused sessions
+- `recovery` after meaningful drawdowns
+- `adaptive-hunt` after strong profit expansion
 
 ### Custom Strategy
 ```bash

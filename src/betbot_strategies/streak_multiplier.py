@@ -40,8 +40,8 @@ import random
 import logging
 from decimal import Decimal
 from typing import Any, Dict, Optional
-from betbot_strategies.base import BetSpec, BetResult, StrategyContext
-from betbot_strategies import register
+from .base import BetSpec, BetResult, StrategyContext
+from . import register
 
 logger = logging.getLogger(__name__)
 

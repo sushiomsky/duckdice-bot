@@ -4,6 +4,10 @@
 
 set -e  # Exit on error
 
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}/.." && pwd)"
+cd "${REPO_ROOT}"
+
 echo "🎲 DuckDice Bot - Quick Deployment"
 echo "===================================="
 echo ""
@@ -40,6 +44,7 @@ echo ""
 echo "📥 Installing dependencies..."
 pip install -q --upgrade pip
 pip install -q -r requirements.txt
+pip install -q textual
 echo "   ✅ Dependencies installed"
 echo ""
 
@@ -53,29 +58,21 @@ else
 fi
 echo ""
 
-# Make scripts executable
-echo "🔐 Setting permissions..."
-chmod +x run_nicegui.sh run_gui.sh run_gui_web.sh
-echo "   ✅ Scripts executable"
-echo ""
-
-# Run tests
+# Run quick validation
 echo "🧪 Running validation tests..."
-cd tests/gui
-if python3 test_gui_components.py 2>&1 | grep -q "7 passed"; then
-    echo "   ✅ All tests passed"
+if pytest tests/test_strategy_integration.py -q >/dev/null 2>&1; then
+    echo "   ✅ Validation test passed"
 else
-    echo "   ⚠️  Some tests failed (non-critical)"
+    echo "   ⚠️  Validation test had issues (continuing)"
 fi
-cd ../..
 echo ""
 
-# Start server
-echo "🚀 Starting web server..."
+# Start TUI
+echo "🚀 Starting terminal interface..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 echo ""
-echo "📱 Open your browser to:"
-echo "   http://localhost:8080"
+echo "🎛️  Interface: Textual TUI"
+echo "   Ctrl+S start, Ctrl+X stop, Ctrl+Q quit"
 echo ""
 echo "⌨️  Press Ctrl+C to stop"
 echo ""
@@ -83,4 +80,4 @@ echo "━━━━━━━━━━━━━━━━━━━━━━━━�
 echo ""
 
 # Launch application
-python3 gui/app.py
+python3 duckdice_tui.py

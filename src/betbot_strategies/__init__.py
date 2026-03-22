@@ -100,6 +100,10 @@ from . import (
     combined_high_roller,        # Combined High-Roller: Kelly Hybrid / Streak Harvester / Volatility Breakout
     tle_wager_farming,           # TLE Wager Farming: wager-first micro-Paroli grinder for event rewards
     wager_loop_stabilizer_v2,    # WLS V2: zone-based survival wager stabilizer
+    adaptive_hunt,               # Multi-strategy subsystem: low-chance hunt phase
+    wager_grinder,               # Multi-strategy subsystem: wager-focused phase
+    recovery,                    # Multi-strategy subsystem: high-chance recovery phase
+    multi_strategy_system,       # Registered wrapper that auto-switches between the phases
 )
 
 # DEPRECATED (consolidated into unified_* above):
