@@ -114,7 +114,6 @@ class RollHuntStrategy:
         self._wins = 0
         self._losses = 0
         self._contest_hits: List[Dict[str, Any]] = []  # bets landing 9990+
-        self._hit_target = False
         self._current_balance = Decimal("0")
         self._starting_balance = Decimal("0")
 
@@ -161,9 +160,6 @@ class RollHuntStrategy:
         )
 
     def next_bet(self) -> Optional[BetSpec]:
-        if self._hit_target:
-            return None
-
         bal = self._current_balance
         if bal <= 0:
             return None
@@ -253,9 +249,9 @@ class RollHuntStrategy:
                 f"  🏆 ROLL HUNT HIT! Number: {number}\n"
                 f"  Hash: {bet_hash}\n"
                 f"  Bet #{self._total_bets} | Balance: {self._current_balance:.8f}\n"
-                f"{'🎉' * 10}\n"
+                f"{'🎉' * 10}"
             )
-            self._hit_target = True
+            input("  ⏸  PAUSED — Press Enter to continue betting...")
 
         # Log near-misses (9990+) that weren't contest-winning
         elif number is not None and number >= TARGET_LO:
