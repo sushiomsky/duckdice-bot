@@ -58,60 +58,54 @@ class RollHuntStrategy:
         return {"category": "contest", "risk": "low", "game": "range-dice"}
 
     @classmethod
-    def schema(cls) -> list:
-        return [
-            {
-                "key": "bet_fraction",
+    def schema(cls) -> dict:
+        return {
+            "bet_fraction": {
                 "type": "float",
                 "default": BET_FRACTION,
                 "min": 0.0001,
                 "max": 0.1,
-                "description": "Fraction of bankroll per bet (default: 1/300)",
+                "desc": "Fraction of bankroll per bet (default: 1/300)",
             },
-            {
-                "key": "range_lo",
+            "range_lo": {
                 "type": "int",
                 "default": 9500,
                 "min": 0,
                 "max": 9999,
-                "description": "Lower bound of the betting range (default: 9500)",
+                "desc": "Lower bound of the betting range (default: 9500)",
             },
-            {
-                "key": "range_hi",
+            "range_hi": {
                 "type": "int",
                 "default": 9999,
                 "min": 0,
                 "max": 9999,
-                "description": "Upper bound of the betting range (default: 9999)",
+                "desc": "Upper bound of the betting range (default: 9999)",
             },
-            {
-                "key": "adaptive",
+            "adaptive": {
                 "type": "bool",
                 "default": True,
-                "description": "Shift range toward recent hot zones",
+                "desc": "Shift range toward recent hot zones",
             },
-            {
-                "key": "hit_multipliers",
+            "hit_multipliers": {
                 "type": "str",
                 "default": "4,2",
-                "description": (
-                    "Comma-separated multipliers applied on consecutive wins. "
-                    "E.g. '4,2' → base×4 on 1st win, ×2 on 2nd win. "
-                    "Empty or '0' to disable."
+                "desc": (
+                    "Comma-separated multipliers on consecutive wins. "
+                    "E.g. '4,2' → base×4 on 1st win, ×2 on 2nd. "
+                    "'0' to disable."
                 ),
             },
-            {
-                "key": "max_streak_bet_fraction",
+            "max_streak_bet_fraction": {
                 "type": "float",
                 "default": 0.1,
                 "min": 0.001,
                 "max": 0.5,
-                "description": (
+                "desc": (
                     "Hard cap: multiplied bet cannot exceed this fraction "
                     "of bankroll (default: 10%)"
                 ),
             },
-        ]
+        }
 
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
         self.ctx = ctx
