@@ -104,6 +104,7 @@ from . import (
     wager_grinder,               # Multi-strategy subsystem: wager-focused phase
     recovery,                    # Multi-strategy subsystem: high-chance recovery phase
     multi_strategy_system,       # Registered wrapper that auto-switches between the phases
+    roll_hunt,                   # Roll Hunt: contest strategy targeting 9990-9999 range-dice hits
 )
 
 # DEPRECATED (consolidated into unified_* above):
