@@ -2078,6 +2078,149 @@ def cmd_simulate_all(args):
         traceback.print_exc()
 
 
+# ---------------------------------------------------------------------------
+# Agent system CLI commands
+# ---------------------------------------------------------------------------
+
+def cmd_analyze(args):
+    """Evaluate strategies using the autonomous agent system."""
+    from agents.strategy_analyst import StrategyAnalyst
+    from agents.simulation import StrategySimulator
+
+    sim = StrategySimulator()
+    analyst = StrategyAnalyst(simulator=sim, data_dir=args.data_dir)
+
+    rounds = args.rounds
+    seeds = args.seeds
+    balance = args.balance
+
+    if args.strategy:
+        report = analyst.evaluate_strategy(
+            name=args.strategy,
+            rounds=rounds,
+            num_seeds=seeds,
+            starting_balance=balance,
+        )
+        print(report.summary())
+        analyst.update_hall_of_fame(report)
+    else:
+        exclude = set(args.exclude) if args.exclude else None
+        print(f"Evaluating all strategies ({rounds} rounds × {seeds} seeds)…")
+        reports = analyst.evaluate_all(
+            rounds=rounds,
+            num_seeds=seeds,
+            starting_balance=balance,
+            exclude=exclude,
+        )
+        kept, pruned = analyst.prune(reports)
+
+        print(f"\n{'─' * 70}")
+        print(f"  {'Strategy':<30} {'Score':>8} {'EV':>10} {'Surv%':>7} {'MaxDD':>7} {'Ruin%':>7}")
+        print(f"{'─' * 70}")
+        for r in kept:
+            print(f"  {r.strategy_name:<30} {r.composite_score:>8.4f} {r.expected_value:>+10.6f} "
+                  f"{r.survival_rate * 100:>6.1f}% {r.max_drawdown:>6.2%} {r.risk_of_ruin:>6.2%}")
+
+        if pruned:
+            print(f"\n  Pruned ({len(pruned)} strategies below thresholds):")
+            for r in pruned:
+                print(f"    ✗ {r.strategy_name}: EV={r.expected_value:+.6f} ruin={r.risk_of_ruin:.2%}")
+
+        analyst.save_results(reports)
+        for r in kept[:5]:
+            analyst.update_hall_of_fame(r)
+        print(f"\n✅ Results saved to {args.data_dir}/")
+
+
+def cmd_optimize(args):
+    """Grid-search optimize parameters for a strategy."""
+    from agents.strategy_analyst import StrategyAnalyst, _default_params
+    from agents.simulation import StrategySimulator
+
+    sim = StrategySimulator()
+    analyst = StrategyAnalyst(simulator=sim, data_dir=args.data_dir)
+
+    base_params = _default_params(args.strategy)
+
+    if not args.grid:
+        print("Error: --grid is required. Example: --grid base_amount=0.00001,0.0001,0.001")
+        sys.exit(1)
+
+    param_grid: Dict[str, list] = {}
+    for g in args.grid:
+        key, vals_str = g.split("=", 1)
+        vals = []
+        for v in vals_str.split(","):
+            v = v.strip()
+            try:
+                vals.append(float(v))
+            except ValueError:
+                vals.append(v)
+        param_grid[key] = vals
+
+    print(f"Optimizing {args.strategy}: {len(param_grid)} params, "
+          f"{args.rounds} rounds × {args.seeds} seeds")
+
+    best_params, best_report = analyst.optimize_params(
+        name=args.strategy,
+        base_params=base_params,
+        param_grid=param_grid,
+        rounds=args.rounds,
+        num_seeds=args.seeds,
+        starting_balance=args.balance,
+    )
+
+    print(f"\n{'─' * 50}")
+    print(best_report.summary())
+    print(f"\nBest params: {json.dumps(best_params, default=str, indent=2)}")
+    analyst.update_hall_of_fame(best_report)
+
+
+def cmd_agent_report(args):
+    """Show agent evaluation results and hall of fame."""
+    from agents.strategy_analyst import StrategyAnalyst
+    from agents.memory import MemoryManager
+
+    analyst = StrategyAnalyst(data_dir=args.data_dir)
+
+    if args.hall_of_fame:
+        hof = analyst.hall_of_fame()
+        if not hof:
+            print("Hall of fame is empty. Run 'analyze' first.")
+            return
+        print(f"\n🏆 Hall of Fame ({len(hof)} entries)")
+        print(f"{'─' * 60}")
+        for i, e in enumerate(hof, 1):
+            print(f"  {i}. {e['strategy_name']:<25} score={e['composite_score']:.4f}  "
+                  f"EV={e.get('expected_value', 0):+.6f}  surv={e.get('survival_rate', 0):.0%}")
+    elif args.sessions:
+        from agents.gambler_agent import GamblerAgent
+        g = GamblerAgent(data_dir=args.data_dir)
+        history = g.get_session_history()
+        if not history:
+            print("No session history. Run sessions first.")
+            return
+        print(f"\n📊 Session History ({len(history)} sessions)")
+        for s in history[-20:]:
+            strat = s.get("strategy_name", "?")
+            profit = s.get("pnl", s.get("profit", 0))
+            bets = s.get("bets_placed", s.get("bets", 0))
+            print(f"  {strat:<25} profit={profit:+.8f}  bets={bets}")
+    elif args.memory:
+        mm = MemoryManager(data_dir=args.data_dir)
+        print(mm.summary())
+    else:
+        results = analyst.load_results()
+        if not results:
+            print("No evaluation results. Run 'analyze' first.")
+            return
+        print(f"\n📈 Last Evaluation ({len(results)} strategies)")
+        print(f"{'─' * 70}")
+        for r in results[:20]:
+            print(f"  {r['strategy_name']:<30} score={r['composite_score']:.4f}  "
+                  f"EV={r.get('expected_value', 0):+.6f}  surv={r.get('survival_rate', 0):.0%}")
+
+
 def main():
     configure_logging()
     parser = argparse.ArgumentParser(
@@ -2235,6 +2378,47 @@ def main():
         help='Output cache file (default: data/min_bets.json)',
     )
     probe_parser.set_defaults(func=cmd_probe_min_bets)
+
+    # ── Agent system commands ─────────────────────────────────────────
+    _agent_data_dir_kw = dict(
+        default='data/agents', metavar='DIR',
+        help='Agent data directory (default: data/agents)',
+    )
+
+    # analyze
+    analyze_parser = subparsers.add_parser(
+        'analyze', help='Evaluate strategies using the autonomous agent system',
+    )
+    analyze_parser.add_argument('-s', '--strategy', help='Evaluate a single strategy (omit for all)')
+    analyze_parser.add_argument('-r', '--rounds', type=int, default=500, help='Rounds per simulation (default: 500)')
+    analyze_parser.add_argument('--seeds', type=int, default=10, help='Seeds per evaluation (default: 10)')
+    analyze_parser.add_argument('-b', '--balance', type=float, default=100.0, help='Starting balance (default: 100.0)')
+    analyze_parser.add_argument('--exclude', nargs='+', metavar='NAME', default=[], help='Strategies to skip')
+    analyze_parser.add_argument('--data-dir', **_agent_data_dir_kw)
+    analyze_parser.set_defaults(func=cmd_analyze)
+
+    # optimize
+    opt_parser = subparsers.add_parser(
+        'optimize', help='Grid-search optimize strategy parameters',
+    )
+    opt_parser.add_argument('-s', '--strategy', required=True, help='Strategy name')
+    opt_parser.add_argument('--grid', action='append', required=True,
+                            help='Parameter grid: key=val1,val2,... (repeatable)')
+    opt_parser.add_argument('-r', '--rounds', type=int, default=500, help='Rounds per simulation (default: 500)')
+    opt_parser.add_argument('--seeds', type=int, default=10, help='Seeds per evaluation (default: 10)')
+    opt_parser.add_argument('-b', '--balance', type=float, default=100.0, help='Starting balance (default: 100.0)')
+    opt_parser.add_argument('--data-dir', **_agent_data_dir_kw)
+    opt_parser.set_defaults(func=cmd_optimize)
+
+    # agent-report
+    report_parser = subparsers.add_parser(
+        'agent-report', help='Show agent evaluation results, hall of fame, or session history',
+    )
+    report_parser.add_argument('--hall-of-fame', action='store_true', help='Show hall of fame')
+    report_parser.add_argument('--sessions', action='store_true', help='Show session history')
+    report_parser.add_argument('--memory', action='store_true', help='Show agent memory summary')
+    report_parser.add_argument('--data-dir', **_agent_data_dir_kw)
+    report_parser.set_defaults(func=cmd_agent_report)
     
     args = parser.parse_args()
     
