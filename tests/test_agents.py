@@ -161,6 +161,37 @@ class TestSimulator:
         # Either stopped early due to stop loss or completed all rounds
         assert result.rounds_completed <= 5000
 
+    def test_simulate_multi_seed_parallel(self):
+        sim = StrategySimulator()
+        results = sim.simulate_multi_seed(
+            strategy_name="kelly-capped",
+            params={},
+            rounds=30,
+            starting_balance=100.0,
+            num_seeds=4,
+            parallel=True,
+        )
+        assert len(results) == 4
+
+    def test_simulate_multi_seed_sequential(self):
+        sim = StrategySimulator()
+        results = sim.simulate_multi_seed(
+            strategy_name="kelly-capped",
+            params={},
+            rounds=30,
+            starting_balance=100.0,
+            num_seeds=3,
+            parallel=False,
+        )
+        assert len(results) == 3
+
+    def test_batch_simulate(self):
+        sim = StrategySimulator()
+        specs = [("kelly-capped", {}), ("kelly-capped", {})]
+        results = sim.batch_simulate(specs, rounds=20, num_seeds=2, parallel=False)
+        assert "kelly-capped" in results
+        assert len(results["kelly-capped"]) == 2
+
 
 # -----------------------------------------------------------------------
 # Strategy Analyst
@@ -444,5 +475,54 @@ class TestMemoryManager:
             results = mm.search("sessions", strategy="kelly")
             assert len(results) == 1
             assert results[0]["profit"] == 10
+        finally:
+            shutil.rmtree(tmp)
+
+
+# -----------------------------------------------------------------------
+# End-to-end integration test
+# -----------------------------------------------------------------------
+
+class TestEndToEndPipeline:
+    def test_full_autonomous_pipeline(self):
+        """Test the complete analyze → select → simulate → log pipeline."""
+        tmp = tempfile.mkdtemp()
+        try:
+            sim = StrategySimulator()
+            analyst = StrategyAnalyst(simulator=sim, data_dir=tmp)
+            gambler = GamblerAgent(data_dir=tmp)
+            memory = MemoryManager(data_dir=tmp)
+
+            # 1. Evaluate
+            report = analyst.evaluate_strategy("kelly-capped", rounds=20, num_seeds=2)
+            kept, pruned = StrategyAnalyst.prune([report])
+
+            # 2. Select
+            name = gambler.select_strategy(kept or [report], mode="balanced")
+            assert isinstance(name, str)
+
+            # 3. Simulate session
+            gambler.start_session(100.0)
+            result = sim.simulate_single(name, report.params, rounds=30, starting_balance=100.0, seed=42)
+            assert result.rounds_completed > 0
+
+            # 4. Feed through gambler
+            for i, ret in enumerate(result.per_bet_returns):
+                win = ret > 0
+                bal = result.equity_curve[i + 1] if i + 1 < len(result.equity_curve) else result.final_balance
+                gambler.on_bet_result({"win": win, "profit": str(ret * 100), "balance": str(bal)})
+
+            stats = gambler.get_session_stats()
+            assert stats["bets_placed"] == result.rounds_completed
+
+            # 5. Log to memory
+            gambler.log_session(name, stats)
+            memory.record_session({"strategy": name, "profit": stats["pnl"], "bets": stats["bets_placed"]})
+            analyst.update_hall_of_fame(report)
+
+            # Verify persistence
+            assert len(gambler.get_session_history()) == 1
+            assert len(memory.get_recent_sessions()) == 1
+            assert len(analyst.hall_of_fame()) == 1
         finally:
             shutil.rmtree(tmp)
