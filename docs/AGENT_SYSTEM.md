@@ -76,6 +76,46 @@ python duckdice_cli.py agent-report --sessions
 python duckdice_cli.py agent-report --memory
 ```
 
+### `run-autonomous` — Full autonomous pipeline
+
+Runs the complete analyst → select → simulate → report pipeline in one command.
+
+```bash
+# Default autonomous run (balanced mode)
+python duckdice_cli.py run-autonomous
+
+# Aggressive mode with evolution enabled
+python duckdice_cli.py run-autonomous --mode aggressive --evolve
+
+# Conservative with custom session length
+python duckdice_cli.py run-autonomous --mode conservative --session-rounds 2000
+
+# Wager farming with custom risk
+python duckdice_cli.py run-autonomous --mode wager_farming --stop-loss -0.50 --take-profit 3.0
+```
+
+**Flags:**
+| Flag | Default | Description |
+|------|---------|-------------|
+| `--mode` | `balanced` | `conservative`, `balanced`, `aggressive`, `wager_farming` |
+| `--session-rounds` | 1000 | Bets in the simulation session |
+| `--stop-loss` | -0.35 | Stop-loss percentage |
+| `--take-profit` | 2.0 | Take-profit percentage |
+| `--evolve` | off | Enable strategy evolution before session |
+| `--mutations` | 3 | Mutations per top strategy |
+
+### `evolve` — Strategy evolution
+
+Mutates parameters of top performers and re-evaluates.
+
+```bash
+# Evolve top 3 strategies with 3 mutations each
+python duckdice_cli.py evolve
+
+# Evolve top 5 with more mutations
+python duckdice_cli.py evolve --top 5 --mutations 5
+```
+
 ## Metrics Computed
 
 Each strategy evaluation produces:

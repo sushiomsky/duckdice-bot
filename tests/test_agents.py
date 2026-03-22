@@ -217,6 +217,22 @@ class TestStrategyAnalyst:
         finally:
             shutil.rmtree(tmp)
 
+    def test_mutate_params(self):
+        import random
+        analyst = StrategyAnalyst()
+        params = {"base_amount": 0.001, "chance": 49.5, "name": "test"}
+        rng = random.Random(42)
+        mutated = analyst.mutate_params(params, mutation_rate=1.0, mutation_strength=0.2, rng=rng)
+        assert mutated["name"] == "test"
+        assert isinstance(mutated["base_amount"], float)
+        assert isinstance(mutated["chance"], float)
+
+    def test_evolve(self):
+        analyst = StrategyAnalyst()
+        base_report = analyst.evaluate_strategy("kelly-capped", rounds=20, num_seeds=2)
+        evolved = analyst.evolve([base_report], mutations_per_strategy=1, rounds=20, num_seeds=2)
+        assert len(evolved) >= 2
+
 
 # -----------------------------------------------------------------------
 # Gambler Agent

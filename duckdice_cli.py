@@ -2221,6 +2221,166 @@ def cmd_agent_report(args):
                   f"EV={r.get('expected_value', 0):+.6f}  surv={r.get('survival_rate', 0):.0%}")
 
 
+def cmd_run_autonomous(args):
+    """Run a fully autonomous session: analyze → select → simulate → evolve → report."""
+    from agents.strategy_analyst import StrategyAnalyst
+    from agents.gambler_agent import GamblerAgent
+    from agents.simulation import StrategySimulator
+    from agents.memory import MemoryManager
+
+    data_dir = args.data_dir
+    sim = StrategySimulator()
+    analyst = StrategyAnalyst(simulator=sim, data_dir=data_dir)
+    gambler = GamblerAgent(
+        stop_loss_pct=args.stop_loss,
+        take_profit_pct=args.take_profit,
+        data_dir=data_dir,
+    )
+    memory = MemoryManager(data_dir=data_dir)
+
+    rounds = args.rounds
+    seeds = args.seeds
+    balance = args.balance
+    mode = args.mode
+
+    # Phase 1: Evaluate
+    print(f"🔬 Phase 1: Evaluating strategies ({rounds}r × {seeds}s)…")
+    reports = analyst.evaluate_all(rounds=rounds, num_seeds=seeds, starting_balance=balance)
+    kept, pruned = analyst.prune(reports)
+    print(f"   {len(kept)} viable, {len(pruned)} pruned")
+
+    if not kept:
+        print("❌ No viable strategies found. Exiting.")
+        return
+
+    # Phase 2: Evolve top performers
+    if args.evolve and len(kept) >= 1:
+        top_n = min(3, len(kept))
+        print(f"🧬 Phase 2: Evolving top {top_n} strategies…")
+        evolved = analyst.evolve(
+            kept[:top_n],
+            mutations_per_strategy=args.mutations,
+            rounds=rounds,
+            num_seeds=seeds,
+            starting_balance=balance,
+        )
+        kept_ev, _ = analyst.prune(evolved)
+        if kept_ev:
+            kept = kept_ev
+            print(f"   {len(kept)} strategies after evolution")
+    else:
+        print("🧬 Phase 2: Skipped (use --evolve to enable)")
+
+    # Phase 3: Select best strategy
+    print(f"🎯 Phase 3: Selecting strategy (mode={mode})…")
+    best_name = gambler.select_strategy(kept, mode=mode)
+    best_report = next((r for r in kept if r.strategy_name == best_name), kept[0])
+    print(f"   Selected: {best_name} (score={best_report.composite_score:.4f})")
+
+    # Phase 4: Run simulation session with gambler monitoring
+    session_rounds = args.session_rounds
+    print(f"🎲 Phase 4: Running {session_rounds}-round session with {best_name}…")
+    gambler.start_session(balance)
+    gambler._current_strategy = best_name
+
+    result = sim.simulate_single(
+        strategy_name=best_name,
+        params=best_report.params,
+        rounds=session_rounds,
+        starting_balance=balance,
+        seed=args.seed,
+        stop_loss=args.stop_loss,
+        take_profit=args.take_profit,
+    )
+
+    # Feed results through gambler for tracking
+    for i, ret in enumerate(result.per_bet_returns):
+        win = ret > 0
+        bal = result.equity_curve[i + 1] if i + 1 < len(result.equity_curve) else result.final_balance
+        gambler.on_bet_result({
+            "win": win,
+            "profit": str(ret * balance),
+            "balance": str(bal),
+        })
+
+    stats = gambler.get_session_stats()
+
+    # Phase 5: Report
+    print(f"\n{'═' * 60}")
+    print(f"  📊 Session Results — {best_name}")
+    print(f"{'═' * 60}")
+    print(f"  Start:       {balance:.8f}")
+    print(f"  Final:       {result.final_balance:.8f}")
+    print(f"  PnL:         {stats['pnl']:+.8f} ({stats['pnl_pct']:+.2f}%)")
+    print(f"  Bets:        {result.rounds_completed}")
+    print(f"  Win Rate:    {stats['win_rate']:.1f}%")
+    print(f"  Max DD:      {result.max_drawdown:.2%}")
+    print(f"  Max L-Str:   {result.max_loss_streak}")
+    print(f"  Wagered:     {result.total_wagered:.8f}")
+    print(f"{'═' * 60}")
+
+    # Save to memory
+    gambler.log_session(best_name, stats)
+    memory.record_session({
+        "strategy": best_name,
+        "profit": stats["pnl"],
+        "bets": result.rounds_completed,
+        "win_rate": stats["win_rate"],
+        "max_drawdown": result.max_drawdown,
+        "final_balance": result.final_balance,
+    })
+    analyst.save_results(kept)
+    for r in kept[:5]:
+        analyst.update_hall_of_fame(r)
+
+    print(f"\n✅ Results saved to {data_dir}/")
+
+
+def cmd_evolve(args):
+    """Evolve top strategies by mutating parameters."""
+    from agents.strategy_analyst import StrategyAnalyst
+    from agents.simulation import StrategySimulator
+
+    sim = StrategySimulator()
+    analyst = StrategyAnalyst(simulator=sim, data_dir=args.data_dir)
+
+    # First evaluate to get top strategies
+    print(f"🔬 Evaluating strategies…")
+    reports = analyst.evaluate_all(
+        rounds=args.rounds, num_seeds=args.seeds, starting_balance=args.balance,
+    )
+    kept, _ = analyst.prune(reports)
+
+    if not kept:
+        print("❌ No viable strategies to evolve.")
+        return
+
+    top_n = min(args.top, len(kept))
+    print(f"🧬 Evolving top {top_n} strategies ({args.mutations} mutations each)…")
+    evolved = analyst.evolve(
+        kept[:top_n],
+        mutations_per_strategy=args.mutations,
+        rounds=args.rounds,
+        num_seeds=args.seeds,
+        starting_balance=args.balance,
+    )
+
+    print(f"\n{'─' * 70}")
+    print(f"  {'Strategy':<30} {'Score':>8} {'EV':>10} {'Params'}")
+    print(f"{'─' * 70}")
+    for r in evolved[:15]:
+        p_str = json.dumps({k: round(v, 6) if isinstance(v, float) else v
+                           for k, v in r.params.items()}, separators=(",", ":"))
+        if len(p_str) > 40:
+            p_str = p_str[:37] + "…"
+        print(f"  {r.strategy_name:<30} {r.composite_score:>8.4f} {r.expected_value:>+10.6f} {p_str}")
+
+    for r in evolved[:5]:
+        analyst.update_hall_of_fame(r)
+    analyst.save_results(evolved, filename="evolution_results.json")
+    print(f"\n✅ Evolution results saved")
+
+
 def main():
     configure_logging()
     parser = argparse.ArgumentParser(
@@ -2419,6 +2579,37 @@ def main():
     report_parser.add_argument('--memory', action='store_true', help='Show agent memory summary')
     report_parser.add_argument('--data-dir', **_agent_data_dir_kw)
     report_parser.set_defaults(func=cmd_agent_report)
+
+    # run-autonomous
+    auto_parser = subparsers.add_parser(
+        'run-autonomous',
+        help='Autonomous session: analyze → select → simulate → evolve → report',
+    )
+    auto_parser.add_argument('-r', '--rounds', type=int, default=500, help='Evaluation rounds (default: 500)')
+    auto_parser.add_argument('--seeds', type=int, default=10, help='Evaluation seeds (default: 10)')
+    auto_parser.add_argument('-b', '--balance', type=float, default=100.0, help='Starting balance (default: 100.0)')
+    auto_parser.add_argument('--session-rounds', type=int, default=1000, help='Bets in the autonomous session (default: 1000)')
+    auto_parser.add_argument('--mode', choices=['conservative', 'balanced', 'aggressive', 'wager_farming'],
+                             default='balanced', help='Strategy selection mode (default: balanced)')
+    auto_parser.add_argument('--stop-loss', type=float, default=-0.35, help='Stop-loss pct (default: -0.35)')
+    auto_parser.add_argument('--take-profit', type=float, default=2.0, help='Take-profit pct (default: 2.0)')
+    auto_parser.add_argument('--evolve', action='store_true', help='Enable strategy evolution before session')
+    auto_parser.add_argument('--mutations', type=int, default=3, help='Mutations per top strategy (default: 3)')
+    auto_parser.add_argument('--seed', type=int, default=42, help='Session random seed (default: 42)')
+    auto_parser.add_argument('--data-dir', **_agent_data_dir_kw)
+    auto_parser.set_defaults(func=cmd_run_autonomous)
+
+    # evolve
+    evolve_parser = subparsers.add_parser(
+        'evolve', help='Evolve top strategies by mutating parameters',
+    )
+    evolve_parser.add_argument('--top', type=int, default=3, help='Top N strategies to evolve (default: 3)')
+    evolve_parser.add_argument('--mutations', type=int, default=3, help='Mutations per strategy (default: 3)')
+    evolve_parser.add_argument('-r', '--rounds', type=int, default=500, help='Rounds per evaluation (default: 500)')
+    evolve_parser.add_argument('--seeds', type=int, default=10, help='Seeds per evaluation (default: 10)')
+    evolve_parser.add_argument('-b', '--balance', type=float, default=100.0, help='Starting balance (default: 100.0)')
+    evolve_parser.add_argument('--data-dir', **_agent_data_dir_kw)
+    evolve_parser.set_defaults(func=cmd_evolve)
     
     args = parser.parse_args()
     

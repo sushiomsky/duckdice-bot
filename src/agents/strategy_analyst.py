@@ -337,3 +337,75 @@ class StrategyAnalyst:
             return data if isinstance(data, list) else []
         except (json.JSONDecodeError, OSError):
             return []
+
+    # ------------------------------------------------------------------
+    # Strategy evolution (mutation)
+    # ------------------------------------------------------------------
+
+    def mutate_params(
+        self,
+        params: Dict[str, Any],
+        mutation_rate: float = 0.3,
+        mutation_strength: float = 0.2,
+        rng: Optional[Any] = None,
+    ) -> Dict[str, Any]:
+        """Mutate numeric parameters by a random factor.
+
+        Each numeric parameter has ``mutation_rate`` probability of being
+        mutated by ±``mutation_strength`` fraction of its current value.
+        """
+        import random as _random
+
+        r = rng or _random
+        mutated = dict(params)
+        for key, val in mutated.items():
+            if not isinstance(val, (int, float)):
+                continue
+            if r.random() < mutation_rate:
+                factor = 1.0 + r.uniform(-mutation_strength, mutation_strength)
+                new_val = val * factor
+                mutated[key] = type(val)(new_val) if isinstance(val, int) else round(new_val, 10)
+        return mutated
+
+    def evolve(
+        self,
+        top_reports: List[StrategyMetricsReport],
+        mutations_per_strategy: int = 3,
+        rounds: int = 500,
+        num_seeds: int = 10,
+        starting_balance: float = 100.0,
+    ) -> List[StrategyMetricsReport]:
+        """Evolve top strategies by mutating their parameters.
+
+        For each strategy in ``top_reports``, generate ``mutations_per_strategy``
+        mutated variants and evaluate them. Returns all results (originals +
+        mutations) sorted by composite score.
+        """
+        import random as _random
+
+        all_reports: List[StrategyMetricsReport] = list(top_reports)
+        rng = _random.Random(int(time.time()))
+
+        for report in top_reports:
+            for i in range(mutations_per_strategy):
+                mutated = self.mutate_params(report.params, rng=rng)
+                try:
+                    mr = self.evaluate_strategy(
+                        name=report.strategy_name,
+                        params=mutated,
+                        rounds=rounds,
+                        num_seeds=num_seeds,
+                        starting_balance=starting_balance,
+                    )
+                    all_reports.append(mr)
+                    logger.info(
+                        "Mutation %d of %s: score=%.4f (original=%.4f)",
+                        i + 1,
+                        report.strategy_name,
+                        mr.composite_score,
+                        report.composite_score,
+                    )
+                except Exception:
+                    logger.exception("Mutation %d of %s failed", i + 1, report.strategy_name)
+
+        return self.rank(all_reports)
