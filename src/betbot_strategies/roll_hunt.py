@@ -1,8 +1,8 @@
 """Roll Hunt Contest Strategy — targets the 9990-9999 range for contest wins.
 
 The DuckDice Roll Hunt contest rewards players who land in a specific
-high-number range (9990-9999). This strategy uses range-dice at ~5% chance
-with small bet sizes (1/300 of bankroll) to sustain long sessions.
+high-number range (9990-9999). This strategy uses normal dice at 5% chance
+(bet high) with small bet sizes (1/300 of bankroll) to sustain long sessions.
 
 Win-streak multiplier:
   After each consecutive win the bet size is multiplied by a configurable
@@ -34,13 +34,12 @@ except ImportError:
 
 TARGET_LO = 9990
 TARGET_HI = 9999
-BET_FRACTION = 1 / 300
-RANGE_WIDTH = 500          # 500 slots out of 10000 → 5% chance
+BET_FRACTION = 1 / 400
 
 
 @register("roll-hunt")
 class RollHuntStrategy:
-    """Adaptive range-dice strategy for Roll Hunt contests."""
+    """Normal-dice strategy for Roll Hunt contests."""
 
     @classmethod
     def name(cls) -> str:
@@ -49,13 +48,13 @@ class RollHuntStrategy:
     @classmethod
     def describe(cls) -> str:
         return (
-            "Roll Hunt contest strategy — bets range-dice at ~5% chance "
+            "Roll Hunt contest strategy — bets normal dice at 5% chance (high) "
             "targeting 9990-9999. Pauses on contest hit. Prints all 9990+ hashes."
         )
 
     @classmethod
     def metadata(cls) -> dict:
-        return {"category": "contest", "risk": "low", "game": "range-dice"}
+        return {"category": "contest", "risk": "low", "game": "dice"}
 
     @classmethod
     def schema(cls) -> dict:
@@ -65,26 +64,17 @@ class RollHuntStrategy:
                 "default": BET_FRACTION,
                 "min": 0.0001,
                 "max": 0.1,
-                "desc": "Fraction of bankroll per bet (default: 1/300)",
+                "desc": "Fraction of bankroll per bet (default: 1/400)",
             },
-            "range_lo": {
-                "type": "int",
-                "default": 9500,
-                "min": 0,
-                "max": 9999,
-                "desc": "Lower bound of the betting range (default: 9500)",
+            "win_chance": {
+                "type": "str",
+                "default": "5",
+                "desc": "Dice win chance percentage (default: 5)",
             },
-            "range_hi": {
-                "type": "int",
-                "default": 9999,
-                "min": 0,
-                "max": 9999,
-                "desc": "Upper bound of the betting range (default: 9999)",
-            },
-            "adaptive": {
+            "is_high": {
                 "type": "bool",
                 "default": True,
-                "desc": "Shift range toward recent hot zones",
+                "desc": "Bet high if True, bet low if False",
             },
             "hit_multipliers": {
                 "type": "str",
@@ -110,9 +100,8 @@ class RollHuntStrategy:
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
         self.ctx = ctx
         self.bet_fraction = float(params.get("bet_fraction", BET_FRACTION))
-        self.range_lo = int(params.get("range_lo", 9500))
-        self.range_hi = int(params.get("range_hi", 9999))
-        self.adaptive = bool(params.get("adaptive", True))
+        self.win_chance = str(params.get("win_chance", "5"))
+        self.is_high = bool(params.get("is_high", True))
         self.max_streak_bet_fraction = float(
             params.get("max_streak_bet_fraction", 0.1)
         )
@@ -131,12 +120,8 @@ class RollHuntStrategy:
 
         # Win-streak multiplier state
         self._win_streak = 0
-        self._base_bet = Decimal("0")       # recalculated each bet from bankroll
-        self._multiplied_bet = Decimal("0")  # current boosted bet after wins
-
-        # Adaptive state: track recent roll distribution
-        self._recent_rolls: List[int] = []
-        self._adaptation_window = 100
+        self._base_bet = Decimal("0")
+        self._multiplied_bet = Decimal("0")
 
     @staticmethod
     def _parse_multipliers(raw: Any) -> List[float]:
@@ -164,16 +149,15 @@ class RollHuntStrategy:
         self._current_balance = Decimal(bal_str) if bal_str != "0" else Decimal(self.ctx.starting_balance)
         self._starting_balance = self._current_balance
 
-        chance_pct = (self.range_hi - self.range_lo + 1) / 100
         mult_str = " → ".join(f"×{m:g}" for m in self.hit_multipliers) if self.hit_multipliers else "OFF"
+        direction = "HIGH" if self.is_high else "LOW"
         self.ctx.printer(
             f"[roll-hunt] 🎯 Contest mode started\n"
             f"  Balance:    {self._current_balance:.8f} {self.ctx.symbol}\n"
             f"  Bet size:   1/{int(1/self.bet_fraction)} of bankroll\n"
-            f"  Range:      {self.range_lo}-{self.range_hi} ({chance_pct:.1f}% chance)\n"
+            f"  Dice:       {self.win_chance}% chance — {direction}\n"
             f"  Target:     {TARGET_LO}-{TARGET_HI}\n"
-            f"  Multiplier: {mult_str}  (cap: {self.max_streak_bet_fraction:.0%} of bankroll)\n"
-            f"  Adaptive:   {'ON' if self.adaptive else 'OFF'}"
+            f"  Multiplier: {mult_str}  (cap: {self.max_streak_bet_fraction:.0%} of bankroll)"
         )
 
     def next_bet(self) -> Optional[BetSpec]:
@@ -193,13 +177,11 @@ class RollHuntStrategy:
         amount = self._apply_streak_multiplier(base, bal)
         self._multiplied_bet = amount
 
-        lo, hi = self._get_range()
-
         return {
-            "game": "range-dice",
+            "game": "dice",
             "amount": format(amount, "f"),
-            "range": (lo, hi),
-            "is_in": True,
+            "chance": self.win_chance,
+            "is_high": self.is_high,
             "faucet": self.ctx.faucet,
         }
 
@@ -209,13 +191,9 @@ class RollHuntStrategy:
             return base
 
         amount = base
-        # Apply each multiplier up to the current streak depth
         depth = min(self._win_streak, len(self.hit_multipliers))
         for i in range(depth):
             amount *= Decimal(str(self.hit_multipliers[i]))
-
-        # If streak exceeds defined multipliers, keep last level
-        # (no further increase beyond the final multiplier)
 
         # Hard cap: never exceed max_streak_bet_fraction of bankroll
         cap = bankroll * Decimal(str(self.max_streak_bet_fraction))
@@ -253,12 +231,6 @@ class RollHuntStrategy:
         except Exception:
             pass
 
-        # Track roll for adaptive shifting
-        if number is not None and number >= 0:
-            self._recent_rolls.append(number)
-            if len(self._recent_rolls) > self._adaptation_window:
-                self._recent_rolls = self._recent_rolls[-self._adaptation_window:]
-
         # Extract bet hash from API response
         api_raw = result.get("api_raw", {})
         bet_data = api_raw.get("bet", {}) if isinstance(api_raw, dict) else {}
@@ -285,8 +257,8 @@ class RollHuntStrategy:
             )
             self._hit_target = True
 
-        # Log near-misses (9990+) that weren't the bet's winning range
-        elif number is not None and number >= TARGET_LO and not win:
+        # Log near-misses (9990+) that weren't contest-winning
+        elif number is not None and number >= TARGET_LO:
             hit_info = {
                 "number": number,
                 "hash": bet_hash,
@@ -340,39 +312,3 @@ class RollHuntStrategy:
             self.ctx.printer(f"  {'─' * 60}")
         else:
             self.ctx.printer(f"\n  No rolls ≥ {TARGET_LO} recorded this session.")
-
-    # ------------------------------------------------------------------
-    # Adaptive range selection
-    # ------------------------------------------------------------------
-
-    def _get_range(self) -> tuple:
-        """Return (lo, hi) range for the next bet.
-
-        In adaptive mode, shifts the range window toward areas where
-        recent rolls have clustered, while always covering 9990-9999.
-        """
-        if not self.adaptive or len(self._recent_rolls) < 20:
-            return (self.range_lo, self.range_hi)
-
-        # Count how many recent rolls landed in the upper half (5000+)
-        upper_count = sum(1 for r in self._recent_rolls[-50:] if r >= 5000)
-        total = min(len(self._recent_rolls), 50)
-
-        if total == 0:
-            return (self.range_lo, self.range_hi)
-
-        upper_ratio = upper_count / total
-
-        # If rolls are clustering high (> 55% in upper half), tighten toward top
-        width = self.range_hi - self.range_lo + 1
-        if upper_ratio > 0.55:
-            # Shift range up — keep hi at 9999, raise lo
-            new_lo = max(self.range_lo, 9999 - width + 1)
-            return (new_lo, 9999)
-        elif upper_ratio < 0.45:
-            # Rolls clustering low — widen range a bit to cover more ground
-            new_lo = max(0, self.range_lo - 100)
-            new_hi = min(9999, new_lo + width - 1 + 100)
-            return (new_lo, new_hi)
-        else:
-            return (self.range_lo, self.range_hi)
