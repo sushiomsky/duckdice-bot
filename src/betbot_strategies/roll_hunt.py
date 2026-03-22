@@ -4,6 +4,11 @@ The DuckDice Roll Hunt contest rewards players who land in a specific
 high-number range (9990-9999). This strategy uses range-dice at ~5% chance
 with small bet sizes (1/300 of bankroll) to sustain long sessions.
 
+Win-streak multiplier:
+  After each consecutive win the bet size is multiplied by a configurable
+  factor (e.g. ×4, ×2, ×1.5).  Any loss resets to base bet.
+  Example with hit_multipliers="4,2":  base 1 → win → 4 → win → 8 → loss → 1
+
 On hitting the target range:
   • Prints the winning bet hash immediately
   • Pauses the session
@@ -85,6 +90,27 @@ class RollHuntStrategy:
                 "default": True,
                 "description": "Shift range toward recent hot zones",
             },
+            {
+                "key": "hit_multipliers",
+                "type": "str",
+                "default": "4,2",
+                "description": (
+                    "Comma-separated multipliers applied on consecutive wins. "
+                    "E.g. '4,2' → base×4 on 1st win, ×2 on 2nd win. "
+                    "Empty or '0' to disable."
+                ),
+            },
+            {
+                "key": "max_streak_bet_fraction",
+                "type": "float",
+                "default": 0.1,
+                "min": 0.001,
+                "max": 0.5,
+                "description": (
+                    "Hard cap: multiplied bet cannot exceed this fraction "
+                    "of bankroll (default: 10%)"
+                ),
+            },
         ]
 
     def __init__(self, params: Dict[str, Any], ctx: StrategyContext) -> None:
@@ -93,6 +119,13 @@ class RollHuntStrategy:
         self.range_lo = int(params.get("range_lo", 9500))
         self.range_hi = int(params.get("range_hi", 9999))
         self.adaptive = bool(params.get("adaptive", True))
+        self.max_streak_bet_fraction = float(
+            params.get("max_streak_bet_fraction", 0.1)
+        )
+
+        # Parse hit multipliers
+        raw_mult = params.get("hit_multipliers", "4,2")
+        self.hit_multipliers = self._parse_multipliers(raw_mult)
 
         self._total_bets = 0
         self._wins = 0
@@ -102,9 +135,35 @@ class RollHuntStrategy:
         self._current_balance = Decimal("0")
         self._starting_balance = Decimal("0")
 
+        # Win-streak multiplier state
+        self._win_streak = 0
+        self._base_bet = Decimal("0")       # recalculated each bet from bankroll
+        self._multiplied_bet = Decimal("0")  # current boosted bet after wins
+
         # Adaptive state: track recent roll distribution
         self._recent_rolls: List[int] = []
         self._adaptation_window = 100
+
+    @staticmethod
+    def _parse_multipliers(raw: Any) -> List[float]:
+        """Parse a comma-separated string or list into multiplier floats."""
+        if isinstance(raw, (list, tuple)):
+            return [float(v) for v in raw if float(v) > 0]
+        if isinstance(raw, (int, float)):
+            return [float(raw)] if float(raw) > 0 else []
+        raw = str(raw).strip()
+        if not raw or raw == "0":
+            return []
+        parts = [s.strip() for s in raw.split(",") if s.strip()]
+        result = []
+        for p in parts:
+            try:
+                v = float(p)
+                if v > 0:
+                    result.append(v)
+            except ValueError:
+                continue
+        return result
 
     def on_session_start(self) -> None:
         bal_str = self.ctx.current_balance_str()
@@ -112,12 +171,14 @@ class RollHuntStrategy:
         self._starting_balance = self._current_balance
 
         chance_pct = (self.range_hi - self.range_lo + 1) / 100
+        mult_str = " → ".join(f"×{m:g}" for m in self.hit_multipliers) if self.hit_multipliers else "OFF"
         self.ctx.printer(
             f"[roll-hunt] 🎯 Contest mode started\n"
             f"  Balance:    {self._current_balance:.8f} {self.ctx.symbol}\n"
             f"  Bet size:   1/{int(1/self.bet_fraction)} of bankroll\n"
             f"  Range:      {self.range_lo}-{self.range_hi} ({chance_pct:.1f}% chance)\n"
             f"  Target:     {TARGET_LO}-{TARGET_HI}\n"
+            f"  Multiplier: {mult_str}  (cap: {self.max_streak_bet_fraction:.0%} of bankroll)\n"
             f"  Adaptive:   {'ON' if self.adaptive else 'OFF'}"
         )
 
@@ -129,8 +190,14 @@ class RollHuntStrategy:
         if bal <= 0:
             return None
 
-        amount = bal * Decimal(str(self.bet_fraction))
-        amount = max(amount, Decimal("0.00000001"))
+        # Base bet from current bankroll
+        base = bal * Decimal(str(self.bet_fraction))
+        base = max(base, Decimal("0.00000001"))
+        self._base_bet = base
+
+        # Apply win-streak multiplier
+        amount = self._apply_streak_multiplier(base, bal)
+        self._multiplied_bet = amount
 
         lo, hi = self._get_range()
 
@@ -142,6 +209,27 @@ class RollHuntStrategy:
             "faucet": self.ctx.faucet,
         }
 
+    def _apply_streak_multiplier(self, base: Decimal, bankroll: Decimal) -> Decimal:
+        """Scale bet up based on consecutive win streak."""
+        if not self.hit_multipliers or self._win_streak == 0:
+            return base
+
+        amount = base
+        # Apply each multiplier up to the current streak depth
+        depth = min(self._win_streak, len(self.hit_multipliers))
+        for i in range(depth):
+            amount *= Decimal(str(self.hit_multipliers[i]))
+
+        # If streak exceeds defined multipliers, keep last level
+        # (no further increase beyond the final multiplier)
+
+        # Hard cap: never exceed max_streak_bet_fraction of bankroll
+        cap = bankroll * Decimal(str(self.max_streak_bet_fraction))
+        if amount > cap:
+            amount = cap
+
+        return max(amount, Decimal("0.00000001"))
+
     def on_bet_result(self, result: BetResult) -> None:
         self._total_bets += 1
         number = result.get("number", -1)
@@ -149,8 +237,22 @@ class RollHuntStrategy:
 
         if win:
             self._wins += 1
+            self._win_streak += 1
+            if self.hit_multipliers and self._win_streak > 0:
+                depth = min(self._win_streak, len(self.hit_multipliers))
+                mult_label = "×".join(f"{self.hit_multipliers[i]:g}" for i in range(depth))
+                self.ctx.printer(
+                    f"  🔥 Win streak {self._win_streak}! "
+                    f"Multiplier chain: {mult_label}  "
+                    f"(next bet ≈ {self._multiplied_bet:.8f})"
+                )
         else:
+            if self._win_streak > 0 and self.hit_multipliers:
+                self.ctx.printer(
+                    f"  ↩ Streak broken at {self._win_streak}. Reset to base bet."
+                )
             self._losses += 1
+            self._win_streak = 0
 
         try:
             self._current_balance = Decimal(str(result.get("balance", "0")))
