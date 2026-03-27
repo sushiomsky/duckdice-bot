@@ -124,7 +124,7 @@ class AdaptiveHunter:
             },
             "base_bet_pct": {
                 "type": "float",
-                "default": 0.005,
+                "default": 0.0025,
                 "desc": "Base bet as % of balance (0.005 = 0.5%)",
             },
             "max_bet_pct": {

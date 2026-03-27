@@ -60,7 +60,7 @@ class Paroli:
     def schema(cls) -> Dict[str, Any]:
         return {
             "base_amount": {"type": "str", "default": "0.000001", "desc": "Base bet amount"},
-            "chance": {"type": "str", "default": "40", "desc": "Win chance percent"},
+            "chance": {"type": "str", "default": "49.5", "desc": "Win chance percent"},
             "is_high": {"type": "bool", "default": True, "desc": "Bet on High or Low"},
             "target_streak": {"type": "int", "default": 3, "desc": "Win streak target before reset"},
             "multiplier": {"type": "float", "default": 2.5, "desc": "Multiplier on win"},

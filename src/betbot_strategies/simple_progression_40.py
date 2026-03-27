@@ -91,7 +91,7 @@ class SimpleProgression40Strategy:
             },
             "win_chance": {
                 "type": "str",
-                "default": "35",
+                "default": "40",
                 "desc": "Win chance percentage (35%)",
             },
             "win_increase_start": {

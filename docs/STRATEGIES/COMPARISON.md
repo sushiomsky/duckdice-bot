@@ -1,12 +1,10 @@
-# Strategy Comparison Tool
+# Strategy Comparison Guide
 
 ## Overview
 
-Compare **all** betting strategies under identical conditions and generate beautiful, interactive HTML reports with comprehensive analysis.
+Side-by-side comparison of the **31 strategies** available in DuckDice Bot, organized by category.
 
-**Fixed and verified with realistic results!**
-
-## Quick Start
+Use the comparison tool for live simulation results:
 
 ```bash
 # Recommended: 10 BTC, 2000 bets for meaningful results
@@ -16,82 +14,197 @@ Compare **all** betting strategies under identical conditions and generate beaut
 python3 strategy_comparison.py -b 10.0 -n 2000
 ```
 
-## Sample Results
+---
 
-With 10 BTC starting balance and 2000 bets:
+## 📊 Master Comparison Table
 
-- **Stable strategies**: anti-martingale-streak, classic-martingale, paroli (~0%)
-- **Slight profit**: labouchere (+0.02%)
-- **Moderate risk**: kelly-capped (-0.73%), oscars-grind (-0.03%)
-- **High risk**: streak-hunter (-55% high variance!)
-- **Busters**: faucet-cashout, max-wager-flow, range-50-random (-99%)
+| Strategy | Category | Risk | Score | Best For |
+|----------|----------|------|-------|----------|
+| unified-progression | Classic | 🟢 Low | 30.59 | Steady growth (Fib/D'Alembert/Labouchère) |
+| oscars-grind | Classic | 🟢 Low | 30.22 | Patient grinding |
+| unified-martingale | Classic | 🟠 High | 30.03 | Classic/anti martingale |
+| paroli | Classic | 🟠 High | 29.99 | Win-streak doubling |
+| one-three-two-six | Classic | 🟢 Low | 29.89 | Simple fixed sequence |
+| kelly-capped | Classic | 🟡 Medium | 29.99 | Kelly Criterion with EWMA |
+| adaptive-survival | Adaptive | 🟡 Medium | 27.05 | CALM/CHAOS pattern detection |
+| target-aware | Adaptive | 🟡 Medium | 30.00 | Goal-oriented state machine |
+| oracle-engine | Adaptive | 🟡 Medium | 19.71 | 19-mode adaptive research |
+| chance-cycle-multiplier | Adaptive | 🟠 High | 20.26 | 2-phase aggressive/recovery |
+| simple-progression-40 | Adaptive | 🟡 Medium | 14.20 | 40% chance decreasing multiplier |
+| adaptive-hunter | Adaptive | 🟠 High | 21.08 | 12 hunter variants unified |
+| tle-wager-farming | Wager | 🟡 Medium | — | TLE event micro-Paroli |
+| wager-loop-stabilizer-v2 | Wager | 🟡 Medium | — | Zone-based wager survival |
+| wager-sprint | Wager | 🟡 Medium | — | High-throughput Paroli boost |
+| dice-out-002 | Lottery | 🔴 Very High | — | 0.02% range sniper |
+| lottery-sniper | Lottery | 🔴 Very High | — | 1% hunt → 0.1% bursts |
+| ladder-race | Lottery | 🔴 Very High | — | Contest 5x→10x→50x→100x |
+| roll-hunt | Lottery | 🔴 Very High | — | Contest targeting 9990-9999 |
+| balance-sweep-sniper | Lottery | 🟡 Medium | — | Multi-coin dust sweeper |
+| ai-strat | Research | 🔴 Very High | — | 30+ ML ensemble |
+| combined-high-roller | Research | 🔴 Very High | — | Kelly/Streak/Volatility |
+| profit-cascade | Research | 🔴 Very High | — | 12-tier dynamic targeting |
+| streak-multiplier | Research | 🔴 Very High | — | Exponential win-streak growth |
+| master | Meta | 🟣 Variable | — | Cycles 15 sub-strategies ×3 tiers |
+| custom-script | Meta | 🟣 Variable | — | User-defined executor |
+| multi-strategy-system | Meta | 🟠 Variable | — | Auto-switches grind/recovery/hunt |
+| adaptive-hunt | Meta (sub) | 🟠 High | — | Sub-strategy for multi-strategy |
+| wager-grinder | Meta (sub) | 🟡 Medium | — | Sub-strategy for multi-strategy |
+| recovery | Meta (sub) | 🟢 Low | — | Sub-strategy for multi-strategy |
+| unified-faucet | Meta | 🟢 Low | — | Faucet learning tool |
 
-## Features
+---
 
-✨ **Comprehensive Testing**
-- Tests all 18 strategies with identical starting conditions
-- Same random seed for reproducibility
-- Parallel comparison in one run
+## 🏆 Category Breakdown
 
-📊 **Rich HTML Reports**
-- Interactive Chart.js charts
-- Profit comparison bar charts
-- Win rate analysis
-- Max balance reached
-- Total wagered comparison
+### Classic Progressions
 
-📈 **Detailed Metrics**
-- Win rate
-- Profit/Loss percentage
-- Max balance reached
-- Min balance (bust detection)
-- Average bet size
-- Max bet size
-- Total wagered
-- Execution time
-- Stop reason
-- Bust count
+Best-scoring category overall. These are well-understood mathematical systems.
 
-🎯 **Smart Analysis**
-- Ranks strategies by performance
-- Identifies profitable vs busted strategies
-- Shows best and worst performers
-- Individual strategy breakdowns
+| Strategy | Approach | Bankroll Safety | Win Streak Needed | Loss Recovery |
+|----------|----------|----------------|-------------------|---------------|
+| unified-progression | Fib / D'Alembert / Labouchère | ✅ High | No | Gradual |
+| oscars-grind | +1 on win only | ✅ High | Mild | Slow but safe |
+| unified-martingale | 2x on loss or win | ⚠️ Medium (classic) / ✅ (anti) | Anti mode yes | Fast (classic) |
+| paroli | 2x on win, reset on loss | ✅ High | Yes (3+) | Instant reset |
+| one-three-two-six | Fixed 1→3→2→6 | ✅ High | Yes (4) | Instant reset |
+| kelly-capped | EWMA optimal sizing | ✅ High | No | Statistical |
 
-## Quick Start
+**Recommendation**: Start with `unified-progression` (mode=dalembert) or `oscars-grind` for the safest experience.
 
-### Basic Usage
+---
+
+### Adaptive / State-Machine
+
+Strategies that change behavior based on detected patterns or progress.
+
+| Strategy | Modes/States | Complexity | Autonomy |
+|----------|-------------|------------|----------|
+| adaptive-survival | CALM / CHAOS + 4 sub-strategies | ⭐⭐⭐⭐⭐ | Fully automatic |
+| target-aware | SAFE / BUILD / STRIKE / FINISH | ⭐⭐⭐⭐ | Goal-driven |
+| oracle-engine | 19 adaptive modes | ⭐⭐⭐⭐⭐ | Research |
+| chance-cycle-multiplier | Aggressive / Recovery phases | ⭐⭐⭐ | 2-phase cycle |
+| simple-progression-40 | Single mode, decreasing multiplier | ⭐⭐ | Simple |
+| adaptive-hunter | 12 hunter variants | ⭐⭐⭐⭐ | Multi-variant |
+
+**Recommendation**: `target-aware` for goal-oriented play; `adaptive-survival` for experienced users.
+
+---
+
+### Wager / TLE
+
+Optimized for wager volume rather than profit — ideal for events, bonuses, and VIP requirements.
+
+| Strategy | Mechanism | Speed | Bankroll Drain |
+|----------|-----------|-------|---------------|
+| tle-wager-farming | Micro-Paroli bursts | ⚡ Fast | Low |
+| wager-loop-stabilizer-v2 | Zone-based sizing | ⚡ Fast | Low |
+| wager-sprint | High-throughput Paroli | ⚡⚡ Very Fast | Medium |
+
+**Recommendation**: `tle-wager-farming` for events; `wager-sprint` when speed matters most.
+
+---
+
+### Lottery / Contest
+
+High-variance strategies for jackpot hunting and contest leaderboards.
+
+| Strategy | Target | Win Chance | Payout Potential |
+|----------|--------|-----------|-----------------|
+| dice-out-002 | 0.02% range, 2-slot window | 0.02% | 💎 Massive |
+| lottery-sniper | 1% → 10 bursts at 0.1% | 0.1%-1% | 💎 Very High |
+| ladder-race | 5x→10x→50x→100x | Varies | 🏆 Contest ranking |
+| roll-hunt | Roll 9990-9999 | ~0.1% | 🏆 Contest ranking |
+| balance-sweep-sniper | Multi-coin dust | ~50% | 🧹 Consolidation |
+
+**Recommendation**: `lottery-sniper` for balanced lottery play; `ladder-race` or `roll-hunt` for contests.
+
+---
+
+### Aggressive / Research
+
+Experimental strategies with high variance and high potential.
+
+| Strategy | Approach | Models/Tiers | Variance |
+|----------|----------|-------------|----------|
+| ai-strat | 30+ ML ensemble | Many | 📈 Extreme |
+| combined-high-roller | Kelly + Streak + Volatility | 3 systems | 📈 Very High |
+| profit-cascade | 12-tier dynamic targeting | 12 tiers | 📈 Very High |
+| streak-multiplier | Exponential win-streak growth | Single | 📈 Extreme |
+
+**Recommendation**: Use only with amounts you can afford to lose. `combined-high-roller` is the most structured.
+
+---
+
+### Meta / Infrastructure
+
+Orchestration strategies and building blocks.
+
+| Strategy | Role | Standalone? |
+|----------|------|------------|
+| master | Cycles 15 sub-strategies across 3 tiers | ✅ Yes |
+| custom-script | Runs user Python/Lua scripts | ✅ Yes |
+| multi-strategy-system | Auto-switches grind/recovery/hunt | ✅ Yes |
+| adaptive-hunt | Low-chance hunting sub-strategy | ❌ Sub-strategy |
+| wager-grinder | Volume generation sub-strategy | ❌ Sub-strategy |
+| recovery | Bankroll recovery sub-strategy | ❌ Sub-strategy |
+| unified-faucet | Faucet learning tool | ✅ Yes |
+
+**Recommendation**: `multi-strategy-system` for hands-off play; `master` for strategy rotation research.
+
+---
+
+## 🔍 Head-to-Head Comparisons
+
+### Conservative vs Aggressive
+
+| Feature | Unified Progression | Unified Martingale (classic) |
+|---------|-------------------|----------------------------|
+| On loss | +1 step (gradual) | 2× bet (exponential) |
+| On win | -1 step / cancel | Reset to base |
+| Bust risk | Low | High |
+| Recovery speed | Slow | Fast (if it works) |
+| Score | 30.59 | 30.03 |
+
+### Wager Strategies Compared
+
+| Feature | TLE Wager Farming | Wager Sprint | Wager Loop Stabilizer v2 |
+|---------|------------------|--------------|-------------------------|
+| Focus | Event volume | Raw speed | Bankroll preservation |
+| Bet sizing | Micro-Paroli | Paroli boost | Zone-based |
+| Best for | TLE events | Quick bursts | Long sessions |
+
+### Lottery Strategies Compared
+
+| Feature | Dice Out 002 | Lottery Sniper | Ladder Race |
+|---------|-------------|----------------|-------------|
+| Win chance | 0.02% | 0.1%-1% | Varies |
+| Payout | Massive | Very high | Contest rank |
+| Bets needed | Many | Moderate | Few |
+| Purpose | Jackpot | Lottery bursts | Contests |
+
+---
+
+## 📈 Running Comparisons
+
+### Quick Start
 
 ```bash
-# Compare all strategies with default settings (1.0 BTC, 500 bets)
+# Compare all strategies with default settings
 ./compare_strategies.sh
-```
 
-### Custom Parameters
-
-```bash
 # Custom balance and bet count
 ./compare_strategies.sh 5.0 1000
 
-# With custom output file
-./compare_strategies.sh 2.0 750 my_report.html
-```
-
-### Using Python Directly
-
-```bash
-# Full control over all parameters
+# Full control
 python3 strategy_comparison.py \
     --balance 10.0 \
     --max-bets 2000 \
     --currency btc \
     --seed 42 \
-    --output detailed_comparison.html
+    --output comparison_report.html
 ```
 
-## Command Line Options
-
-### strategy_comparison.py
+### Command Line Options
 
 ```
 -b, --balance BALANCE      Starting balance (default: 1.0)
@@ -101,141 +214,27 @@ python3 strategy_comparison.py \
 -o, --output OUTPUT       Output HTML file (default: strategy_comparison.html)
 ```
 
-## Examples
-
-### Compare with Large Bankroll
-```bash
-python3 strategy_comparison.py -b 100.0 -n 5000
-```
-
-### Quick Test (Fast)
-```bash
-python3 strategy_comparison.py -b 1.0 -n 100
-```
-
-### Comprehensive Test (Thorough)
-```bash
-python3 strategy_comparison.py -b 10.0 -n 10000
-```
-
 ### Reproducible Results
+
 ```bash
 # Same seed = same results every time
 python3 strategy_comparison.py -s 42 -n 1000
 python3 strategy_comparison.py -s 42 -n 1000  # Identical results
 ```
 
-## Output Report
+---
 
-The generated HTML report includes:
+## 📊 Understanding Results
 
-### Summary Section
-- Total strategies tested
-- Skipped strategies (require special config)
-- Starting balance
-- Max bets per strategy
-- Profitable count
-- Busted count
-- Best and worst returns
+### Key Metrics
 
-### Interactive Charts
-1. **Profit Comparison** - Bar chart showing profit % for each strategy
-2. **Max Balance Reached** - Highest balance achieved per strategy
-3. **Win Rate Comparison** - Win rate % for each strategy
-4. **Total Wagered** - Total amount bet per strategy
-
-### Detailed Table
-Sortable table with:
-- Rank (🥇🥈🥉)
-- Strategy name
-- Bets placed
-- Win rate %
-- Ending balance
-- Profit %
-- Max balance
-- Bust count
-- Avg bet size
-- Stop reason
-
-### Individual Strategy Details
-For each strategy:
-- Bets placed
-- Win rate
-- Ending balance
-- Profit/Loss
-- Max balance
-- Min balance
-- Avg bet size
-- Max bet size
-- Total wagered
-- Duration
-- Busts
-- Stop reason
-
-## Understanding Results
-
-### Profit % (Key Metric)
-- **Positive** (green): Strategy made money
-- **Negative** (red): Strategy lost money
-- **-100%**: Complete bust (lost everything)
-
-### Win Rate
-- Percentage of bets won
-- Higher is generally better, but not always
-- Some strategies bet less frequently but win big
-
-### Max Balance
-- Highest balance reached during session
-- Shows potential even if strategy ultimately lost
-- Useful for understanding volatility
-
-### Busts
-- Number of times balance dropped to ~zero
-- **0 busts**: Strategy maintained balance
-- **>0 busts**: Strategy went broke (may have recovered)
-
-### Stop Reason
-- `max_bets`: Reached bet limit (normal)
-- `insufficient_balance`: Went broke
-- `strategy_stopped`: Strategy decided to stop
-- `take_profit`: Reached profit target
-
-## Interpreting Ranks
-
-**🥇 Rank 1-3**: Top performing strategies
-- Best profit %
-- Good candidates for live betting
-- Check max balance and busts too!
-
-**Middle Ranks**: Moderate performance
-- May be suitable depending on risk tolerance
-- Compare win rates and volatility
-
-**Bottom Ranks**: Poor performers
-- Lost significant amount
-- High risk of bust
-- Avoid or adjust parameters
-
-## Tips
-
-### For Meaningful Comparisons
-1. **Use enough bets**: 500-1000+ recommended
-2. **Same seed**: Ensures fairness (default: 42)
-3. **Adequate balance**: Start with 1.0+ to avoid early busts
-4. **Multiple runs**: Try different seeds to see consistency
-
-### Choosing a Strategy
-1. Look at **profit %** first
-2. Check **bust count** (lower is safer)
-3. Consider **max balance** (upside potential)
-4. Review **avg bet size** (risk level)
-5. Read stop reason (how it ended)
-
-### Red Flags 🚩
-- Busts > 0 (went broke at least once)
-- -100% profit (total loss)
-- Very high max bet size (risky)
-- Stop reason: insufficient_balance
+| Metric | What It Means |
+|--------|--------------|
+| **Profit %** | Ending balance vs starting — positive = profit |
+| **Win Rate** | Percentage of bets won |
+| **Max Balance** | Peak balance reached (shows upside potential) |
+| **Busts** | Times balance dropped to ~zero |
+| **Stop Reason** | `max_bets` (normal), `insufficient_balance` (bust), `take_profit` (success) |
 
 ### Green Flags ✅
 - Positive profit %
@@ -243,137 +242,39 @@ For each strategy:
 - Consistent win rate
 - Stop reason: max_bets or take_profit
 
-## Skipped Strategies
-
-Some strategies require special configuration:
-- `custom-script`: Needs script path
-- `faucet-grind`: Requires specific setup
-
-These will be marked as "Skipped" in the report.
-
-## Performance
-
-Execution time varies by settings:
-
-| Bets | Strategies | Time (approx) |
-|------|-----------|---------------|
-| 100  | 16        | ~10 seconds   |
-| 500  | 16        | ~30 seconds   |
-| 1000 | 16        | ~60 seconds   |
-| 5000 | 16        | ~5 minutes    |
-
-*Simulation runs at maximum speed (no delays)*
-
-## Technical Details
-
-### Simulation
-- Uses `dry_run=True` mode
-- MockDuckDiceAPI for fast simulation
-- No network calls (100% local)
-- Reproducible with fixed seed
-
-### Fair Comparison
-- Same starting balance for all
-- Same max bets limit for all
-- Same random seed for all
-- Same stop loss/take profit for all
-- Identical conditions = fair test
-
-### Data Collection
-- Tracks every bet
-- Records balance history (every 10 bets)
-- Calculates comprehensive metrics
-- Detects busts (balance ≤ 0.0001)
-
-## Troubleshooting
-
-### Report Doesn't Open
-- Use full file path: `file:///path/to/strategy_comparison.html`
-- Or open directly in browser: drag & drop HTML file
-
-### All Strategies Bust
-- Increase starting balance: `-b 10.0`
-- Reduce max bets: `-n 100`
-- Strategies may be too aggressive for small bankroll
-
-### Different Results Each Run
-- Not using same seed
-- Fix with: `-s 42` (or any number)
-- Same seed = identical results
-
-### Takes Too Long
-- Reduce max bets: `-n 100`
-- Each bet processes quickly, but 16 strategies × 1000 bets = 16,000 total bets
-
-## Advanced Usage
-
-### Compare Different Conditions
-
-```bash
-# Conservative test (small risk)
-python3 strategy_comparison.py -b 100.0 -n 100 -o conservative.html
-
-# Moderate test (balanced)
-python3 strategy_comparison.py -b 10.0 -n 500 -o moderate.html
-
-# Aggressive test (high risk)
-python3 strategy_comparison.py -b 1.0 -n 2000 -o aggressive.html
-```
-
-### Batch Comparisons
-
-```bash
-# Test multiple seeds for consistency
-for seed in 42 100 200 300 400; do
-    python3 strategy_comparison.py -s $seed -o "report_seed_$seed.html"
-done
-```
-
-### Find Best Strategy
-
-```bash
-# Run comprehensive test
-python3 strategy_comparison.py -b 10.0 -n 5000 -o best_strategy.html
-
-# Open report and look at:
-# 1. Highest profit % (rank 1)
-# 2. Zero busts
-# 3. Reasonable win rate
-# 4. Max balance > starting balance
-```
-
-## Files Generated
-
-- `strategy_comparison.html` - Main report (default)
-- Custom output file (if specified with `-o`)
-- Self-contained (includes Chart.js inline)
-- Can be shared/archived
-
-## Integration
-
-### Add to CI/CD
-```bash
-# Run comparison as part of testing
-python3 strategy_comparison.py -n 100 -o ci_report.html
-# Parse results to fail build if all strategies bust
-```
-
-### Automated Testing
-```bash
-# Nightly comparison
-0 2 * * * cd /path/to/duckdice-bot && ./compare_strategies.sh 10.0 1000 daily_$(date +\%Y\%m\%d).html
-```
-
-## Version
-
-Compatible with DuckDice Bot v4.7.1+
-
-## See Also
-
-- `USER_GUIDE.md` - General bot usage
-- `STREAK_HUNTER_GUIDE.md` - Specific strategy guide
-- `PARAMETERS_GUIDE.md` - Strategy parameters
+### Red Flags 🚩
+- Busts > 0
+- -100% profit (total loss)
+- Very high max bet size
+- Stop reason: insufficient_balance
 
 ---
 
-**Pro Tip**: Run multiple comparisons with different starting balances to see how strategies perform under different bankroll conditions!
+## 💡 Tips
+
+1. **Use enough bets** (500-1000+) for meaningful results
+2. **Same seed** ensures fair comparison (default: 42)
+3. **Try multiple seeds** to see consistency across different RNG sequences
+4. **Match bankroll to strategy** — aggressive strategies need larger bankrolls
+5. **Read stop reasons** — a strategy that hit take_profit is different from one that busted
+
+---
+
+## Skipped Strategies
+
+Some strategies require special configuration and may be skipped during comparison:
+- `custom-script` — needs a script path
+- Sub-strategies (`adaptive-hunt`, `wager-grinder`, `recovery`) — not standalone
+
+---
+
+## See Also
+
+- **[Strategy Catalog](./README.md)** — Full strategy descriptions
+- **[Streak Hunter Guide](./STREAK_HUNTER.md)** — Detailed streak-hunter walkthrough
+- **[Compounding Fix](./COMPOUNDING.md)** — Streak-hunter progression details
+- **[CLI Guide](../INTERFACES/CLI_GUIDE.md)** — Running strategies from the command line
+
+---
+
+**⚠️ Disclaimer**: All strategies are subject to house edge (1%). No strategy can guarantee profits. Past simulation results do not predict future performance. Only bet what you can afford to lose.

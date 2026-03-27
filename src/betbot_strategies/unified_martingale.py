@@ -93,7 +93,7 @@ class UnifiedMartingale:
             },
             "max_multiplier": {
                 "type": "float",
-                "default": 128.0,
+                "default": 64.0,
                 "desc": "Hard cap on accumulated multiplier",
             },
             "chance": {

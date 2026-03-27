@@ -36,34 +36,16 @@ getcontext().prec = 28
 # Import strategies modules to register them (built-ins)
 try:
     # These imports populate the registry via decorators in module import.
-    from betbot_strategies import anti_martingale_streak  # noqa: F401
-    from betbot_strategies import fib_loss_cluster  # noqa: F401
+    # The canonical import list is in betbot_strategies/__init__.py.
+    # This block is a legacy fallback for direct engine usage.
     from betbot_strategies import kelly_capped  # noqa: F401
-    from betbot_strategies import range50_random  # noqa: F401
-    from betbot_strategies import max_wager_flow  # noqa: F401
-    from betbot_strategies import faucet_cashout  # noqa: F401
-    from betbot_strategies import rng_analysis_strategy  # noqa: F401
-    # New dicebot-inspired strategies
-    from betbot_strategies import classic_martingale  # noqa: F401
-    from betbot_strategies import dalembert  # noqa: F401
-    from betbot_strategies import fibonacci  # noqa: F401
-    from betbot_strategies import labouchere  # noqa: F401
     from betbot_strategies import paroli  # noqa: F401
     from betbot_strategies import oscars_grind  # noqa: F401
     from betbot_strategies import one_three_two_six  # noqa: F401
-    # Target-aware strategy
     from betbot_strategies import target_aware  # noqa: F401
-    # Scripting engine
     from betbot_strategies import custom_script  # noqa: F401
-    # Low-end jackpot hunter
-    from betbot_strategies import low_hunter  # noqa: F401
-    # Volatility spike hunter (quant-grade state machine)
-    from betbot_strategies import volatility_spike_hunter  # noqa: F401
-    # Combined High-Roller System (Kelly Hybrid / Streak Harvester / Volatility Breakout)
     from betbot_strategies import combined_high_roller  # noqa: F401
-    # TLE wager farming strategy
     from betbot_strategies import tle_wager_farming  # noqa: F401
-    # Wager Loop Stabilizer V2 strategy
     from betbot_strategies import wager_loop_stabilizer_v2  # noqa: F401
 except Exception:
     # Registration may be deferred if modules missing; CLI listing will show none

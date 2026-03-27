@@ -1,274 +1,82 @@
 # DuckDice Bot - All Strategies
 
-**Runtime strategy catalog** | Updated: v4.11.2
+**Runtime strategy catalog** | Updated: v4.11.2 | **31 strategies**
 
 ## 📊 Quick Comparison
 
 | Category | Strategies | Risk Level | Best For |
 |----------|-----------|------------|----------|
-| **Conservative** | D'Alembert, Oscar's Grind, 1-3-2-6 | 🟢 Low | Steady growth, beginners |
-| **Balanced** | Kelly Capped, Simple Progression, Target Aware | 🟡 Medium | Risk-adjusted returns |
-| **Aggressive** | Martingale, Anti-Martingale, Paroli | 🟠 High | Quick profits, experienced users |
-| **High-Risk** | Adaptive Volatility Hunter, Micro Exponential | 🔴 Very High | Thrill-seekers, small stakes |
-| **Specialized** | Faucet Grind, Max Wager Flow, RNG Analysis | 🟣 Varies | Specific use cases |
+| **Classic Progressions** | Unified Progression, Oscar's Grind, Unified Martingale, Paroli, 1-3-2-6, Kelly Capped | 🟢 Low–Medium | Steady growth, beginners |
+| **Adaptive / State-Machine** | Adaptive Survival, Target Aware, Oracle Engine, Chance Cycle Multiplier, Simple Progression 40, Adaptive Hunter | 🟡 Medium | Pattern-based, adaptive play |
+| **Wager / TLE** | TLE Wager Farming, Wager Loop Stabilizer v2, Wager Sprint | 🟡 Medium | Volume / event grinding |
+| **Lottery / Contest** | Dice Out 002, Lottery Sniper, Ladder Race, Roll Hunt, Balance Sweep Sniper | 🔴 Very High | Jackpot hunting, contests |
+| **Aggressive / Research** | AI Strat, Combined High Roller, Profit Cascade, Streak Multiplier | 🔴 Very High | Experimental, high reward |
+| **Meta / Infrastructure** | Master, Custom Script, Multi-Strategy System, Unified Faucet | 🟣 Varies | Orchestration, learning |
 
 ---
 
-## 🌐 Featured Meta Strategy
+## 🎯 Classic Progressions
 
-### **Multi-Strategy System** 🔀
-**Type**: Auto-Switching Meta Strategy | **Risk**: 🟠 Variable | **Complexity**: ⭐⭐⭐⭐
+### **Unified Progression** ⚖️
+**Type**: Multi-Mode Progression | **Risk**: 🟢 Low | **Score**: 30.59 (SAFE tier)
 
-Manager-driven orchestration that keeps the existing engine loop intact while switching between three internal modes:
-- **Wager Grinder** for 20%-40% chance volume generation
-- **Recovery** for 65%-80% chance bankroll recovery after drawdown
-- **Adaptive Hunt** for 1% → 0.01% low-chance hunting after strong profit expansion
-
-It tracks session profit, wagered volume, and a stop-loss floor from the starting bankroll, then chooses the active mode automatically.
+Combines three classic systems in one strategy:
+- **Fibonacci** — advance on loss, retreat 2 steps on win
+- **D'Alembert** — increase by fixed amount on loss, decrease on win
+- **Labouchère** — cancellation list progression
 
 ```bash
-duckdice run --strategy multi-strategy-system \
-  --param base_bet_percent=0.001 \
-  --param max_bet_percent=0.03 \
-  --param loss_trigger=0.05 \
-  --param profit_trigger=0.10 \
-  --param wager_focus=true
+duckdice run --strategy unified-progression --param mode=fibonacci
 ```
 
 ---
 
-## 🎯 All Strategies (Alphabetical)
+### **Oscar's Grind** 🐌
+**Type**: Conservative Grind | **Risk**: 🟢 Low | **Score**: 30.22
 
-### 1. **Adaptive Survival** 🧠
-**Type**: Meta-Strategy | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐⭐⭐⭐
-
-Advanced pattern-detecting meta-strategy that combines multiple approaches:
-- RNG analysis for trend detection
-- Dynamic chance adjustment (5%-50%)
-- Emergency brake system
-- Profit lock mechanisms
-
-**Best for**: Experienced users who understand risk management
+Patient profit-seeking system:
+- Increase bet only after wins
+- Target small cumulative profit
+- Very conservative
 
 ```bash
-duckdice run --strategy adaptive-survival --bets 200
+duckdice run --strategy oscars-grind --param target_profit=0.5
 ```
 
 ---
 
-### 2. **Adaptive Volatility Hunter** 🎰
-**Type**: Ultra-Low Chance | **Risk**: 🔴 Very High | **Complexity**: ⭐⭐⭐⭐
+### **Unified Martingale** 💰
+**Type**: Progressive | **Risk**: 🟠 High | **Score**: 30.03
 
-Hunts massive multipliers (100x-10000x) with adaptive risk:
-- Win chance: 0.01% - 1.00%
-- Volatility-based adjustments
-- Emergency brake at 7+ losses
-- Profit lock cooldown
+Classic and anti-martingale in one strategy:
+- **Classic** — double on loss, reset on win
+- **Anti** — multiply on wins, reset on loss
 
-**Best for**: Lottery-style hunting with small stakes
+⚠️ Classic mode can deplete bankroll rapidly on long loss streaks
 
 ```bash
-duckdice run --strategy adaptive-volatility-hunter --bets 100
-```
-
-📖 [Detailed Guide](./ADAPTIVE_VOLATILITY_HUNTER_GUIDE.md)
-
----
-
-### 3. **Anti-Martingale Streak** 📈
-**Type**: Progressive Win | **Risk**: 🟠 High | **Complexity**: ⭐⭐
-
-Reverse martingale - multiplies on wins, resets on loss:
-- Default multiplier: 2x per win
-- Max streak cap prevents runaway risk
-- Quick profit potential on win streaks
-
-**Best for**: Capitalizing on hot streaks
-
-```bash
-duckdice run --strategy anti-martingale-streak --param multiplier=2.5
+duckdice run --strategy unified-martingale --param mode=classic
+duckdice run --strategy unified-martingale --param mode=anti
 ```
 
 ---
 
-### 4. **Classic Martingale** 💰
-**Type**: Progressive Loss | **Risk**: 🔴 Very High | **Complexity**: ⭐⭐
+### **Paroli** 🎯
+**Type**: Progressive Win | **Risk**: 🟠 High | **Score**: 29.99
 
-The classic "double on loss" strategy:
-- 2x bet after each loss
-- Reset to base bet on win
-- Requires large bankroll
-
-⚠️ **Warning**: Can deplete bankroll rapidly on long loss streaks
+Double on wins, reset on loss:
+- Target win streak (default: 3)
+- Resets after streak or loss
+- Limits downside vs pure anti-martingale
 
 ```bash
-duckdice run --strategy classic-martingale --bets 50
+duckdice run --strategy paroli --param target_streak=4
 ```
 
 ---
 
-### 5. **Custom Script** 📝
-**Type**: Programmable | **Risk**: Varies | **Complexity**: ⭐⭐⭐⭐⭐
-
-Load custom Python or Lua (DiceBot-compatible) strategies:
-
-```bash
-duckdice run --strategy custom-script --script-path my_strategy.py
-```
-
----
-
-### 6. **D'Alembert** ⚖️
-**Type**: Balanced | **Risk**: 🟢 Low | **Complexity**: ⭐⭐
-
-Gradual progression system:
-- Increase bet by fixed amount on loss
-- Decrease by same amount on win
-- More conservative than Martingale
-
-**Best for**: Risk-averse players seeking steady growth
-
-```bash
-duckdice run --strategy dalembert --param increment=0.001
-```
-
----
-
-### 7. **Faucet Cashout** 💧
-**Type**: USD-Targeted | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐⭐
-
-Staged growth system with profit milestones:
-- 50% chance (conservative)
-- Targets: $0.10 → $0.50 → $1.00+
-- Auto-cashout at goals
-
-**Best for**: Grinding faucet claims to real profits
-
-```bash
-duckdice run --strategy faucet-cashout
-```
-
----
-
-### 8. **Faucet Grind** 🔄
-**Type**: Auto-Claim Loop | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐
-
-Automated faucet grinding:
-1. Auto-claim faucet
-2. Calculate optimal bet chance
-3. All-in bet
-4. Repeat
-
-```bash
-duckdice run --strategy faucet-grind --bets 1000
-```
-
----
-
-### 9. **Fibonacci Loss Cluster** 📐
-**Type**: Progressive Loss | **Risk**: 🟠 High | **Complexity**: ⭐⭐⭐
-
-Fibonacci sequence triggered by loss streaks:
-- Activates after N consecutive losses
-- Sequence: 1, 1, 2, 3, 5, 8, 13...
-- Flattens bet progression vs Martingale
-
-```bash
-duckdice run --strategy fib-loss-cluster --param threshold=3
-```
-
----
-
-### 10. **Fibonacci** 📏
-**Type**: Progressive Loss | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐
-
-Classic Fibonacci progression:
-- Advance on loss
-- Retreat 2 steps on win
-- Sequence: 1, 1, 2, 3, 5, 8...
-
-```bash
-duckdice run --strategy fibonacci
-```
-
----
-
-### 11. **Kelly Capped** 📊
-**Type**: Statistical | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐⭐⭐
-
-Kelly Criterion with safety caps:
-- Calculates optimal bet from EWMA winrate
-- Capped at configurable max (default 10%)
-- Experimental/educational
-
-```bash
-duckdice run --strategy kelly-capped --param max_kelly_fraction=0.05
-```
-
----
-
-### 12. **Labouchère** 📋
-**Type**: Cancellation System | **Risk**: 🟠 High | **Complexity**: ⭐⭐⭐⭐
-
-Cancellation list progression:
-- Bet sum of first + last numbers
-- Cancel numbers on win, add on loss
-- Customizable sequence
-
-```bash
-duckdice run --strategy labouchere --param sequence="1,2,3,4"
-```
-
----
-
-### 13. **Max Wager Flow** 💸
-**Type**: Volume Maximizer | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐⭐
-
-Maximize total wagered amount:
-- Uses ~50% chance for balance
-- Fraction-of-balance bet sizing
-- Optimizes for wagering requirements
-
-**Best for**: Bonus wagering, VIP volume
-
-```bash
-duckdice run --strategy max-wager-flow --param fraction=0.05
-```
-
----
-
-### 14. **Micro Exponential** 🚀
-**Type**: Extreme Growth | **Risk**: 🔴 EXTREME | **Complexity**: ⭐⭐⭐⭐
-
-300x growth target from micro balance:
-- 5% win chance (19x multiplier)
-- Extreme compounding
-- High bust probability
-
-⚠️ **Use ONLY with small amounts you can afford to lose**
-
-```bash
-duckdice run --strategy micro-exponential --bets 100
-```
-
----
-
-### 15. **Micro Exponential Safe** 🛡️
-**Type**: Exponential Growth | **Risk**: 🔴 Very High | **Complexity**: ⭐⭐⭐⭐
-
-Safer variant targeting 100x:
-- 10% win chance (9x multiplier)
-- Safety limits on progression
-- Still very risky
-
-```bash
-duckdice run --strategy micro-exponential-safe --bets 100
-```
-
----
-
-### 16. **One-Three-Two-Six** 🎲
-**Type**: Fixed Sequence | **Risk**: 🟢 Low | **Complexity**: ⭐
+### **One-Three-Two-Six** 🎲
+**Type**: Fixed Sequence | **Risk**: 🟢 Low | **Score**: 29.89
 
 Simple 4-step sequence:
 - Sequence: 1 → 3 → 2 → 6 units
@@ -281,93 +89,81 @@ duckdice run --strategy one-three-two-six
 
 ---
 
-### 17. **Oscar's Grind** 🐌
-**Type**: Conservative Grind | **Risk**: 🟢 Low | **Complexity**: ⭐⭐
+### **Kelly Capped** 📊
+**Type**: Statistical | **Risk**: 🟡 Medium | **Score**: 29.99
 
-Patient profit-seeking system:
-- Increase bet only after wins
-- Target small cumulative profit
-- Very conservative
-
-**Best for**: Patient players, long sessions
+Kelly Criterion with safety caps:
+- Calculates optimal bet from EWMA winrate
+- Capped at configurable max (default 10%)
 
 ```bash
-duckdice run --strategy oscars-grind --param target_profit=0.5
+duckdice run --strategy kelly-capped --param max_kelly_fraction=0.05
 ```
 
 ---
 
-### 18. **Paroli** 🎯
-**Type**: Progressive Win | **Risk**: 🟠 High | **Complexity**: ⭐⭐
+## 🧠 Adaptive / State-Machine
 
-Double on wins, reset on loss:
-- Target win streak (default: 3)
-- Resets after streak or loss
-- Limits downside vs anti-martingale
+### **Adaptive Survival** 🧠
+**Type**: Meta-Strategy | **Risk**: 🟡 Medium | **Score**: 27.05
+
+Pattern-detecting meta-strategy with CALM/CHAOS modes and 4 sub-strategies:
+- Dynamic chance adjustment (5%-50%)
+- Emergency brake system
+- Profit lock mechanisms
 
 ```bash
-duckdice run --strategy paroli --param target_streak=4
+duckdice run --strategy adaptive-survival --bets 200
 ```
 
 ---
 
-### 19. **Progressive Win Scaling** 🌊
-**Type**: Aggressive Win Progression | **Risk**: 🔴 Very High | **Complexity**: ⭐⭐⭐
+### **Target Aware** 🎯
+**Type**: Goal-Oriented State Machine | **Risk**: 🟡 Medium | **Score**: 30.00
 
-Dynamic chance adjustment on win streaks:
-- Starts at 24% chance
-- Drops to 4% chance after wins
-- Compounds bet size aggressively
-
-```bash
-duckdice run --strategy progressive-win-scaling
-```
-
-📖 [Detailed Guide](../PROGRESSIVE_WIN_SCALING_GUIDE.md)
-
----
-
-### 20. **Range 50 Random** 🎰
-**Type**: Range Dice | **Risk**: 🟡 Medium | **Complexity**: ⭐
-
-50% chance range betting:
-- Random 5000-wide window each bet
-- Even odds gameplay
-- Simple variance
+SAFE/BUILD/STRIKE/FINISH state machine optimized to reach profit target:
+- Conservative near target, aggressive when far away
+- Adjusts strategy based on distance to goal
 
 ```bash
-duckdice run --strategy range-50-random --bets 100
+duckdice run --strategy target-aware --profit-target 5.0
 ```
 
 ---
 
-### 21. **RNG Analysis Strategy** 🔬
-**Type**: Educational | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐⭐
+### **Oracle Engine** 🔮
+**Type**: Multi-Mode Adaptive | **Risk**: 🟡 Medium | **Score**: 19.71
 
-Uses RNG analysis insights (doesn't beat house edge):
-- Pattern detection
-- Trend following
-- **Educational only**
+19-mode adaptive state machine:
+- Complex pattern recognition
+- Automatic mode switching
+- Research/experimental
 
 ```bash
-duckdice run --strategy rng-analysis-strategy
+duckdice run --strategy oracle-engine --bets 500
 ```
-
-📖 [RNG Analysis Guide](./RNG_STRATEGY_GUIDE.md)
 
 ---
 
-### 22. **Simple Progression 40** 📈
-**Type**: Win Progression | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐
+### **Chance Cycle Multiplier** 🔄
+**Type**: 2-Phase Cycling | **Risk**: 🟠 High | **Score**: 20.26
 
-40% chance with decreasing win progression:
-- Win #1: +50%
-- Win #2: +40%
-- Win #3: +30%
-- Win #4: +20%
+Aggressive/recovery 2-phase system:
+- Phase 1: Aggressive low-chance betting
+- Phase 2: Conservative recovery after drawdown
+
+```bash
+duckdice run --strategy chance-cycle-multiplier --bets 200
+```
+
+---
+
+### **Simple Progression 40** 📈
+**Type**: Win Progression | **Risk**: 🟡 Medium | **Score**: 14.20
+
+40% chance with decreasing win multiplier:
+- Win #1: +50%, Win #2: +40%, Win #3: +30%, Win #4: +20%
 - Always 1% of current balance
-
-**Best for**: Balanced risk/reward
 
 ```bash
 duckdice run --strategy simple-progression-40 --bets 100
@@ -375,46 +171,238 @@ duckdice run --strategy simple-progression-40 --bets 100
 
 ---
 
-### 23. **Streak Hunter** 🏹
-**Type**: Streak Betting | **Risk**: 🔴 Very High | **Complexity**: ⭐⭐⭐
+### **Adaptive Hunter** 🏹
+**Type**: Unified Hunter | **Risk**: 🟠 High | **Score**: 21.08
 
-Hunts 14% chance streaks with compounding:
-- Progression: 200% → 180% → 160% of profit
-- High volatility
-- Quick profit or bust
+12 hunter variants unified into one configurable strategy:
+- Streak hunting, volatility tracking, pattern detection
+- Multiple hunting modes
 
 ```bash
-duckdice run --strategy streak-hunter --bets 50
+duckdice run --strategy adaptive-hunter --bets 200
 ```
-
-📖 [Detailed Guide](./STREAK_HUNTER.md)
 
 ---
 
-### 24. **Streak Multiplier** ⚡
-**Type**: Exponential Win Streak | **Risk**: 🔴 Very High | **Complexity**: ⭐⭐⭐
+## 💸 Wager / TLE
+
+### **TLE Wager Farming** 🌾
+**Type**: Event Farming | **Risk**: 🟡 Medium
+
+Micro-Paroli optimized for TLE (Time-Limited Event) volume:
+- Maximizes wagered amount within event windows
+- Fast bet cycling
+
+```bash
+duckdice run --strategy tle-wager-farming --bets 1000
+```
+
+---
+
+### **Wager Loop Stabilizer v2** 🔁
+**Type**: Zone-Based Survival | **Risk**: 🟡 Medium
+
+Zone-based wager survival system:
+- Maintains bankroll while generating wager volume
+- Adaptive bet sizing by zone
+
+```bash
+duckdice run --strategy wager-loop-stabilizer-v2 --bets 1000
+```
+
+---
+
+### **Wager Sprint** 🏃
+**Type**: High-Throughput | **Risk**: 🟡 Medium
+
+High-throughput Paroli boost for rapid wager generation:
+- Speed-optimized betting cycles
+- Short burst sessions
+
+```bash
+duckdice run --strategy wager-sprint --bets 500
+```
+
+---
+
+## 🎰 Lottery / Contest
+
+### **Dice Out 002** 🎯
+**Type**: Range Sniper | **Risk**: 🔴 Very High
+
+0.02% range sniper with 2-slot window:
+- Targets extremely narrow range for massive payout
+- Lottery-style odds
+
+```bash
+duckdice run --strategy dice-out-002 --bets 100
+```
+
+---
+
+### **Lottery Sniper** 🔫
+**Type**: Hunt → Burst | **Risk**: 🔴 Very High
+
+Two-phase lottery hunting:
+- Phase 1: 1% chance hunting
+- Phase 2: 10 lottery bursts at 0.1%
+
+```bash
+duckdice run --strategy lottery-sniper --bets 200
+```
+
+---
+
+### **Ladder Race** 🪜
+**Type**: Contest Ladder | **Risk**: 🔴 Very High
+
+Progressive contest multiplier ladder:
+- Sequence: 5x → 10x → 50x → 100x
+- Designed for contest leaderboard climbing
+
+```bash
+duckdice run --strategy ladder-race --bets 50
+```
+
+---
+
+### **Roll Hunt** 🎲
+**Type**: Contest Targeting | **Risk**: 🔴 Very High
+
+Contest strategy targeting high roll numbers:
+- Targets range 9990-9999
+- Optimized for roll-number contests
+
+```bash
+duckdice run --strategy roll-hunt --bets 100
+```
+
+---
+
+### **Balance Sweep Sniper** 🧹
+**Type**: Multi-Coin Dust Sweeper | **Risk**: 🟡 Medium
+
+Sweeps small balances across multiple coins:
+- Consolidates dust into playable amounts
+- Multi-currency support
+
+```bash
+duckdice run --strategy balance-sweep-sniper
+```
+
+---
+
+## 🚀 Aggressive / Research
+
+### **AI Strat** 🤖
+**Type**: ML Ensemble | **Risk**: 🔴 Very High
+
+30+ ML model ensemble strategy:
+- Multiple machine learning approaches
+- Experimental/research
+
+```bash
+duckdice run --strategy ai-strat --bets 200
+```
+
+---
+
+### **Combined High Roller** 🎰
+**Type**: Multi-System Aggressive | **Risk**: 🔴 Very High
+
+Combines Kelly, Streak, and Volatility Range Dice:
+- Three aggressive systems in one
+- High variance, high potential
+
+```bash
+duckdice run --strategy combined-high-roller --bets 100
+```
+
+---
+
+### **Profit Cascade** 💎
+**Type**: Dynamic Targeting | **Risk**: 🔴 Very High
+
+12-tier dynamic profit targeting system:
+- Cascading profit targets
+- Aggressive bet scaling per tier
+
+```bash
+duckdice run --strategy profit-cascade --bets 200
+```
+
+---
+
+### **Streak Multiplier** ⚡
+**Type**: Exponential Win Streak | **Risk**: 🔴 Very High
 
 5% chance with exponential bet growth:
-- Multiplies bet on each win
+- Multiplies bet on each consecutive win
 - Very high variance
-- Can generate massive wins or losses
 
 ```bash
-duckdice run --strategy streak-multiplier
+duckdice run --strategy streak-multiplier --bets 100
 ```
 
 ---
 
-### 25. **Target Aware** 🎯
-**Type**: Goal-Oriented State Machine | **Risk**: 🟡 Medium | **Complexity**: ⭐⭐⭐⭐
+## 🔀 Meta / Infrastructure
 
-State-machine optimized to reach profit target:
-- Adjusts strategy based on distance to goal
-- Conservative near target
-- Aggressive when far away
+### **Master** 👑
+**Type**: Meta-Strategy Orchestrator | **Risk**: 🟣 Variable
+
+Cycles 15 sub-strategies across 3 performance tiers:
+- Automatic strategy rotation
+- Promotes/demotes based on results
 
 ```bash
-duckdice run --strategy target-aware --profit-target 5.0
+duckdice run --strategy master --bets 1000
+```
+
+---
+
+### **Custom Script** 📝
+**Type**: Programmable | **Risk**: Varies
+
+Load custom Python or Lua (DiceBot-compatible) strategies:
+
+```bash
+duckdice run --strategy custom-script --script-path my_strategy.py
+```
+
+---
+
+### **Multi-Strategy System** 🔀
+**Type**: Auto-Switching Meta Strategy | **Risk**: 🟠 Variable
+
+Manager-driven orchestration switching between three internal modes:
+- **Wager Grinder** — 20%-40% chance volume generation
+- **Recovery** — 65%-80% chance bankroll recovery after drawdown
+- **Adaptive Hunt** — 1% → 0.01% low-chance hunting after profit expansion
+
+```bash
+duckdice run --strategy multi-strategy-system \
+  --param base_bet_percent=0.001 \
+  --param max_bet_percent=0.03 \
+  --param loss_trigger=0.05 \
+  --param profit_trigger=0.10 \
+  --param wager_focus=true
+```
+
+> **Sub-strategies** (not used standalone):
+> `adaptive-hunt`, `wager-grinder`, `recovery`
+
+---
+
+### **Unified Faucet** 💧
+**Type**: Faucet Learning Tool | **Risk**: 🟢 Low
+
+Consolidated faucet strategy for learning and micro-balance play:
+- Auto-claim and bet cycling
+- Beginner-friendly
+
+```bash
+duckdice run --strategy unified-faucet --bets 500
 ```
 
 ---
@@ -424,70 +412,51 @@ duckdice run --strategy target-aware --profit-target 5.0
 ### By Use Case
 
 **First Time User**
-→ `dalembert`, `one-three-two-six`, `oscars-grind`
+→ `unified-progression`, `one-three-two-six`, `oscars-grind`
 
 **Steady Growth**
 → `simple-progression-40`, `target-aware`, `kelly-capped`
 
 **Quick Profits**
-→ `paroli`, `anti-martingale-streak`, `streak-hunter`
+→ `paroli`, `unified-martingale --param mode=anti`, `streak-multiplier`
 
-**Faucet Grinding**
-→ `faucet-grind`, `faucet-cashout`, `max-wager-flow`
+**Wager Grinding**
+→ `tle-wager-farming`, `wager-loop-stabilizer-v2`, `wager-sprint`
 
-**Thrill/Lottery**
-→ `adaptive-volatility-hunter`, `micro-exponential`, `progressive-win-scaling`
+**Lottery / Contests**
+→ `dice-out-002`, `lottery-sniper`, `ladder-race`, `roll-hunt`
 
-**Advanced/Custom**
-→ `adaptive-survival`, `custom-script`, `rng-analysis-strategy`
+**Advanced / Custom**
+→ `adaptive-survival`, `master`, `custom-script`, `ai-strat`
 
 ---
 
 ### By Risk Tolerance
 
 🟢 **Conservative** (Can't afford to lose)
-- D'Alembert
-- Oscar's Grind  
+- Unified Progression (Fibonacci/D'Alembert/Labouchère)
+- Oscar's Grind
 - One-Three-Two-Six
+- Unified Faucet
 
 🟡 **Moderate** (Can handle some variance)
 - Simple Progression 40
 - Kelly Capped
-- Fibonacci
 - Target Aware
+- Wager strategies (TLE, Loop Stabilizer, Sprint)
 
 🟠 **Aggressive** (Seeking bigger wins)
 - Paroli
-- Anti-Martingale Streak
-- Labouchère
+- Unified Martingale
+- Chance Cycle Multiplier
+- Adaptive Hunter
 
 🔴 **High-Risk** (Prepared to lose it all)
-- Classic Martingale
-- Streak Hunter
-- Adaptive Volatility Hunter
-- Micro Exponential
-- Progressive Win Scaling
-
----
-
-### By Bankroll Size
-
-**Micro ($0.01 - $1)**
-- Micro Exponential (Safe)
-- Faucet Grind
-- Simple Progression 40
-
-**Small ($1 - $10)**
-- Any strategy except Martingale variants
-- Recommended: Paroli, D'Alembert, Kelly Capped
-
-**Medium ($10 - $100)**
-- Most strategies work well
-- Can afford Martingale with limits
-
-**Large ($100+)**
-- All strategies viable
-- Can handle high-variance strategies
+- Streak Multiplier
+- Combined High Roller
+- Profit Cascade
+- AI Strat
+- Lottery / Contest strategies
 
 ---
 
@@ -497,12 +466,12 @@ Most strategies support parameters:
 
 ```bash
 # Set custom parameters
-duckdice run --strategy labouchere \
-  --param sequence="1,2,3,4,5" \
-  --param reset_on_profit=true
+duckdice run --strategy unified-progression \
+  --param mode=labouchere \
+  --param sequence="1,2,3,4,5"
 
 # List strategy parameters
-duckdice describe-strategy labouchere
+duckdice describe-strategy unified-progression
 ```
 
 ---
@@ -512,7 +481,7 @@ duckdice describe-strategy labouchere
 Compare strategies before risking real funds:
 
 ```bash
-# Compare 3 strategies
+# Compare all strategies
 python scripts/compare_strategies.sh
 
 # Simulate specific strategy

@@ -37,11 +37,7 @@ def register(name: str) -> Callable[[Type], Type]:
 def get_strategy(name: str) -> Type:
     key = (name or "").strip().lower()
     if key not in _registry:
-        # Fallback for nano-range-hunter (default to @v1)
-        if key == "nano-range-hunter" and "nano-range-hunter@v1" in _registry:
-            key = "nano-range-hunter@v1"
-        else:
-            raise KeyError(f"Unknown strategy: {name}. Available: {', '.join(sorted(_registry))}")
+        raise KeyError(f"Unknown strategy: {name}. Available: {', '.join(sorted(_registry))}")
     return _registry[key]
 
 
@@ -62,62 +58,73 @@ def list_strategies() -> List[Dict[str, str]]:
 
 # Import all strategy modules to trigger registration
 from . import (
-    # Unified consolidated strategies (replace 12 originals)
+    # Unified consolidated strategies
     adaptive_hunter,             # CONSOLIDATED: 12 hunter variants
     unified_progression,         # CONSOLIDATED: fibonacci, dalembert, labouchere
     unified_martingale,          # CONSOLIDATED: classic_martingale, anti_martingale_streak
-    unified_exponential,         # CONSOLIDATED: micro_exponential, micro_exponential_safe
     unified_faucet,              # CONSOLIDATED: faucet_cashout, faucet_grind
-    
-    # Other strategies (non-consolidated)
-    paroli,
-    oscars_grind,
-    one_three_two_six,
-    rng_analysis_strategy,
-    target_aware,
-    kelly_capped,
-    max_wager_flow,
-    range50_random,
-    fib_loss_cluster,
-    custom_script,
-    progressive_win_scaling,
-    streak_multiplier,  # Exponential growth on win streaks
-    adaptive_survival,  # Meta-strategy with adaptive pattern detection
-    simple_progression_40,  # Simple 40% chance win progression
-    dice_out_002,                # 0.02% range sniper: 2-slot window, ~4950× payout
-    blaks_runner,                # BlaksRunner 5.0: adaptive chance + loss-recovery auto-tuning
-    luck_cascade,                # Luck Cascade: descend lower-chance tiers while luck% > 100%
-    chance_descent,              # Chance Descent: win-driven chance compression, reset on loss
-    nano_range_hunter,           # Range dice multi-variant strategy (versions v1, v3)
-    ai_strat,                    # AI Strategy: 30+ ML models ensemble
+
+    # Classic progression strategies
+    paroli,                      # Paroli: reverse martingale (double on wins)
+    oscars_grind,                # Oscar's Grind: conservative +1 unit on win
+    one_three_two_six,           # 1-3-2-6: fixed sequence positive progression
+    kelly_capped,                # Kelly Criterion: EWMA-based fractional Kelly sizing
+
+    # Adaptive / state-machine strategies
+    adaptive_survival,           # Meta-strategy with adaptive pattern detection
+    target_aware,                # State machine: SAFE/BUILD/STRIKE/FINISH
     oracle_engine,               # Oracle Engine: 19-mode adaptive state machine
-    chance_cycle_multiplier,     # Chance-Cycle Multiplier: 2-phase aggressive/recovery cycling
-    profit_cascade,              # Profit Cascade: 12-tier dynamic profit targeting + safe mode
-    master,                      # Master: meta-strategy cycling 19 sub-strategies across 3 tiers
-    ladder_race,                 # Ladder Race: contest hunter 5x→10x→50x→100x with ID-suffix matching
-    range_decoy_ramp,            # Range Decoy Ramp: 0.02% sniper with decoy preroll + progressive bet ramp
-    balance_sweep_sniper,        # Balance Sweep Sniper: multi-coin dust sweeper, $0.01/roll 0.02% Range Dice
-    combined_high_roller,        # Combined High-Roller: Kelly Hybrid / Streak Harvester / Volatility Breakout
-    tle_wager_farming,           # TLE Wager Farming: wager-first micro-Paroli grinder for event rewards
+    chance_cycle_multiplier,     # 2-phase aggressive/recovery cycling
+    simple_progression_40,       # 40% chance win progression with decreasing multiplier
+
+    # Wager / TLE strategies
+    tle_wager_farming,           # TLE Wager Farming: micro-Paroli for event rewards
     wager_loop_stabilizer_v2,    # WLS V2: zone-based survival wager stabilizer
+    wager_sprint,                # Wager Sprint: high-throughput Paroli boost
+
+    # Lottery / contest strategies
+    dice_out_002,                # 0.02% range sniper: 2-slot window, ~4950× payout
+    lottery_sniper,              # Lottery Sniper: 1% hunt → 10 lottery bursts at 0.1%
+    ladder_race,                 # Ladder Race: contest hunter 5x→10x→50x→100x
+    roll_hunt,                   # Roll Hunt: contest strategy targeting 9990-9999
+    roll_hunt_low,               # Roll Hunt Low: 15% LOW contest targeting 0-4
+    balance_sweep_sniper,        # Balance Sweep Sniper: multi-coin dust sweeper
+
+    # Aggressive / high-roller strategies
+    ai_strat,                    # AI Strategy: 30+ ML models ensemble
+    combined_high_roller,        # Combined High-Roller: Kelly / Streak / Volatility modes
+    profit_cascade,              # Profit Cascade: 12-tier dynamic profit targeting
+    streak_multiplier,           # Exponential growth on win streaks
+
+    # Meta-strategies
+    master,                      # Master: meta-strategy cycling sub-strategies across 3 tiers
+    custom_script,               # Custom Script: user-defined strategy executor
     adaptive_hunt,               # Multi-strategy subsystem: low-chance hunt phase
     wager_grinder,               # Multi-strategy subsystem: wager-focused phase
     recovery,                    # Multi-strategy subsystem: high-chance recovery phase
-    multi_strategy_system,       # Registered wrapper that auto-switches between the phases
-    roll_hunt,                   # Roll Hunt: contest strategy targeting 9990-9999 range-dice hits
+    multi_strategy_system,       # Wrapper that auto-switches between the phases
 )
 
 # DEPRECATED (consolidated into unified_* above):
 # - classic_martingale → unified_martingale
 # - anti_martingale_streak → unified_martingale
 # - fibonacci, dalembert, labouchere → unified_progression
-# - micro_exponential, micro_exponential_safe → unified_exponential
 # - faucet_cashout, faucet_grind → unified_faucet
-# - cold_number_hunter, streak_hunter, spike_hunter, volatility_spike_hunter,
-#   nano_hunter, dynamic_phase_hunter, gradient_range_hunter,
-#   adaptive_volatility_hunter, regime_hunter, low_hunter, nano_range_hunter,
-#   streak_pressure_hunter → adaptive_hunter
-# These files are archived in ./deprecated/ for reference
+# - 12 hunter variants → adaptive_hunter
+#
+# REMOVED (bad/redundant strategies):
+# - blaks_runner (dangerous Martingale variant)
+# - max_wager_flow (mathematically unsound)
+# - progressive_win_scaling (96% loss on first bet)
+# - range_decoy_ramp (poor lottery variant)
+# - cold_chaos_50 (chaos entertainment, no edge)
+# - unified_exponential (impossible 100-300× targets)
+# - nano_range_hunter + versions (extreme lottery)
+# - range50_random (redundant 50% approach)
+# - fib_loss_cluster (redundant with unified_progression Fibonacci)
+# - chance_descent (mathematically incoherent)
+# - rng_analysis_strategy (educational only)
+# - luck_cascade (luck% not predictive)
 
 # Load all versioned strategy snapshots (registers as "strategy-name@vN")
 from . import versions

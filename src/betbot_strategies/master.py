@@ -1,12 +1,12 @@
 """
 Master Meta-Strategy
 
-Dynamically selects and switches between 19 sub-strategies organised into
+Dynamically selects and switches between 15 sub-strategies organised into
 three risk tiers based on live performance metrics:
 
-  Tier 0  SAFE        — 12 strategies, score ≥ 27, 100% survival
-  Tier 1  MODERATE    — 5 strategies,  score 14-27, 100% survival  (default)
-  Tier 2  AGGRESSIVE  — 2 strategies,  high-variance, optional
+  Tier 0  SAFE        — 9 strategies, conservative, high survival
+  Tier 1  MODERATE    — 4 strategies, balanced risk/reward  (default)
+  Tier 2  AGGRESSIVE  — 2 strategies, high-variance, optional
 
 Switching triggers (evaluated after every bet):
   • rotation_interval bets elapsed         → rotate to next strategy in tier
@@ -19,6 +19,9 @@ Switching triggers (evaluated after every bet):
 All sub-strategies are instantiated with their EV-optimised defaults.
 Each sub-strategy gets its own private recent_results deque to avoid
 double-append conflicts.
+
+Removed strategies (bad/redundant):
+  fib-loss-cluster, rng-analysis-strategy, chance-descent, luck-cascade
 """
 
 from __future__ import annotations
@@ -35,22 +38,18 @@ from .base import BetResult, BetSpec, StrategyContext, StrategyMetadata
 # Ordered by EV score descending within each tier.
 
 _TIERS: Dict[int, List[str]] = {
-    0: [  # SAFE — score ≥ 27, survival 100 %
+    0: [  # SAFE — conservative, high survival
         "unified-progression",       # score 30.59
         "oscars-grind",              # score 30.22
-        "fib-loss-cluster",          # score 30.06
         "unified-martingale",        # score 30.03
         "target-aware",              # score 30.00
         "unified-faucet",            # score 30.00
         "kelly-capped",              # score 29.99
         "paroli",                    # score 29.99
-        "rng-analysis-strategy",     # score 29.91
         "one-three-two-six",         # score 29.89
-        "chance-descent",            # score 29.89
         "adaptive-survival",         # score 27.05
     ],
-    1: [  # MODERATE — score 14-27, survival 100 %
-        "luck-cascade",              # score 23.14
+    1: [  # MODERATE — balanced risk/reward
         "adaptive-hunter",           # score 21.08
         "chance-cycle-multiplier",   # score 20.26
         "oracle-engine",             # score 19.71

@@ -68,7 +68,7 @@ class KellyCapped:
     @classmethod
     def schema(cls) -> Dict[str, Any]:
         return {
-            "chance": {"type": "str", "default": "40", "desc": "Chance percent as string"},
+            "chance": {"type": "str", "default": "49.5", "desc": "Chance percent as string"},
             "is_high": {"type": "bool", "default": True, "desc": "Bet High if True else Low"},
             "kelly_cap": {"type": "float", "default": 0.10, "desc": "Max Kelly fraction (e.g., 0.10 = 1/10 Kelly)"},
             "house_edge": {"type": "float", "default": 0.01, "desc": "House edge adjustment (e.g., 0.01 = 1%)"},
